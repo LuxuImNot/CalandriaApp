@@ -77,7 +77,15 @@
       "Bash(git --version)",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(grep -iE '\\\\.zip$|^packages/|/bin/|/obj/|\\\\.vs/')"
+      "Bash(grep -iE '\\\\.zip$|^packages/|/bin/|/obj/|\\\\.vs/')",
+      "Bash(git -c 'user.name=Calandria Dev' -c user.email=rprefranco@gmail.com commit -q -m 'Estado base antes de migración a API \\(Fase 0\\) *)",
+      "Bash(git checkout *)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet build *)",
+      "Bash(./Calandria.Api.exe)",
+      "Bash(curl -s -m 5 http://localhost:8733/api/health)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -m 5 http://localhost:8733/api/health)",
+      "Bash(curl -s -m 5 -w \"\\\\nHTTP %{http_code}\\\\n\" http://localhost:8733/api/health)"
     ]
   }
 }
