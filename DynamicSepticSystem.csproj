@@ -1,0 +1,10 @@
+<![CDATA[    <Compile Include="FormAvanceConcepto.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAvanceConcepto.Designer.cs">
+      <DependentUpon>FormAvanceConcepto.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormAvanceObra.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAvanceObra_BACKUP.cs" />]]>

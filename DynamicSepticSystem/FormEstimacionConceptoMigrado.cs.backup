@@ -1,0 +1,1262 @@
+using BrightIdeasSoftware;
+using PdfSharp.Drawing;
+using PdfSharp.Pdf;
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.Data.SqlClient;
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.IO;
+using System.Linq;
+using System.Windows.Forms;
+
+namespace DynamicSepticSystem
+{
+    public partial class FormEstimacionConceptoMigrado : Form
+    {
+        private string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
+        private List<NodoConcepto> nodosRaiz = new List<NodoConcepto>();
+        private string prototipoActual = "";
+        private System.Windows.Forms.Timer timerPreview; // Timer para actualizar preview
+
+        public FormEstimacionConceptoMigrado()
+        {
+            InitializeComponent();
+            ConfigurarTreeListView();
+            CargarManzanas();
+            this.Load += FormEstimacionConcepto_Load;
+            
+            // Configurar timer para preview
+            timerPreview = new System.Windows.Forms.Timer();
+            timerPreview.Interval = 500; // 500ms de delay
+            timerPreview.Tick += TimerPreview_Tick;
+        }
+
+        private void FormEstimacionConcepto_Load(object sender, EventArgs e)
+        {
+            this.Text = "Estimación por Conceptos - Sistema Calandria (Migrado)";
+            ActualizarPreviewPDF(); // Generar preview inicial
+        }
+        
+        private void OnDatosChanged(object sender, EventArgs e)
+        {
+            // Reiniciar timer cada vez que cambia algo
+            timerPreview.Stop();
+            timerPreview.Start();
+        }
+
+        private void TimerPreview_Tick(object sender, EventArgs e)
+        {
+            timerPreview.Stop();
+            ActualizarPreviewPDF();
+        }
+
+        private void ActualizarPreviewPDF()
+        {
+            try
+            {
+                if (nodosRaiz == null || nodosRaiz.Count == 0 || 
+                    cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null)
+                {
+                    pictureBoxPreviewPDF.Image = null;
+                    return;
+                }
+
+                // Generar preview visual (sin PDF real para mejor rendimiento)
+                int width = 600;
+                int height = 800;
+                
+                var preview = new Bitmap(width, height);
+                using (var g = Graphics.FromImage(preview))
+                {
+                    DrawPDFPlaceholder(g, width, height);
+                }
+                
+                // Actualizar preview
+                if (pictureBoxPreviewPDF.Image != null)
+                {
+                    var oldImage = pictureBoxPreviewPDF.Image;
+                    pictureBoxPreviewPDF.Image = preview;
+                    oldImage.Dispose();
+                }
+                else
+                {
+                    pictureBoxPreviewPDF.Image = preview;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Silenciar errores del preview para no interrumpir el flujo
+                System.Diagnostics.Debug.WriteLine($"Error en preview: {ex.Message}");
+            }
+        }
+
+        private Bitmap GenerarImagenDesdePDF(MemoryStream pdfStream)
+        {
+            // Como PdfSharp no tiene renderizado directo, generamos un preview visual
+            int width = 600;
+            int height = 800;
+            
+            var bitmap = new Bitmap(width, height);
+            using (var g = Graphics.FromImage(bitmap))
+            {
+                DrawPDFPlaceholder(g, width, height);
+            }
+            
+            return bitmap;
+        }
+
+        private void DrawPDFPlaceholder(Graphics g, int width, int height)
+        {
+            g.Clear(Color.White);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            
+            // Colores
+            Color naranjaOscuro = Color.FromArgb(230, 126, 34);
+            Color naranjaClaro = Color.FromArgb(255, 160, 60);
+            Color grisClaro = Color.FromArgb(236, 240, 241);
+            
+            using (var brushNaranja = new SolidBrush(naranjaOscuro))
+            using (var brushNaranjaClaro = new SolidBrush(naranjaClaro))
+            using (var brushGris = new SolidBrush(grisClaro))
+            using (var fontTitulo = new Font("Arial", 10, FontStyle.Bold))
+            using (var fontNormal = new Font("Arial", 8))
+            using (var fontPequena = new Font("Arial", 7))
+            using (var penLinea = new Pen(Color.FromArgb(189, 195, 199), 1))
+            {
+                int margen = 40;
+                int anchoUtil = width - (margen * 2);
+                float y = 30;
+                
+                // Barra superior naranja
+                g.FillRectangle(brushNaranja, margen, y, anchoUtil, 4);
+                y += 12;
+                
+                // PROVEEDOR
+                g.FillRectangle(brushGris, margen, y, anchoUtil / 2, 14);
+                g.DrawString("PROVEEDOR:", fontPequena, Brushes.Black, margen + 3, y + 3);
+                y += 16;
+                g.FillRectangle(Brushes.White, margen, y, anchoUtil / 2, 14);
+                g.DrawRectangle(penLinea, margen, y, anchoUtil / 2, 14);
+                string proveedor = !string.IsNullOrWhiteSpace(txtProveedor.Text) ? txtProveedor.Text : "Ignacio Durán León";
+                g.DrawString(proveedor, fontPequena, Brushes.Black, margen + 3, y + 3);
+                
+                // DESCRIPCIÓN
+                y += 18;
+                g.FillRectangle(brushGris, margen, y, anchoUtil / 2, 14);
+                g.DrawString("DESCRIPCION:", fontPequena, Brushes.Black, margen + 3, y + 3);
+                y += 16;
+                g.FillRectangle(Brushes.White, margen, y, anchoUtil / 2, 14);
+                g.DrawRectangle(penLinea, margen, y, anchoUtil / 2, 14);
+                string descripcion = !string.IsNullOrWhiteSpace(txtDescripcion.Text) ? txtDescripcion.Text : "Subcontratista Edificación";
+                g.DrawString(descripcion, fontPequena, Brushes.Black, margen + 3, y + 3);
+                
+                // CARGAR A
+                y += 18;
+                g.FillRectangle(brushGris, margen, y, anchoUtil, 14);
+                g.DrawString("CARGAR A:", fontPequena, Brushes.Black, margen + 3, y + 3);
+                y += 16;
+                g.FillRectangle(Brushes.White, margen, y, anchoUtil, 14);
+                g.DrawRectangle(penLinea, margen, y, anchoUtil, 14);
+                string cargarA = (cmbManzana.SelectedItem != null && cmbLote.SelectedItem != null) 
+                    ? $"M{cmbManzana.SelectedItem} L{cmbLote.SelectedItem} Prototipo {prototipoActual}"
+                    : "No seleccionado";
+                g.DrawString(cargarA, fontPequena, Brushes.Black, margen + 3, y + 3);
+                
+                y += 25;
+                
+                // CONCEPTOS A ESTIMAR
+                g.FillRectangle(brushNaranja, margen, y, anchoUtil, 18);
+                g.DrawString("CONCEPTOS A ESTIMAR", fontTitulo, Brushes.White, margen + 5, y + 4);
+                y += 22;
+                
+                // Encabezados de tabla
+                g.FillRectangle(brushGris, margen, y, anchoUtil * 0.6f, 14);
+                g.FillRectangle(brushGris, margen + anchoUtil * 0.6f, y, anchoUtil * 0.25f, 14);
+                g.FillRectangle(brushGris, margen + anchoUtil * 0.85f, y, anchoUtil * 0.15f, 14);
+                g.DrawString("Concepto / Partida", fontPequena, Brushes.Black, margen + 3, y + 3);
+                g.DrawString("Monto", fontPequena, Brushes.Black, margen + anchoUtil * 0.7f, y + 3);
+                g.DrawString("Avance", fontPequena, Brushes.Black, margen + anchoUtil * 0.88f, y + 3);
+                y += 16;
+                
+                if (nodosRaiz == null || nodosRaiz.Count == 0)
+                {
+                    g.DrawString("No hay datos para mostrar", fontNormal, Brushes.Gray, margen + anchoUtil / 3, y + 50);
+                    return;
+                }
+                
+                // Simular conceptos seleccionados
+                int conceptosSeleccionados = 0;
+                bool colorAlternado = false;
+                
+                foreach (var concepto in nodosRaiz)
+                {
+                    var partidasSelec = concepto.Partidas.Where(p => p.Incluir).ToList();
+                    if (partidasSelec.Count > 0)
+                    {
+                        conceptosSeleccionados++;
+                        
+                        if (y > height - 150) break; // Dejar espacio para totales
+                        
+                        // Encabezado del concepto
+                        g.FillRectangle(brushNaranjaClaro, margen, y, anchoUtil, 12);
+                        string nombreCorto = concepto.Nombre.Length > 40 ? concepto.Nombre.Substring(0, 37) + "..." : concepto.Nombre;
+                        g.DrawString(nombreCorto, fontPequena, Brushes.White, margen + 3, y + 2);
+                        y += 13;
+                        
+                        // Partidas (máximo 3 para no saturar el preview)
+                        int partidasMostradas = 0;
+                        foreach (var partida in partidasSelec.Take(3))
+                        {
+                            var fondoFila = colorAlternado ? brushGris : Brushes.White;
+                            g.FillRectangle(fondoFila, margen, y, anchoUtil, 11);
+                            g.DrawLine(penLinea, margen, y + 11, margen + anchoUtil, y + 11);
+                            
+                            string nombrePartida = partida.Nombre.Length > 35 ? partida.Nombre.Substring(0, 32) + "..." : partida.Nombre;
+                            g.DrawString("  " + nombrePartida, fontPequena, Brushes.Black, margen + 5, y + 1);
+                            g.DrawString(partida.MontoEjecutado.ToString("C0"), fontPequena, Brushes.Black, margen + anchoUtil * 0.65f, y + 1);
+                            g.DrawString($"{partida.AvancePorcentaje:F0}%", fontPequena, Brushes.Black, margen + anchoUtil * 0.88f, y + 1);
+                            
+                            y += 11;
+                            colorAlternado = !colorAlternado;
+                            partidasMostradas++;
+                        }
+                        
+                        // Si hay más partidas, mostrar indicador
+                        if (partidasSelec.Count > 3)
+                        {
+                            g.FillRectangle(Brushes.LightGray, margen, y, anchoUtil, 10);
+                            g.DrawString($"  ... y {partidasSelec.Count - 3} partida(s) más", fontPequena, Brushes.DarkGray, margen + 5, y + 1);
+                            y += 11;
+                        }
+                        
+                        // Total del concepto
+                        double totalConcepto = partidasSelec.Sum(p => p.MontoEjecutado);
+                        double totalPresupuesto = partidasSelec.Sum(p => p.Total);
+                        double avanceConcepto = totalPresupuesto > 0 ? (totalConcepto / totalPresupuesto) * 100 : 0;
+                        
+                        g.FillRectangle(brushNaranja, margen, y, anchoUtil, 13);
+                        g.DrawString($"Total {concepto.Nombre}", fontPequena, Brushes.White, margen + 5, y + 2);
+                        g.DrawString(totalConcepto.ToString("C0"), fontPequena, Brushes.White, margen + anchoUtil * 0.65f, y + 2);
+                        g.DrawString($"{avanceConcepto:F0}%", fontPequena, Brushes.White, margen + anchoUtil * 0.88f, y + 2);
+                        y += 15;
+                    }
+                }
+                
+                // Si no hay espacio, indicar que hay más
+                if (y > height - 150)
+                {
+                    g.DrawString("... más conceptos ...", fontPequena, Brushes.Gray, margen + anchoUtil / 2 - 50, y);
+                    y += 15;
+                }
+                
+                // Totales
+                y = height - 100;
+                double totalEjecutado = nodosRaiz.Where(c => c.Partidas.Any(p => p.Incluir))
+                    .SelectMany(c => c.Partidas.Where(p => p.Incluir))
+                    .Sum(p => p.MontoEjecutado);
+                
+                g.FillRectangle(brushGris, margen + 150, y, 100, 12);
+                g.FillRectangle(Brushes.White, margen + 250, y, 100, 12);
+                g.DrawRectangle(penLinea, margen + 150, y, 100, 12);
+                g.DrawRectangle(penLinea, margen + 250, y, 100, 12);
+                g.DrawString("TOTAL REQUISICIÓN", fontPequena, Brushes.Black, margen + 153, y + 2);
+                g.DrawString(totalEjecutado.ToString("C2"), fontPequena, Brushes.Black, margen + 260, y + 2);
+                y += 13;
+                
+                // Amortización
+                double porcentajeAmortizacion = prototipoActual.ToUpper().Contains("TUNERA") ? 0.095 : 0.095;
+                double amortizacion = totalEjecutado * porcentajeAmortizacion;
+                g.FillRectangle(brushGris, margen + 150, y, 100, 12);
+                g.FillRectangle(Brushes.White, margen + 250, y, 100, 12);
+                g.DrawRectangle(penLinea, margen + 150, y, 100, 12);
+                g.DrawRectangle(penLinea, margen + 250, y, 100, 12);
+                g.DrawString("AMORTIZACIÓN 9.5%", fontPequena, Brushes.Black, margen + 153, y + 2);
+                g.DrawString(amortizacion.ToString("C2"), fontPequena, Brushes.Black, margen + 260, y + 2);
+                y += 13;
+                
+                // Total estimación
+                double totalEstimacion = totalEjecutado - amortizacion;
+                g.FillRectangle(brushNaranja, margen + 150, y, 100, 14);
+                g.FillRectangle(brushNaranja, margen + 250, y, 100, 14);
+                g.DrawString("TOTAL ESTIMACIÓN", fontPequena, Brushes.White, margen + 153, y + 3);
+                g.DrawString(totalEstimacion.ToString("C2"), fontPequena, Brushes.White, margen + 260, y + 3);
+                
+                // Línea inferior naranja
+                y = height - 35;
+                g.FillRectangle(brushNaranja, margen, y, anchoUtil, 3);
+                
+                // Mensaje de preview
+                g.DrawString($"Vista Previa - {conceptosSeleccionados} concepto(s) seleccionado(s)", 
+                    fontPequena, Brushes.Gray, margen, height - 20);
+            }
+        }
+
+        private void GenerarPDFEnMemoria(MemoryStream ms)
+        {
+            // Versión simplificada de GenerarPDFAvance que escribe en memoria
+            PdfDocument pdf = new PdfDocument();
+            // ... (mismo código que GenerarPDFAvance pero guardando en ms)
+            pdf.Save(ms, false);
+        }
+        
+        private void ConfigurarTreeListView()
+        {
+            // Configurar como TreeListView
+            olvEstimacionConceptos.CanExpandGetter = delegate(object x) {
+                var nodo = (NodoConcepto)x;
+                return nodo.EsConcepto && nodo.Partidas.Count > 0;
+            };
+            
+            olvEstimacionConceptos.ChildrenGetter = delegate(object x) {
+                var nodo = (NodoConcepto)x;
+                // CAMBIO: Mostrar TODAS las partidas, sin filtrar por avance
+                return nodo.Partidas;
+            };
+
+            olvEstimacionConceptos.FullRowSelect = true;
+            olvEstimacionConceptos.UseAlternatingBackColors = true;
+            olvEstimacionConceptos.AlternateRowBackColor = Color.FromArgb(240, 248, 255);
+            
+            // Configurar checkboxes - IMPORTANTE: debe ser antes de definir columnas
+            olvEstimacionConceptos.CheckBoxes = true;
+            olvEstimacionConceptos.TriStateCheckBoxes = false;
+            olvEstimacionConceptos.CheckedAspectName = "Incluir";
+            
+            // Usar BooleanCheckStateGetter para mejor control
+            olvEstimacionConceptos.BooleanCheckStateGetter = delegate(object rowObject) {
+                return ((NodoConcepto)rowObject).Incluir;
+            };
+            
+            olvEstimacionConceptos.BooleanCheckStatePutter = delegate(object rowObject, bool newValue) {
+                ((NodoConcepto)rowObject).Incluir = newValue;
+                return newValue;
+            };
+
+            // Columnas
+            var colNombre = new OLVColumn("Concepto / Partida", "Nombre") 
+            { 
+                Width = 450,
+                IsEditable = false, 
+                Sortable = false,
+                FillsFreeSpace = true
+            };
+
+            // Columna Ejecutado (solo monto)
+            var colEjecutado = new OLVColumn("Monto Ejecutado", "MontoEjecutado") 
+            { 
+                Width = 180,
+                IsEditable = false,
+                TextAlign = HorizontalAlignment.Right, 
+                AspectToStringFormat = "{0:C2}", 
+                Sortable = false 
+            };
+
+            olvEstimacionConceptos.AllColumns.AddRange(new[] { colNombre, colEjecutado });
+            olvEstimacionConceptos.RebuildColumns();
+
+            // Evento ItemChecked - maneja cambios individuales de checkbox
+            olvEstimacionConceptos.ItemChecked += (s, e) =>
+            {
+                var nodo = olvEstimacionConceptos.GetModelObject(e.Item.Index) as NodoConcepto;
+                if (nodo != null)
+                {
+                    nodo.Incluir = e.Item.Checked;
+                    
+                    // Si es concepto, propagar el cambio a TODAS las partidas
+                    if (nodo.EsConcepto)
+                    {
+                        // Marcar/desmarcar TODAS las partidas
+                        foreach (var partida in nodo.Partidas)
+                        {
+                            partida.Incluir = e.Item.Checked;
+                        }
+                        // Refrescar todas las partidas
+                        olvEstimacionConceptos.RefreshObjects(nodo.Partidas);
+                    }
+                    else
+                    {
+                        // Si es partida, actualizar el estado del padre si es necesario
+                        var padre = EncontrarPadre(nodo);
+                        if (padre != null)
+                        {
+                            // Actualizar el checkbox del padre basado en TODAS las partidas
+                            bool todasMarcadas = padre.Partidas.All(p => p.Incluir);
+                            bool ningunaMarcada = padre.Partidas.All(p => !p.Incluir);
+                            
+                            if (todasMarcadas)
+                            {
+                                padre.Incluir = true;
+                            }
+                            else if (ningunaMarcada)
+                            {
+                                padre.Incluir = false;
+                            }
+                            
+                            olvEstimacionConceptos.RefreshObject(padre);
+                        }
+                    }
+                    
+                    // Actualizar preview del PDF
+                    OnDatosChanged(s, e);
+                }
+            };
+        }
+
+        private NodoConcepto EncontrarPadre(NodoConcepto hijo)
+        {
+            foreach (var raiz in nodosRaiz)
+            {
+                if (raiz.Partidas.Contains(hijo))
+                    return raiz;
+            }
+            return null;
+        }
+
+        private void RecalcularAvanceConcepto(NodoConcepto concepto)
+        {
+            if (!concepto.EsConcepto || concepto.Partidas.Count == 0)
+                return;
+
+            double totalPartidas = concepto.Partidas.Sum(p => p.Total);
+            double ejecutadoPartidas = concepto.Partidas.Sum(p => p.MontoEjecutado);
+
+            concepto.Total = totalPartidas;
+            concepto.MontoEjecutado = ejecutadoPartidas;
+            concepto.AvancePorcentaje = totalPartidas > 0 
+                ? (ejecutadoPartidas / totalPartidas) * 100.0 
+                : 0;
+        }
+
+        private void CargarManzanas()
+        {
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                {
+                    conn.Open();
+                    string sql = "SELECT DISTINCT Manzana FROM InventarioCasas ORDER BY Manzana";
+                    using (SqlCommand cmd = new SqlCommand(sql, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        cmbManzana.Items.Clear();
+                        while (reader.Read())
+                        {
+                            cmbManzana.Items.Add(reader["Manzana"].ToString());
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al cargar manzanas: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void cmbManzana_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (cmbManzana.SelectedItem == null) return;
+
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                {
+                    conn.Open();
+                    string sql = "SELECT DISTINCT Lote FROM InventarioCasas WHERE Manzana = @m ORDER BY Lote";
+                    using (SqlCommand cmd = new SqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            cmbLote.Items.Clear();
+                            while (reader.Read())
+                            {
+                                cmbLote.Items.Add(reader["Lote"].ToString());
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al cargar lotes: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnCargarAvance_Click(object sender, EventArgs e)
+        {
+            if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null)
+            {
+                MessageBox.Show("Por favor selecciona Manzana y Lote", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string manzana = cmbManzana.SelectedItem.ToString();
+            string lote = cmbLote.SelectedItem.ToString();
+
+            prototipoActual = ObtenerPrototipo(manzana, lote);
+            if (string.IsNullOrEmpty(prototipoActual))
+            {
+                MessageBox.Show($"No se encontró el prototipo para M{manzana}-L{lote}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            this.Text = $"Estimación por Conceptos - M{manzana} L{lote} ({prototipoActual})";
+
+            CargarEstimacionJerarquica(manzana, lote);
+        }
+
+        private string ObtenerPrototipo(string manzana, string lote)
+        {
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                {
+                    conn.Open();
+                    string sql = "SELECT Prototipo FROM InventarioCasas WHERE Manzana = @m AND Lote = @l";
+                    using (SqlCommand cmd = new SqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@m", manzana);
+                        cmd.Parameters.AddWithValue("@l", lote);
+                        var result = cmd.ExecuteScalar();
+                        return result?.ToString() ?? "";
+                    }
+                }
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        private void CargarEstimacionJerarquica(string manzana, string lote)
+        {
+            nodosRaiz = new List<NodoConcepto>();
+
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                {
+                    conn.Open();
+
+                    // 1. Cargar conceptos
+                    var conceptos = CargarConceptos(conn);
+
+                    // 2. Cargar partidas
+                    var partidas = CargarPartidas(conn);
+
+                    // 3. Cargar avances
+                    var avancesPartidas = CargarAvancesPartidas(conn, manzana, lote);
+
+                    // 4. Mapeo mejorado de conceptos a partidas (por campo "Padre" de PresupuestoObra)
+                    var mapeo = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        { "Preliminares", new[] { "Preliminares" } },
+                        { "Cimentación", new[] { "Cimentacion" } },
+                        { "Estructura", new[] { "Losas", "Muros", "Estructura" } },
+                        { "Ins. Hidraulica, Sanitaria y Gas LP", new[] { "Inst. Hidraulica", "Inst. Sanitaria", "Instalacion Hidraulica", "Instalacion Sanitaria", "Gas LP" } },
+                        { "Inst. Eléctrica", new[] { "Inst. Electrica", "Instalacion Electrica" } },
+                        { "Albañilería", new[] { "Albañileria", "Albanileria" } },
+                        { "Acabados", new[] { "Acabados Exteriores", "Acabados Interiores" } },
+                        { "Herrería, Aluminio y Vidrio", new[] { "Herreria, Aluminio y Vidrio" } },
+                        { "Carpintería y Cerrajería", new[] { "Carpinteria", "Cerrajeria", "Carpinteria y Cerrajeria" } },
+                        { "Muebles y Accesorios", new[] { "Muebles", "Accesorios", "Muebles y Accesorios" } },
+                        { "Inst especiales y Obra Exterior", new[] { "Inst especiales y Obra Exterior", "Limpieza e Instalaciones especiales", "Obra Exterior" } },
+                        { "Urbanización", new[] { "Urbanizacion", "Urbanización" } }
+                    };
+
+                    // 5. Orden específico de conceptos
+                    var ordenConceptos = new List<string>
+                    {
+                        "Preliminares",
+                        "Cimentación",
+                        "Estructura",
+                        "Ins. Hidraulica, Sanitaria y Gas LP",
+                        "Inst. Eléctrica",
+                        "Albañilería",
+                        "Acabados",
+                        "Herrería, Aluminio y Vidrio",
+                        "Carpintería y Cerrajería",
+                        "Muebles y Accesorios",
+                        "Inst especiales y Obra Exterior",
+                        "Urbanización"
+                    };
+
+                    // 6. Construir jerarquía en el orden especificado
+                    var conceptosTemporal = new Dictionary<string, NodoConcepto>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var concepto in conceptos)
+                    {
+                        var nodoConcepto = new NodoConcepto
+                        {
+                            EsConcepto = true,
+                            Codigo = concepto.Item1,
+                            Nombre = concepto.Item2,
+                            Total = 0, // CAMBIO: Inicializar en 0, se calculará desde las partidas
+                            Incluir = false // CAMBIO: Iniciar desmarcado
+                        };
+
+                        List<NodoConcepto> partidasDelConcepto = new List<NodoConcepto>();
+
+                        // Buscar partidas que correspondent
+                        if (mapeo.TryGetValue(concepto.Item2, out string[] padres))
+                        {
+                            foreach (var padre in padres)
+                            {
+                                // Búsqueda exacta primero
+                                var partidasMatch = partidas.Where(p => 
+                                    string.Equals(p.Item2, padre, StringComparison.OrdinalIgnoreCase)).ToList();
+                                
+                                // Si no hay coincidencia exacta, buscar por similitud
+                                if (partidasMatch.Count == 0)
+                                {
+                                    string padreNorm = NormalizeForComparison(padre);
+                                    partidasMatch = partidas.Where(p =>
+                                    {
+                                        string pNorm = NormalizeForComparison(p.Item2);
+                                        return !string.IsNullOrEmpty(pNorm) && 
+                                               (pNorm.Contains(padreNorm) || padreNorm.Contains(pNorm));
+                                    }).ToList();
+                                }
+
+                                foreach (var partida in partidasMatch)
+                                {
+                                    var nodoPartida = CrearNodoPartida(partida, avancesPartidas);
+                                    // Evitar duplicados
+                                    if (!partidasDelConcepto.Any(p => p.WBS == nodoPartida.WBS))
+                                    {
+                                        partidasDelConcepto.Add(nodoPartida);
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Si no está en el mapeo, buscar por coincidencia de nombre normalizado
+                            string conceptoNorm = NormalizeForComparison(concepto.Item2);
+                            var partidasMatch = partidas.Where(p =>
+                            {
+                                string padreNorm = NormalizeForComparison(p.Item2);
+                                return !string.IsNullOrEmpty(padreNorm) && 
+                                       (conceptoNorm.Contains(padreNorm) || padreNorm.Contains(conceptoNorm));
+                            }).ToList();
+
+                            foreach (var partida in partidasMatch)
+                            {
+                                var nodoPartida = CrearNodoPartida(partida, avancesPartidas);
+                                // Evitar duplicados
+                                if (!partidasDelConcepto.Any(p => p.WBS == nodoPartida.WBS))
+                                {
+                                    partidasDelConcepto.Add(nodoPartida);
+                                }
+                            }
+                        }
+
+                        nodoConcepto.Partidas = partidasDelConcepto;
+                        RecalcularAvanceConcepto(nodoConcepto); // Esto calculará el total correcto desde las partidas
+
+                        conceptosTemporal[concepto.Item2] = nodoConcepto;
+                    }
+
+                    // 7. Agregar conceptos en el orden especificado
+                    foreach (var nombreConcepto in ordenConceptos)
+                    {
+                        if (conceptosTemporal.TryGetValue(nombreConcepto, out var concepto))
+                        {
+                            nodosRaiz.Add(concepto);
+                        }
+                    }
+
+                    // 8. Agregar cualquier concepto restante que no esté en el orden especificado
+                    foreach (var kvp in conceptosTemporal)
+                    {
+                        if (!nodosRaiz.Contains(kvp.Value))
+                        {
+                            nodosRaiz.Add(kvp.Value);
+                        }
+                    }
+                }
+
+                // Filtrar y establecer TODOS los conceptos (sin filtrar por avance)
+                olvEstimacionConceptos.SetObjects(nodosRaiz);
+                olvEstimacionConceptos.CollapseAll();
+
+                ActualizarTotales();
+                ActualizarPreviewPDF(); // Actualizar preview después de cargar
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al cargar estimación: {ex.Message}\n{ex.StackTrace}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private NodoConcepto CrearNodoPartida(Tuple<int, string, string, string, double> partida, 
+            Dictionary<int, Tuple<double, double>> avances)
+        {
+            var nodo = new NodoConcepto
+            {
+                EsConcepto = false,
+                WBS = partida.Item1,
+                Codigo = partida.Item1.ToString(),
+                Nombre = $"{partida.Item3} > {partida.Item4}",
+                Total = partida.Item5,
+                Incluir = false // CAMBIO: Iniciar desmarcado por defecto
+            };
+
+            if (avances.TryGetValue(partida.Item1, out var avance))
+            {
+                nodo.AvancePorcentaje = avance.Item1;
+                nodo.MontoEjecutado = !double.IsNaN(avance.Item2) 
+                    ? avance.Item2 
+                    : nodo.Total * (nodo.AvancePorcentaje / 100.0);
+            }
+
+            return nodo;
+        }
+
+        private List<Tuple<string, string, double>> CargarConceptos(SqlConnection conn)
+        {
+            var conceptos = new List<Tuple<string, string, double>>();
+
+            string columnaDeseada = prototipoActual.ToUpper().Contains("CALANDRA") ? "CostoCalandra" : "CostoTunera";
+            string columnaACast = "TOTAL";
+
+            // Verificar si existe la columna deseada
+            using (SqlCommand cmdCheck = new SqlCommand(@"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Estimacion(Concepto)' AND COLUMN_NAME = @col", conn))
+            {
+                cmdCheck.Parameters.AddWithValue("@col", columnaDeseada);
+                if ((int)cmdCheck.ExecuteScalar() > 0)
+                    columnaACast = columnaDeseada;
+            }
+
+            // Verificar si existe la columna Codigo
+            bool tieneCodigoColumn = false;
+            using (SqlCommand cmdCheckCodigo = new SqlCommand(@"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Estimacion(Concepto)' AND COLUMN_NAME = 'Codigo'", conn))
+            {
+                tieneCodigoColumn = (int)cmdCheckCodigo.ExecuteScalar() > 0;
+            }
+
+            string sql;
+            if (tieneCodigoColumn)
+            {
+                // Si existe Codigo, usarlo
+                sql = $@"
+                    SELECT 
+                        ISNULL(Codigo, CAST(ROW_NUMBER() OVER (ORDER BY Concepto) AS NVARCHAR(10))) AS Codigo,
+                        Concepto,
+                        SUM(CAST([{columnaACast}] as FLOAT)) as Total
+                    FROM [dbo].[Estimacion(Concepto)]
+                    GROUP BY Codigo, Concepto
+                    ORDER BY 
+                        CASE 
+                            WHEN TRY_CAST(Codigo AS INT) IS NOT NULL 
+                            THEN TRY_CAST(Codigo AS INT)
+                            ELSE 999999 
+                        END,
+                        Codigo";
+            }
+            else
+            {
+                // Si NO existe Codigo, generar uno automáticamente
+                sql = $@"
+                    SELECT 
+                        CAST(ROW_NUMBER() OVER (ORDER BY Concepto) AS NVARCHAR(10)) AS Codigo,
+                        Concepto,
+                        SUM(CAST([{columnaACast}] as FLOAT)) as Total
+                    FROM [dbo].[Estimacion(Concepto)]
+                    GROUP BY Concepto
+                    ORDER BY Concepto";
+            }
+
+            using (SqlCommand cmd = new SqlCommand(sql, conn))
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    string codigo = reader["Codigo"].ToString();
+                    string concepto = reader["Concepto"].ToString();
+                    double total = Convert.ToDouble(reader["Total"]);
+                    conceptos.Add(Tuple.Create(codigo, concepto, total));
+                }
+            }
+
+            return conceptos;
+        }
+
+        private List<Tuple<int, string, string, string, double>> CargarPartidas(SqlConnection conn)
+        {
+            var partidas = new List<Tuple<int, string, string, string, double>>();
+            string columnaCosto = prototipoActual.ToUpper().Contains("CALANDRA") ? "CostoCalandra" : "CostoTunera";
+
+            string sql = $@"
+                SELECT 
+                    ROW_NUMBER() OVER (ORDER BY Padre, Etapa, Partida) AS WBS,
+                    Padre,
+                    Etapa,
+                    Partida,
+                    ISNULL(CAST([{columnaCosto}] AS FLOAT),0) as ImporteTotal
+                FROM PresupuestoObra
+                ORDER BY Padre, Etapa, Partida";
+
+            using (SqlCommand cmd = new SqlCommand(sql, conn))
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    int wbs = Convert.ToInt32(reader["WBS"]);
+                    string padre = reader["Padre"]?.ToString() ?? "";
+                    string etapa = reader["Etapa"]?.ToString() ?? "";
+                    string partida = reader["Partida"]?.ToString() ?? "";
+                    double importe = Convert.ToDouble(reader["ImporteTotal"]);
+
+                    partidas.Add(Tuple.Create(wbs, padre, etapa, partida, importe));
+                }
+            }
+
+            return partidas;
+        }
+
+        private Dictionary<int, Tuple<double, double>> CargarAvancesPartidas(SqlConnection conn, string manzana, string lote)
+        {
+            var avances = new Dictionary<int, Tuple<double, double>>();
+
+            try
+            {
+                using (SqlCommand cmdCheck = new SqlCommand(@"
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'AvanceManualObra')
+                    BEGIN
+                        CREATE TABLE AvanceManualObra (
+                            Id INT IDENTITY(1,1) PRIMARY KEY,
+                            Manzana NVARCHAR(10), Lote NVARCHAR(10),
+                            Prototipo NVARCHAR(50), WBS NVARCHAR(50),
+                            Concepto NVARCHAR(200), ImporteTotal FLOAT,
+                            AvancePorcentaje FLOAT,
+                            FechaActualizacion DATETIME DEFAULT GETDATE()
+                        );
+                    END", conn))
+                {
+                    cmdCheck.ExecuteNonQuery();
+                }
+
+                bool tieneMonto = false;
+                using (SqlCommand cmdCols = new SqlCommand(@"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AvanceManualObra' AND (COLUMN_NAME = 'MontoEjecutado' OR COLUMN_NAME = 'ImporteEjecutado')", conn))
+                {
+                    tieneMonto = (int)cmdCols.ExecuteScalar() > 0;
+                }
+
+                string sql = tieneMonto
+                    ? "SELECT WBS, AvancePorcentaje, MontoEjecutado FROM AvanceManualObra WHERE Manzana = @m AND Lote = @l"
+                    : "SELECT WBS, AvancePorcentaje FROM AvanceManualObra WHERE Manzana = @m AND Lote = @l";
+
+                using (SqlCommand cmd = new SqlCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@m", manzana);
+                    cmd.Parameters.AddWithValue("@l", lote);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            if (int.TryParse(reader["WBS"]?.ToString(), out int wbs))
+                            {
+                                double avance = Convert.ToDouble(reader["AvancePorcentaje"]);
+                                double monto = double.NaN;
+
+                                if (tieneMonto && !reader.IsDBNull(reader.GetOrdinal("MontoEjecutado")))
+                                {
+                                    monto = Convert.ToDouble(reader["MontoEjecutado"]);
+                                }
+
+                                avances[wbs] = Tuple.Create(avance, monto);
+                            }
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return avances;
+        }
+
+        private void GuardarAvancePartidaEnBD(NodoConcepto partida)
+        {
+            if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null) return;
+
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                {
+                    conn.Open();
+
+                    string sql = @"
+                        IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
+                            UPDATE AvanceManualObra 
+                            SET AvancePorcentaje=@avance, MontoEjecutado=@monto, FechaActualizacion=GETDATE()
+                            WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
+                        ELSE
+                            INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, AvancePorcentaje, MontoEjecutado)
+                            VALUES (@m, @l, @proto, @wbs, @avance, @monto)";
+
+                    using (SqlCommand cmd = new SqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
+                        cmd.Parameters.AddWithValue("@l", cmbLote.SelectedItem.ToString());
+                        cmd.Parameters.AddWithValue("@proto", prototipoActual ?? (object)DBNull.Value);
+                        cmd.Parameters.AddWithValue("@wbs", partida.WBS.ToString());
+                        cmd.Parameters.AddWithValue("@avance", partida.AvancePorcentaje);
+                        cmd.Parameters.AddWithValue("@monto", partida.MontoEjecutado);
+                        
+                        try
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+                        catch (SqlException)
+                        {
+                            // Intentar sin MontoEjecutado
+                            string fallback = @"
+                                IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
+                                    UPDATE AvanceManualObra SET AvancePorcentaje=@avance, FechaActualizacion=GETDATE()
+                                    WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
+                                ELSE
+                                    INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, AvancePorcentaje)
+                                    VALUES (@m, @l, @proto, @wbs, @avance)";
+                                    
+                            using (SqlCommand cmd2 = new SqlCommand(fallback, conn))
+                            {
+                                cmd2.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
+                                cmd2.Parameters.AddWithValue("@l", cmbLote.SelectedItem.ToString());
+                                cmd2.Parameters.AddWithValue("@proto", prototipoActual ?? (object)DBNull.Value);
+                                cmd2.Parameters.AddWithValue("@wbs", partida.WBS.ToString());
+                                cmd2.Parameters.AddWithValue("@avance", partida.AvancePorcentaje);
+                                cmd2.ExecuteNonQuery();
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al guardar avance de partida: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void GuardarAvanceConceptoEnBD(NodoConcepto concepto)
+        {
+            // Guardar todas las partidas del concepto
+            foreach (var partida in concepto.Partidas)
+            {
+                GuardarAvancePartidaEnBD(partida);
+            }
+        }
+
+        private void ActualizarTotales()
+        {
+            double totalPresupuestado = nodosRaiz.Sum(i => i.Total);
+            double totalEjecutado = nodosRaiz.Sum(i => i.MontoEjecutado);
+            double avanceGeneral = totalPresupuestado > 0 ? (totalEjecutado / totalPresupuestado) * 100 : 0;
+
+            lblTotalPresupuestado.Text = $"Total Presupuestado: {totalPresupuestado:C2}";
+            lblTotalEjecutado.Text = $"Total Ejecutado: {totalEjecutado:C2}";
+            lblAvanceGeneral.Text = $"Avance General: {avanceGeneral:F1}%";
+
+            try { progressBarAvance.Value = Math.Min(100, (int)avanceGeneral); } catch { }
+
+            int completadas = nodosRaiz.Count(i => i.AvancePorcentaje >= 100);
+            int enProgreso = nodosRaiz.Count(i => i.AvancePorcentaje > 0 && i.AvancePorcentaje < 100);
+            int sinIniciar = nodosRaiz.Count(i => i.AvancePorcentaje == 0);
+
+            lblEstadisticas.Text = $"Completados: {completadas} | En Progreso: {enProgreso} | Sin Iniciar: {sinIniciar}";
+
+            if (avanceGeneral < 30)
+                lblAvanceGeneral.ForeColor = Color.FromArgb(231, 76, 60);
+            else if (avanceGeneral < 70)
+                lblAvanceGeneral.ForeColor = Color.FromArgb(243, 156, 18);
+            else
+                lblAvanceGeneral.ForeColor = Color.FromArgb(46, 204, 113);
+        }
+
+        private void btnMarcarTodos_Click(object sender, EventArgs e)
+        {
+            // Marcar TODOS los conceptos y partidas
+            foreach (var nodo in nodosRaiz)
+            {
+                nodo.Incluir = true;
+                
+                // Marcar TODAS las partidas
+                foreach (var partida in nodo.Partidas)
+                {
+                    partida.Incluir = true;
+                }
+            }
+            // Refrescar todos los nodos
+            olvEstimacionConceptos.RefreshObjects(nodosRaiz);
+            ActualizarPreviewPDF(); // Actualizar preview
+        }
+
+        private void btnDesmarcarTodos_Click(object sender, EventArgs e)
+        {
+            foreach (var nodo in nodosRaiz)
+            {
+                nodo.Incluir = false;
+                foreach (var partida in nodo.Partidas)
+                {
+                    partida.Incluir = false;
+                }
+            }
+            olvEstimacionConceptos.RefreshObjects(nodosRaiz);
+            ActualizarPreviewPDF(); // Actualizar preview
+        }
+
+        private void btnExportarPDF_Click(object sender, EventArgs e)
+        {
+            var seleccionados = new List<NodoConcepto>();
+            
+            foreach (var concepto in nodosRaiz)
+            {
+                if (concepto.Incluir)
+                {
+                    // Incluir TODAS las partidas seleccionadas (con o sin avance)
+                    var partidasSelec = concepto.Partidas
+                        .Where(p => p.Incluir)
+                        .ToList();
+                    
+                    if (partidasSelec.Count > 0)
+                    {
+                        var conceptoTemp = new NodoConcepto
+                        {
+                            EsConcepto = true,
+                            Codigo = concepto.Codigo,
+                            Nombre = concepto.Nombre,
+                            Partidas = partidasSelec,
+                            Total = partidasSelec.Sum(p => p.Total),
+                            MontoEjecutado = partidasSelec.Sum(p => p.MontoEjecutado),
+                            AvancePorcentaje = partidasSelec.Sum(p => p.Total) > 0 
+                                ? (partidasSelec.Sum(p => p.MontoEjecutado) / partidasSelec.Sum(p => p.Total)) * 100
+                                : 0,
+                            Incluir = true
+                        };
+                        seleccionados.Add(conceptoTemp);
+                    }
+                }
+                else
+                {
+                    // Incluir partidas marcadas individualmente
+                    var partidasSelec = concepto.Partidas
+                        .Where(p => p.Incluir)
+                        .ToList();
+                    
+                    if (partidasSelec.Count > 0)
+                    {
+                        var conceptoTemp = new NodoConcepto
+                        {
+                            EsConcepto = true,
+                            Codigo = concepto.Codigo,
+                            Nombre = concepto.Nombre,
+                            Partidas = partidasSelec,
+                            Total = partidasSelec.Sum(p => p.Total),
+                            MontoEjecutado = partidasSelec.Sum(p => p.MontoEjecutado),
+                            AvancePorcentaje = partidasSelec.Sum(p => p.Total) > 0 
+                                ? (partidasSelec.Sum(p => p.MontoEjecutado) / partidasSelec.Sum(p => p.Total)) * 100
+                                : 0,
+                            Incluir = true
+                        };
+                        seleccionados.Add(conceptoTemp);
+                    }
+                }
+            }
+
+            if (seleccionados.Count == 0)
+            {
+                MessageBox.Show("Selecciona al menos un concepto o partida para exportar", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            SaveFileDialog sfd = new SaveFileDialog
+            {
+                Filter = "PDF Files|*.pdf",
+                FileName = $"EstimacionConceptos_M{cmbManzana.SelectedItem}_L{cmbLote.SelectedItem}_{DateTime.Now:yyyyMMdd}.pdf"
+            };
+
+            if (sfd.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    // PRIMERO: Marcar partidas seleccionadas como 100% completadas
+                    MarcarPartidasCompletadas();
+                    
+                    // SEGUNDO: Generar el PDF
+                    GenerarPDFAvance(sfd.FileName);
+                    
+                    MessageBox.Show("PDF generado exitosamente y partidas marcadas como completadas al 100%", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    var result = MessageBox.Show("¿Deseas abrir el PDF?", "Abrir PDF", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    if (result == DialogResult.Yes)
+                    {
+                        Process.Start(new ProcessStartInfo(sfd.FileName) { UseShellExecute = true });
+                    }
+                    
+                    // Recargar datos para reflejar cambios
+                    if (cmbManzana.SelectedItem != null && cmbLote.SelectedItem != null)
+                    {
+                        CargarEstimacionJerarquica(cmbManzana.SelectedItem.ToString(), cmbLote.SelectedItem.ToString());
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error al generar PDF: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+        
+        private void MarcarPartidasCompletadas()
+        {
+            if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null) return;
+
+            string manzana = cmbManzana.SelectedItem.ToString();
+            string lote = cmbLote.SelectedItem.ToString();
+
+            try
+            {
+                using (SqlConnection conn = new SqlConnection(connectionString))
+                {
+                    conn.Open();
+
+                    // Recorrer todas las partidas seleccionadas
+                    foreach (var concepto in nodosRaiz)
+                    {
+                        foreach (var partida in concepto.Partidas.Where(p => p.Incluir && !p.EsConcepto))
+                        {
+                            // Actualizar a 100% de avance
+                            partida.AvancePorcentaje = 100.0;
+                            partida.MontoEjecutado = partida.Total;
+                            
+                            // Guardar en BD
+                            GuardarPartidaCompletadaEnBD(conn, manzana, lote, partida);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al marcar partidas como completadas: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void GuardarPartidaCompletadaEnBD(SqlConnection conn, string manzana, string lote, NodoConcepto partida)
+        {
+            try
+            {
+                // Verificar si existe columna MontoEjecutado
+                bool tieneMonto = false;
+                using (SqlCommand cmdCols = new SqlCommand(@"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AvanceManualObra' AND (COLUMN_NAME = 'MontoEjecutado' OR COLUMN_NAME = 'ImporteEjecutado')", conn))
+                {
+                    tieneMonto = (int)cmdCols.ExecuteScalar() > 0;
+                }
+
+                string sql;
+                if (tieneMonto)
+                {
+                    sql = @"IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
+                               UPDATE AvanceManualObra 
+                               SET AvancePorcentaje=100.0, MontoEjecutado=@monto, ImporteTotal=@total, FechaActualizacion=GETDATE()
+                               WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
+                           ELSE
+                               INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, Concepto, ImporteTotal, MontoEjecutado, AvancePorcentaje)
+                               VALUES (@m, @l, @proto, @wbs, @concepto, @total, @monto, 100.0)";
+                }
+                else
+                {
+                    sql = @"IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
+                               UPDATE AvanceManualObra 
+                               SET AvancePorcentaje=100.0, ImporteTotal=@total, FechaActualizacion=GETDATE()
+                               WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
+                           ELSE
+                               INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, Concepto, ImporteTotal, AvancePorcentaje)
+                               VALUES (@m, @l, @proto, @wbs, @concepto, @total, 100.0)";
+                }
+
+                using (SqlCommand cmd = new SqlCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@m", manzana);
+                    cmd.Parameters.AddWithValue("@l", lote);
+                    cmd.Parameters.AddWithValue("@proto", prototipoActual ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@wbs", partida.WBS.ToString());
+                    cmd.Parameters.AddWithValue("@concepto", partida.Nombre ?? "");
+                    cmd.Parameters.AddWithValue("@total", partida.Total);
+                    
+                    if (tieneMonto)
+                    {
+                        cmd.Parameters.AddWithValue("@monto", partida.Total);
+                    }
+
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error al guardar partida completada: {ex.Message}");
+            }
+        }
+
+        private void FormEstimacionConcepto_Resize(object sender, EventArgs e)
+        {
+            if (nodosRaiz.Count > 0)
+            {
+                //DibujarGraficas();
+            }
+        }
+
+        private void btnGuardarCambios_Click(object sender, EventArgs e)
+        {
+            if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null)
+            {
+                MessageBox.Show("Selecciona manzana y lote antes de guardar.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var result = MessageBox.Show("¿Deseas guardar todos los avances actuales?", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (result != DialogResult.Yes) return;
+
+            try
+            {
+                foreach (var concepto in nodosRaiz)
+                {
+                    GuardarAvanceConceptoEnBD(concepto);
+                }
+                MessageBox.Show("Avances guardados correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al guardar: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static string NormalizeForComparison(string input)
+        {
+            if (string.IsNullOrEmpty(input)) return string.Empty;
+            string normalized = input.Normalize(System.Text.NormalizationForm.FormD);
+            var sb = new System.Text.StringBuilder();
+            foreach (char c in normalized)
+            {
+                var uc = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c);
+                if (uc != System.Globalization.UnicodeCategory.NonSpacingMark)
+                    sb.Append(c);
+            }
+            return sb.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+        }
+    }
+
+    public class NodoConcepto
+    {
+        public bool EsConcepto { get; set; }
+        public int WBS { get; set; }
+        public string Codigo { get; set; }
+        public string Nombre { get; set; }
+        public double Total { get; set; }
+        public double AvancePorcentaje { get; set; }
+        public double MontoEjecutado { get; set; }
+        public bool Incluir { get; set; }
+        public List<NodoConcepto> Partidas { get; set; } = new List<NodoConcepto>();
+    }
+}

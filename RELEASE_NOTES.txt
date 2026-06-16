@@ -1,0 +1,128 @@
+====================================
+CALANDRIA RESIDENCIAL v1.3.7-H
+Sistema de Gestión de Construcción
+====================================
+
+?? CONTENIDO DE ESTA RELEASE
+
+Esta versión incluye:
+? Sistema de Proveedores Mejorado
+? Corrección de bucle infinito de actualizaciones
+? Órdenes de Compra Indirecta
+? Mejoras en el sistema de actualización automática
+
+?? REQUISITOS DEL SISTEMA
+
+- Windows 7/8/10/11 (64-bit recomendado)
+- .NET Framework 4.7.2 o superior
+- SQL Server (acceso a 100.92.2.55)
+- 2 GB RAM mínimo
+- 500 MB espacio en disco
+
+?? INSTALACIÓN
+
+Método 1: Usando el instalador MSI (Recomendado)
+1. Ejecutar Setup1.msi como Administrador
+2. Seguir las instrucciones del asistente
+3. La aplicación se instalará en C:\Program Files\CalandriaResidencial
+
+Método 2: Instalación manual desde ZIP
+1. Extraer CalandriaApp-v1.3.7-H.zip
+2. Ejecutar Install.ps1 como Administrador
+3. O copiar manualmente a C:\Program Files\CalandriaResidencial
+
+?? CONFIGURACIÓN POST-INSTALACIÓN
+
+1. Verificar la cadena de conexión en:
+   C:\Program Files\CalandriaResidencial\DynamicSepticSystem.exe.config
+
+2. Configurar servidor SQL si es necesario:
+   <connectionStrings>
+     <add name="CalandriaConn" 
+          connectionString="Server=100.92.2.55,1433;Database=CALANDRIA;User Id=calandria_user;Password=<CONTRASENA-PURGADA>;TrustServerCertificate=True;" />
+   </connectionStrings>
+
+3. Ejecutar el script SQL de proveedores:
+   SQL_VerificarProveedores.sql
+
+?? NOVEDADES EN v1.3.7-H
+
+? Sistema de Proveedores Completo
+- Registro de proveedores con información fiscal completa
+- RFC, Dirección, Teléfono
+- Integración con órdenes de compra
+- PDFs profesionales con datos del proveedor
+
+?? Sistema de Actualización Mejorado
+- Corrección de bucle infinito de actualizaciones
+- Actualización automática desde GitHub
+- Mejor manejo de versiones
+- Logs detallados en Actualizador.log
+
+?? Órdenes de Compra Indirecta
+- Gestión de insumos indirectos
+- Catálogo personalizable
+- PDFs con formato profesional
+- Búsqueda y filtrado mejorado
+
+?? PROBLEMAS CONOCIDOS
+
+- El sistema de actualización requiere permisos de administrador
+- La primera ejecución puede ser lenta debido a la carga de catálogos
+- Es necesario tener SQL Server accesible en la red
+
+?? DOCUMENTACIÓN INCLUIDA
+
+- README_SistemaProveedores.md - Guía del sistema de proveedores
+- README_SistemaVersionado.md - Explicación del sistema de versiones
+- README_OrdenesIndirectas.md - Manual de órdenes indirectas
+- SQL_VerificarProveedores.sql - Script de base de datos
+
+?? ACTUALIZACIÓN DESDE VERSIONES ANTERIORES
+
+Si tienes una versión anterior instalada:
+1. La aplicación se actualizará automáticamente desde GitHub
+2. O ejecuta el instalador nuevo (sobrescribirá la versión anterior)
+3. NO es necesario desinstalar la versión anterior
+
+?? IMPORTANTE: Hacer backup de la base de datos antes de actualizar
+
+?? SOPORTE Y AYUDA
+
+Para problemas técnicos:
+1. Revisar Actualizador.log en la carpeta de instalación
+2. Verificar conectividad a SQL Server
+3. Ejecutar como Administrador si hay problemas de permisos
+4. Contactar al equipo de desarrollo
+
+?? SEGURIDAD
+
+- Mantén actualizado el sistema
+- No compartas las credenciales de SQL Server
+- Ejecuta con los permisos mínimos necesarios
+- Haz backups regulares de la base de datos
+
+?? LOGS Y DIAGNÓSTICO
+
+La aplicación genera los siguientes logs:
+- Actualizador.log - Logs del sistema de actualización
+- Event Viewer (Windows) - Errores de SQL Server
+
+Ubicación de logs:
+C:\Program Files\CalandriaResidencial\
+
+?? PRÓXIMAS VERSIONES
+
+Planeado para futuras releases:
+- Editor de proveedores
+- Reportes avanzados por proveedor
+- Historial de compras por proveedor
+- Integración con facturación electrónica
+
+???????????????????????????????????
+
+Versión: 1.3.7-H
+Fecha: Enero 2024
+Desarrollado para: Calandria Residencial
+
+???????????????????????????????????

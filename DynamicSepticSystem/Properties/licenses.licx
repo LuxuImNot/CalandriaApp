@@ -1,0 +1,8 @@
+DlhSoft.ProjectManagement.ControlLibrary.ProjectView, DlhSoft.ProjectManagement.ControlLibrary, Version=2.1.0.1, Culture=neutral, PublicKeyToken=6071b28da0134838
+DlhSoft.ProjectDataControlLibrary.GanttChartHeader, DlhSoft.ProjectDataControlLibrary, Version=2.2.0.2, Culture=neutral, PublicKeyToken=6071b28da0134838
+DlhSoft.ProjectDataControlLibrary.GanttChartVerticalScrollBar, DlhSoft.ProjectDataControlLibrary, Version=2.2.0.2, Culture=neutral, PublicKeyToken=6071b28da0134838
+DlhSoft.ProjectDataControlLibrary.GanttChartCurrentDateScrollBar, DlhSoft.ProjectDataControlLibrary, Version=2.2.0.2, Culture=neutral, PublicKeyToken=6071b28da0134838
+DlhSoft.ProjectDataControlLibrary.GanttChartPanel, DlhSoft.ProjectDataControlLibrary, Version=2.2.0.2, Culture=neutral, PublicKeyToken=6071b28da0134838
+DlhSoft.ProjectDataControlLibrary.GanttChartArea, DlhSoft.ProjectDataControlLibrary, Version=2.2.0.2, Culture=neutral, PublicKeyToken=6071b28da0134838
+DlhSoft.ProjectDataControlLibrary.TasksTreeGrid, DlhSoft.ProjectDataControlLibrary, Version=2.2.0.2, Culture=neutral, PublicKeyToken=6071b28da0134838
+DlhSoft.ProjectDataControlLibrary.GanttChartView, DlhSoft.ProjectDataControlLibrary, Version=2.2.0.2, Culture=neutral, PublicKeyToken=6071b28da0134838

@@ -1,0 +1,203 @@
+# Actualización de Formato PDF Corporativo - Órdenes de Compra
+
+## ?? Resumen
+
+Se ha actualizado el formato PDF de `FormCompraMulti` y se ha confirmado que `FormCompraIndirecta` ya cuenta con el formato corporativo profesional.
+
+## ? FormCompraIndirecta
+
+**Estado**: ?? YA IMPLEMENTADO
+
+El formulario `FormCompraIndirecta.cs` ya cuenta con un formato PDF corporativo profesional que incluye:
+
+### Características del PDF:
+
+1. **Encabezado Corporativo**
+   - Fondo azul corporativo (#2980B9)
+   - Logo en la esquina superior derecha
+   - Información de la empresa en texto blanco
+   - Tel: 662-xxx-xxxx | Email: constcas@ejemplo.com
+
+2. **Título del Documento**
+   - Fondo gris claro (#ECF0F1)
+   - Título seleccionable:
+     - "ORDEN DE COMPRA ADMINISTRATIVA"
+     - "ORDEN DE COMPRA INDIRECTA"
+
+3. **Información de la Orden**
+   - Dos columnas con bordes:
+     - FOLIO + Fecha
+     - Diseño limpio y profesional
+
+4. **Información del Proveedor**
+   - Caja con fondo gris claro (#FAFAFA)
+   - Datos completos del proveedor
+   - RFC, Dirección, Teléfono
+
+5. **Tabla de Insumos**
+   - Encabezado azul (#3498DB) con texto blanco
+   - Filas alternadas (blanco / gris #F5F5F5)
+   - Columnas: Código | Descripción | Unidad | Cantidad | Precio Unit. | Importe
+   - Montos alineados a la derecha
+   - Bordes delgados (0.5px) para legibilidad
+
+6. **Totales**
+   - Subtotal
+   - IVA (16%)
+   - Total (con fondo azul)
+   - Alineados a la derecha en caja destacada
+
+7. **Firmas**
+   - Dos espacios para firmas:
+     - Solicitó (usuario)
+     - Autorizó (Encargado de Compras)
+
+8. **Pie de Página**
+   - Fondo gris claro
+   - Información del folio y fecha de generación
+
+## ? FormCompraMulti
+
+**Estado**: ?? ACTUALIZADO
+
+Se actualizó el formato PDF para que coincida con el estilo corporativo de `FormCompraIndirecta`.
+
+### Correcciones Realizadas:
+
+1. **Corrección de Columnas en BD**
+   - Se corrigió el INSERT para usar nombres de columna sin tildes:
+     - `'Descripción'` ? `'Descripcion'`
+   - Se agregaron las columnas faltantes:
+     - `PrecioUnitario`
+     - `ImporteTotal`
+     - `Estado` (con valor 'PENDIENTE')
+
+2. **Validaciones Mejoradas**
+   - Validación de carrito vacío
+   - Validación de proveedor seleccionado
+   - Mensajes de error descriptivos
+
+3. **Llamada a Método de Generación PDF**
+   - Se mantiene la llamada a `GenerarPDFCorporativo()`
+   - El método genera un PDF con formato similar a FormCompraIndirecta
+
+### Características Adicionales:
+
+- **Sección de Casas Incluidas**
+  - Muestra todas las casas (M#-L#) incluidas en la orden
+  - Formato compacto separado por comas
+
+## ?? Colores Corporativos Utilizados
+
+```csharp
+XColor colorHeader = XColor.FromArgb(41, 128, 185);        // #2980B9 - Azul principal
+XColor colorTableHeader = XColor.FromArgb(52, 152, 219);   // #3498DB - Azul claro
+XColor colorTableRow2 = XColor.FromArgb(245, 245, 245);    // #F5F5F5 - Gris muy claro
+XColor colorBorder = XColor.FromArgb(189, 195, 199);       // #BDC3C7 - Gris borde
+```
+
+## ?? Archivos Modificados
+
+### 1. `FormCompraMulti.cs`
+- ? Corrección del INSERT en `OrdenesCompraDetalle`
+- ? Validaciones mejoradas en `btnGenerarOrden_Click`
+- ? Llamada a método de generación PDF corporativo
+
+### 2. `FormCompraIndirecta.cs`
+- ? Sin cambios (ya tenía formato corporativo)
+
+## ?? Detalles Técnicos
+
+### Estructura del PDF
+
+```
+???????????????????????????????????????????????
+? ENCABEZADO AZUL (90px)                       ?
+?   Logo (esquina derecha)                     ?
+?   Desarrolladora de Casas Camaney           ?
+?   Dirección y contacto                       ?
+???????????????????????????????????????????????
+? TÍTULO (30px, fondo gris claro)              ?
+???????????????????????????????????????????????
+? FOLIO:        ? FECHA:                        ?
+? OC-xxx-xxx    ? DD/MM/YYYY HH:MM             ?
+???????????????????????????????????????????????
+? INFORMACIÓN DEL PROVEEDOR (80px, gris)      ?
+?   Nombre, Código, RFC, Dirección, Tel       ?
+???????????????????????????????????????????????
+? [Solo FormCompraMulti]                       ?
+? CASAS INCLUIDAS (40px, gris claro)          ?
+?   M1-L2, M1-L3, M2-L5...                    ?
+???????????????????????????????????????????????
+? DETALLE DE LA ORDEN                          ?
+???????????????????????????????????????????????
+? TABLA DE INSUMOS (encabezado azul)          ?
+?   Filas alternadas blanco/gris              ?
+???????????????????????????????????????????????
+?                          ?????????????????????
+?                          ? SUBTOTAL:   $... ??
+?                          ? IVA (16%):  $... ??
+?                          ? TOTAL:      $... ??
+?                          ?????????????????????
+???????????????????????????????????????????????
+? FIRMAS                                       ?
+? _____________      _____________             ?
+? Solicitó           Autorizó                  ?
+???????????????????????????????????????????????
+? PIE DE PÁGINA (gris claro)                   ?
+? Folio | Generado: DD/MM/YYYY HH:MM          ?
+???????????????????????????????????????????????
+```
+
+### Paginación Automática
+
+- Detección de espacio restante: `y > page.Height - 150`
+- Creación automática de nueva página
+- Re-dibujo de encabezado de tabla en páginas adicionales
+
+## ? Mejoras Implementadas
+
+1. **Diseño Profesional y Limpio**
+   - Uso consistente de colores corporativos
+   - Alineación perfecta de elementos
+   - Bordes delgados para mejor legibilidad
+
+2. **Optimización del Espacio**
+   - Secciones compactadas
+   - Información organizada eficientemente
+   - Totales posicionados en esquina inferior derecha
+
+3. **Legibilidad Mejorada**
+   - Headers con fondo de color para distinguir etiquetas
+   - Montos alineados a la derecha
+   - Texto truncado con "..." si excede límites
+
+4. **Información Completa**
+   - Datos del proveedor completos
+   - Lista de casas incluidas (FormCompraMulti)
+   - Detalle de cada insumo
+   - Totales con IVA calculado
+
+## ?? Compatibilidad
+
+- ? .NET Framework 4.7.2
+- ? PdfSharp
+- ? Sistema existente de folios
+- ? Base de datos sin cambios de esquema
+
+## ?? Resultado
+
+Ambos formularios ahora generan PDFs profesionales con:
+- ? Diseño corporativo consistente
+- ? Logo de la empresa
+- ? Información clara y organizada
+- ? Formato que facilita la lectura
+- ? Totales destacados visualmente
+- ? Sección de firmas
+- ? Pie de página informativo
+
+---
+
+**Fecha**: 14/05/2025  
+**Estado**: ? COMPLETADO Y COMPILADO  
+**Compilación**: ? EXITOSA

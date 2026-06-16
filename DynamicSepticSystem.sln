@@ -1,0 +1,35 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35931.197
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DynamicSepticSystem", "DynamicSepticSystem\DynamicSepticSystem.csproj", "{825B60D0-DA4F-4E07-958A-AC1CC7355A00}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Updater", "Updater\Updater.csproj", "{100A5589-F212-4CD3-ACF6-D5BE311CF510}"
+EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "CalandriaSetup", "Setup1\Setup1.vdproj", "{F5D91FD6-F519-3AC5-2EF1-6ADD62B256F6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{825B60D0-DA4F-4E07-958A-AC1CC7355A00}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{825B60D0-DA4F-4E07-958A-AC1CC7355A00}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{825B60D0-DA4F-4E07-958A-AC1CC7355A00}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{825B60D0-DA4F-4E07-958A-AC1CC7355A00}.Release|Any CPU.Build.0 = Release|Any CPU
+		{100A5589-F212-4CD3-ACF6-D5BE311CF510}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{100A5589-F212-4CD3-ACF6-D5BE311CF510}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{100A5589-F212-4CD3-ACF6-D5BE311CF510}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{100A5589-F212-4CD3-ACF6-D5BE311CF510}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5D91FD6-F519-3AC5-2EF1-6ADD62B256F6}.Debug|Any CPU.ActiveCfg = Debug
+		{F5D91FD6-F519-3AC5-2EF1-6ADD62B256F6}.Release|Any CPU.ActiveCfg = Release
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1B73BF06-4097-4B3F-91B7-F1698D6543F1}
+	EndGlobalSection
+EndGlobal

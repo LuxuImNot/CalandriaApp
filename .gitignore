@@ -1,0 +1,33 @@
+# ---- Build output ----
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+[Pp]ublish/
+*.dll
+*.exe
+*.pdb
+
+# ---- Visual Studio ----
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# ---- NuGet ----
+packages/
+*.nupkg
+
+# ---- Release artifacts (no versionar binarios pesados) ----
+*.zip
+CalandriaApp-v*/
+CalandriaSetup/
+DSSetup/
+Setup1/
+InstaladorCalandria/
+Updater/bin/
+Updater/obj/
+
+# ---- Local / tooling ----
+.localpilot/
+*.log

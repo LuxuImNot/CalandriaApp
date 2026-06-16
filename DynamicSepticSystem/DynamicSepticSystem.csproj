@@ -1,0 +1,974 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{825B60D0-DA4F-4E07-958A-AC1CC7355A00}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>DynamicSepticSystem</RootNamespace>
+    <AssemblyName>DynamicSepticSystem</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <Deterministic>true</Deterministic>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
+    <PublishUrl>publish\</PublishUrl>
+    <Install>true</Install>
+    <InstallFrom>Disk</InstallFrom>
+    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateMode>Foreground</UpdateMode>
+    <UpdateInterval>7</UpdateInterval>
+    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
+    <UpdatePeriodically>false</UpdatePeriodically>
+    <UpdateRequired>false</UpdateRequired>
+    <MapFileExtensions>true</MapFileExtensions>
+    <ApplicationRevision>0</ApplicationRevision>
+    <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
+    <UseApplicationTrust>false</UseApplicationTrust>
+    <BootstrapperEnabled>true</BootstrapperEnabled>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="BouncyCastle.Crypto, Version=1.8.9.0, Culture=neutral, PublicKeyToken=0e99375e54769942">
+      <HintPath>..\packages\BouncyCastle.1.8.9\lib\BouncyCastle.Crypto.dll</HintPath>
+    </Reference>
+    <Reference Include="ClosedXML, Version=0.105.0.0, Culture=neutral, PublicKeyToken=fd1eb21b62ae805b, processorArchitecture=MSIL">
+      <HintPath>..\packages\ClosedXML.0.105.0\lib\netstandard2.0\ClosedXML.dll</HintPath>
+    </Reference>
+    <Reference Include="ClosedXML.Parser, Version=1.0.0.0, Culture=neutral, PublicKeyToken=1d5f7376574c51ec, processorArchitecture=MSIL">
+      <HintPath>..\packages\ClosedXML.Parser.2.0.0\lib\netstandard2.0\ClosedXML.Parser.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.DataControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.GanttChartLibrary.WindowsForms.2.0.0.7\lib\net20\DlhSoft.DataControlLibrary.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.DataFramework, Version=1.0.0.0, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.GanttChartLibrary.WindowsForms.2.0.0.7\lib\net20\DlhSoft.DataFramework.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.HierarchicalData.LightWPF.Controls, Version=4.0.10.4, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.HierarchicalDataLightLibrary.4.0.10.8\lib\net45\DlhSoft.HierarchicalData.LightWPF.Controls.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.OrganizationalChartLibrary.Controls, Version=4.0.8.5, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.HierarchicalDataLightLibrary.4.0.10.8\lib\net45\DlhSoft.OrganizationalChartLibrary.Controls.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.ProjectData.Core, Version=5.0.7.4, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.ProjectManagementFramework.5.0.7.7\lib\net40-client\DlhSoft.ProjectData.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.ProjectData.Core.Imaging, Version=5.0.7.3, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.ProjectManagementFramework.5.0.7.7\lib\net40-client\DlhSoft.ProjectData.Core.Imaging.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.ProjectData.GanttChart.LightWPF.Controls, Version=4.3.49.0, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.GanttChartLibrary.wpf.4.3.49\lib\net45\DlhSoft.ProjectData.GanttChart.LightWPF.Controls.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.ProjectData.PertChart.LightWPF.Controls, Version=4.3.48.1, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.GanttChartLibrary.wpf.4.3.49\lib\net45\DlhSoft.ProjectData.PertChart.LightWPF.Controls.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.ProjectDataControlLibrary, Version=2.2.0.2, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.GanttChartLibrary.WindowsForms.2.0.0.7\lib\net20\DlhSoft.ProjectDataControlLibrary.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.ProjectDataControlLibrary.Extras, Version=1.0.0.0, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.GanttChartLibrary.WindowsForms.2.0.0.7\lib\net20\DlhSoft.ProjectDataControlLibrary.Extras.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.ProjectManagement.ControlLibrary, Version=2.1.0.1, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.ProjectManagementLibrary.WindowsForms.2.0.0.3\lib\net20\DlhSoft.ProjectManagement.ControlLibrary.dll</HintPath>
+    </Reference>
+    <Reference Include="DlhSoft.ProjectManagement.Framework, Version=2.0.0.1, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
+      <HintPath>..\packages\DlhSoft.ProjectManagementLibrary.WindowsForms.2.0.0.3\lib\net20\DlhSoft.ProjectManagement.Framework.dll</HintPath>
+    </Reference>
+    <Reference Include="DocumentFormat.OpenXml, Version=3.1.1.0, Culture=neutral, PublicKeyToken=8fb06cb64d019a17, processorArchitecture=MSIL">
+      <HintPath>..\packages\DocumentFormat.OpenXml.3.1.1\lib\net46\DocumentFormat.OpenXml.dll</HintPath>
+    </Reference>
+    <Reference Include="DocumentFormat.OpenXml.Framework, Version=3.1.1.0, Culture=neutral, PublicKeyToken=8fb06cb64d019a17, processorArchitecture=MSIL">
+      <HintPath>..\packages\DocumentFormat.OpenXml.Framework.3.1.1\lib\net46\DocumentFormat.OpenXml.Framework.dll</HintPath>
+    </Reference>
+    <Reference Include="EPPlus, Version=8.0.5.0, Culture=neutral, PublicKeyToken=ea159fdaa78159a1, processorArchitecture=MSIL">
+      <HintPath>..\packages\EPPlus.8.0.5\lib\net462\EPPlus.dll</HintPath>
+    </Reference>
+    <Reference Include="EPPlus.Interfaces, Version=8.0.0.0, Culture=neutral, PublicKeyToken=a694d7f3b0907a61, processorArchitecture=MSIL">
+      <HintPath>..\packages\EPPlus.Interfaces.8.0.0\lib\net462\EPPlus.Interfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="ExcelDataReader, Version=3.7.0.0, Culture=neutral, PublicKeyToken=93517dbe6a4012fa, processorArchitecture=MSIL">
+      <HintPath>..\packages\ExcelDataReader.3.7.0\lib\net462\ExcelDataReader.dll</HintPath>
+    </Reference>
+    <Reference Include="ExcelDataReader.DataSet, Version=3.7.0.0, Culture=neutral, PublicKeyToken=93517dbe6a4012fa, processorArchitecture=MSIL">
+      <HintPath>..\packages\ExcelDataReader.DataSet.3.7.0\lib\net462\ExcelDataReader.DataSet.dll</HintPath>
+    </Reference>
+    <Reference Include="ExcelNumberFormat, Version=1.1.0.0, Culture=neutral, PublicKeyToken=23c6f5d73be07eca, processorArchitecture=MSIL">
+      <HintPath>..\packages\ExcelNumberFormat.1.1.0\lib\net20\ExcelNumberFormat.dll</HintPath>
+    </Reference>
+    <Reference Include="IKVM.ByteCode, Version=9.3.0.0, Culture=neutral, PublicKeyToken=13235d27fcbfff58, processorArchitecture=MSIL">
+      <HintPath>..\packages\IKVM.ByteCode.9.3.0\lib\net472\IKVM.ByteCode.dll</HintPath>
+    </Reference>
+    <Reference Include="IKVM.CoreLib, Version=8.11.2.0, Culture=neutral, PublicKeyToken=13235d27fcbfff58, processorArchitecture=MSIL">
+      <HintPath>..\packages\IKVM.8.11.2\lib\net472\IKVM.CoreLib.dll</HintPath>
+    </Reference>
+    <Reference Include="IKVM.Java, Version=8.11.2.0, Culture=neutral, PublicKeyToken=13235d27fcbfff58, processorArchitecture=MSIL">
+      <HintPath>..\packages\IKVM.8.11.2\lib\net472\IKVM.Java.dll</HintPath>
+    </Reference>
+    <Reference Include="IKVM.Reflection, Version=8.11.2.0, Culture=neutral, PublicKeyToken=13235d27fcbfff58, processorArchitecture=MSIL">
+      <HintPath>..\packages\IKVM.8.11.2\lib\net472\IKVM.Reflection.dll</HintPath>
+    </Reference>
+    <Reference Include="IKVM.Runtime, Version=8.11.2.0, Culture=neutral, PublicKeyToken=13235d27fcbfff58, processorArchitecture=MSIL">
+      <HintPath>..\packages\IKVM.8.11.2\lib\net472\IKVM.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="itextsharp, Version=5.5.13.3, Culture=neutral, PublicKeyToken=8354ae6d2174ddca, processorArchitecture=MSIL">
+      <HintPath>..\packages\iTextSharp.5.5.13.3\lib\itextsharp.dll</HintPath>
+    </Reference>
+    <Reference Include="ListViewPrinter, Version=2.7.1.31255, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\ObjectListView.2.7.1.5\lib\ListViewPrinter.dll</HintPath>
+    </Reference>
+    <Reference Include="MaterialSkin, Version=2.3.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\MaterialSkin.2.2.3.1\lib\net461\MaterialSkin.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Bcl.AsyncInterfaces, Version=8.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Bcl.AsyncInterfaces.8.0.0\lib\net462\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Bcl.HashCode, Version=1.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Bcl.HashCode.1.1.1\lib\net461\Microsoft.Bcl.HashCode.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.IO.RecyclableMemoryStream, Version=3.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.IO.RecyclableMemoryStream.3.0.1\lib\netstandard2.0\Microsoft.IO.RecyclableMemoryStream.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.VisualBasic" />
+    <Reference Include="MPXJ.Net, Version=14.5.1.0, Culture=neutral, PublicKeyToken=8783d630753e2b3f, processorArchitecture=MSIL">
+      <HintPath>..\packages\MPXJ.Net.14.5.1\lib\net472\MPXJ.Net.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="ObjectListView, Version=2.7.1.31255, Culture=neutral, PublicKeyToken=b1c5bf581481bcd4, processorArchitecture=MSIL">
+      <HintPath>..\packages\ObjectListView.2.7.1.5\lib\ObjectListView.dll</HintPath>
+    </Reference>
+    <Reference Include="PdfiumViewer, Version=2.13.0.0, Culture=neutral, PublicKeyToken=91e4789cfb0609e0, processorArchitecture=MSIL">
+      <HintPath>..\packages\PdfiumViewer.2.13.0.0\lib\net20\PdfiumViewer.dll</HintPath>
+    </Reference>
+    <Reference Include="PdfSharp, Version=1.50.5147.0, Culture=neutral, PublicKeyToken=f94615aa0424f9eb, processorArchitecture=MSIL">
+      <HintPath>..\packages\PDFsharp.1.50.5147\lib\net20\PdfSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="PdfSharp.Charting, Version=1.50.5147.0, Culture=neutral, PublicKeyToken=f94615aa0424f9eb, processorArchitecture=MSIL">
+      <HintPath>..\packages\PDFsharp.1.50.5147\lib\net20\PdfSharp.Charting.dll</HintPath>
+    </Reference>
+    <Reference Include="Portable.System.DateTimeOnly, Version=9.0.0.1, Culture=neutral, PublicKeyToken=16fb7a27ac3b9689, processorArchitecture=MSIL">
+      <HintPath>..\packages\Portable.System.DateTimeOnly.9.0.0\lib\net462\Portable.System.DateTimeOnly.dll</HintPath>
+    </Reference>
+    <Reference Include="PresentationCore" />
+    <Reference Include="RBush, Version=4.0.0.0, Culture=neutral, PublicKeyToken=c77e27b81f4d0187, processorArchitecture=MSIL">
+      <HintPath>..\packages\RBush.Signed.4.0.0\lib\net47\RBush.dll</HintPath>
+    </Reference>
+    <Reference Include="SixLabors.Fonts, Version=1.0.0.0, Culture=neutral, PublicKeyToken=d998eea7b14cab13, processorArchitecture=MSIL">
+      <HintPath>..\packages\SixLabors.Fonts.1.0.0\lib\netstandard2.0\SixLabors.Fonts.dll</HintPath>
+    </Reference>
+    <Reference Include="SparkleLibrary, Version=2.7.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\ObjectListView.2.7.1.5\lib\SparkleLibrary.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Buffers, Version=4.0.4.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Buffers.4.6.0\lib\net462\System.Buffers.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Collections.Immutable, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Collections.Immutable.8.0.0\lib\net462\System.Collections.Immutable.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ComponentModel.Annotations, Version=4.2.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.ComponentModel.Annotations.5.0.0\lib\net461\System.ComponentModel.Annotations.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.configuration" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Design" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Memory, Version=4.0.2.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Memory.4.6.0\lib\net462\System.Memory.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Numerics.Vectors, Version=4.1.5.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Numerics.Vectors.4.6.0\lib\net462\System.Numerics.Vectors.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Reflection.Metadata, Version=8.0.0.1, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Reflection.Metadata.8.0.1\lib\net462\System.Reflection.Metadata.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.1.0\lib\net462\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.InteropServices.RuntimeInformation, Version=4.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.InteropServices.RuntimeInformation.4.3.0\lib\net45\System.Runtime.InteropServices.RuntimeInformation.dll</HintPath>
+      <Private>True</Private>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Security" />
+    <Reference Include="System.Security.Cryptography.Xml, Version=8.0.0.2, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Security.Cryptography.Xml.8.0.2\lib\net462\System.Security.Cryptography.Xml.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Text.Encoding.CodePages, Version=9.0.0.5, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Text.Encoding.CodePages.9.0.5\lib\net462\System.Text.Encoding.CodePages.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Text.Encodings.Web, Version=8.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Text.Encodings.Web.8.0.0\lib\net462\System.Text.Encodings.Web.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Text.Json, Version=8.0.0.5, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Text.Json.8.0.5\lib\net462\System.Text.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Threading.Tasks.Extensions, Version=4.2.0.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Threading.Tasks.Extensions.4.5.4\lib\net461\System.Threading.Tasks.Extensions.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ValueTuple, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.ValueTuple.4.5.0\lib\net47\System.ValueTuple.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Deployment" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Actualizador.cs">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Compile>
+    <Compile Include="CasaInventario.cs" />
+    <Compile Include="ConceptoExistente.cs" />
+    <Compile Include="DialogSeleccionarNivel.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormActivarTareasTreeList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormActivarTareasTreeList.Designer.cs">
+      <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormActivarTareasTreeList.PanelGuia.cs">
+      <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormDestajosPorCuadrilla.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAdministrativos.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAdministrativos.Designer.cs">
+      <DependentUpon>FormAdministrativos.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormAgregarConcepto.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAgregarConcepto.Designer.cs">
+      <DependentUpon>FormAgregarConcepto.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormAgregarInsumoCarrito.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAgregarInsumoIndirecto.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAgregarInsumoIndirecto.Designer.cs">
+      <DependentUpon>FormAgregarInsumoIndirecto.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormAlmacen.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAlmacen.Designer.cs">
+      <DependentUpon>FormAlmacen.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormAlmacen_ConsultaCasa.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAlmacen_Core.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAlmacen_Entradas.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAlmacen_ExtensionPDFSalidas.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAlmacen_Historial.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAlmacen_Inventario.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAlmacen_Layout.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAlmacen_Salidas.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAlmacen_Theme.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAvanceConcepto.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAvanceConcepto.Designer.cs">
+      <DependentUpon>FormAvanceConcepto.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormAvanceObra.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAvanceObra.Designer.cs">
+      <DependentUpon>FormAvanceObra.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormCompraIndirecta_ExtensionPDFRepositorio.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormCompraMulti_ExtensionPDFRepositorio.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormDetalleEstimacion.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormDetalleEstimacion.Designer.cs">
+      <DependentUpon>FormDetalleEstimacion.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormDetalleOrdenCompra.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormDetalleOrdenCompra.Designer.cs">
+      <DependentUpon>FormDetalleOrdenCompra.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormDetalleValeSalida.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormDetalleValeSalida.Designer.cs">
+      <DependentUpon>FormDetalleValeSalida.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormDiagnosticoConexion.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEditarExplosiones.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEditorTreeList.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEditorTreeList.Designer.cs">
+      <DependentUpon>FormEditorTreeList.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormEditorTreeList.Dialogos.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEditorTreeList.GestorInsumos.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado.AgregarConcepto.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado.Avances.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado.CargaDatos.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado.MenuContextual.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado.Preview.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado.Propiedades.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado.TreeListView.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado_ExtensionEvidencias.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado_ExtensionFolios.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado_ExtensionFotosConcepto.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado_ExtensionFolios_Fixed.cs" />
+    <Compile Include="FormEstimacionConceptoMigrado_ExtensionPDF.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormGestionarPartidas.CargaDatos.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormGestionarPartidas.CRUD.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormGestionarPartidas.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormGestionarPartidas.Designer.cs">
+      <DependentUpon>FormGestionarPartidas.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormGestionarPartidas.Guardado.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormGestionarPartidas.Reordenar.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormGestionarPartidas.WBS.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormHardProgress.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormHardProgress.Designer.cs">
+      <DependentUpon>FormHardProgress.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormMapearCoordenadas.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormMapearCoordenadas.Designer.cs" />
+    <Compile Include="FormPreviewPDFMaximizado.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormPropiedadesConcepto.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormRepositorioDestajos.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormRepositorioDestajos.Designer.cs">
+      <DependentUpon>FormRepositorioDestajos.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormRepositorioPDFs.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormRepositorioPDFs.Designer.cs">
+      <DependentUpon>FormRepositorioPDFs.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormRepositorioPDFsOrdenesCompra.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormRepositorioPDFsOrdenesCompra.Designer.cs">
+      <DependentUpon>FormRepositorioPDFsOrdenesCompra.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormRepositorioValesSalida.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormRepositorioValesSalida.Designer.cs">
+      <DependentUpon>FormRepositorioValesSalida.cs</DependentUpon>
+    </Compile>
+    <Compile Include="NodoCategoria.cs" />
+    <Compile Include="FormAvanceObra_BACKUP.cs" />
+    <Compile Include="FormCompraIndirecta.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormCompraIndirecta.Designer.cs">
+      <DependentUpon>FormCompraIndirecta.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormEstimacionConcepto.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConcepto.Designer.cs">
+      <DependentUpon>FormEstimacionConcepto.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEstimacionConceptoMigrado.Designer.cs">
+      <DependentUpon>FormEstimacionConceptoMigrado.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormEvidenciasFotograficas.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEvidenciasFotograficas.Designer.cs" />
+    <Compile Include="FormInsumos.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormInsumos.Designer.cs">
+      <DependentUpon>FormInsumos.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormManoObra.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormManoObra.Designer.cs">
+      <DependentUpon>FormManoObra.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormPdfPreview.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormReporte.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormReporte.Designer.cs">
+      <DependentUpon>FormReporte.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormRutaCritica.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormRutaCritica.Designer.cs">
+      <DependentUpon>FormRutaCritica.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormSeleccionarTitulo.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormSeleccionarTitulo.Designer.cs">
+      <DependentUpon>FormSeleccionarTitulo.cs</DependentUpon>
+    </Compile>
+    <Compile Include="GenerarExplosionInsumosPDF.cs" />
+    <Compile Include="FormSplash.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormSplash.Designer.cs">
+      <DependentUpon>FormSplash.cs</DependentUpon>
+    </Compile>
+    <Compile Include="GestorEvidencias.cs" />
+    <Compile Include="GestorFotosConcepto.cs" />
+    <Compile Include="NodoConcepto.cs" />
+    <Compile Include="NodoTree.cs" />
+    <Compile Include="PasswordHasher.cs" />
+    <Compile Include="SafeTreeListView.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="PanelPrincipal.Designer.cs">
+      <DependentUpon>PanelPrincipal.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PanelPrincipal.ModernExtensions.cs">
+      <DependentUpon>PanelPrincipal.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PanelPrincipal_ModernUI.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="PartidaConcepto.cs" />
+    <Compile Include="PartidaDinamica.cs" />
+    <Compile Include="Reportes.cs" />
+    <Compile Include="FormProgresoActualizacion.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormProgresoActualizacion.Designer.cs">
+      <DependentUpon>FormProgresoActualizacion.cs</DependentUpon>
+    </Compile>
+    <Compile Include="InventarioService.cs" />
+    <Compile Include="Resizer.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="DetalleOrdenHelper.cs" />
+    <Compile Include="FolioManager.cs" />
+    <Compile Include="FormAgregarProveedor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAgregarProveedor.Designer.cs">
+      <DependentUpon>FormAgregarProveedor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormRegistrarUsuario.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormRegistrarUsuario.Designer.cs">
+      <DependentUpon>FormRegistrarUsuario.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormRegistrarTrabajador.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormRegistrarTrabajador.Designer.cs">
+      <DependentUpon>FormRegistrarTrabajador.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormCompraMulti.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormCompraMulti.Designer.cs">
+      <DependentUpon>FormCompraMulti.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PromptJustificacion.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PromptJustificacion.Designer.cs">
+      <DependentUpon>PromptJustificacion.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PromptCantidad.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PromptCantidad.Designer.cs">
+      <DependentUpon>PromptCantidad.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormAsignarCuadrilla.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormAsignarNomina.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormDistribucionNomina.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormReporteDestajosSemana.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormReporteNomina.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormVisorRecibosNomina.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormPerfilTrabajador.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="NumeroALetras.cs" />
+    <Compile Include="FormPropiedadesDestajo.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Global.cs" />
+    <Compile Include="FormLogin.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormLogin.Designer.cs">
+      <DependentUpon>FormLogin.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FormGenerarOrden.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormGenerarOrden.Designer.cs">
+      <DependentUpon>FormGenerarOrden.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PanelPrincipal.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ErrorLogger.cs" />
+    <Compile Include="FormLogErrores.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ThemeManager.cs" />
+    <Compile Include="TreeGridViewLite.cs" />
+    <Compile Include="UpdateServer.cs" />
+    <EmbeddedResource Include="FormAgregarInsumoIndirecto.resx">
+      <DependentUpon>FormAgregarInsumoIndirecto.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormAgregarProveedor.resx">
+      <DependentUpon>FormAgregarProveedor.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormAvanceConcepto.resx">
+      <DependentUpon>FormAvanceConcepto.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormCompraIndirecta.resx">
+      <DependentUpon>FormCompraIndirecta.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormCompraMulti.resx">
+      <DependentUpon>FormCompraMulti.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormEstimacionConcepto.resx">
+      <DependentUpon>FormEstimacionConcepto.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormEstimacionConceptoMigrado.resx">
+      <DependentUpon>FormEstimacionConceptoMigrado.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormEvidenciasFotograficas.resx">
+      <DependentUpon>FormEvidenciasFotograficas.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormProgresoActualizacion.resx">
+      <DependentUpon>FormProgresoActualizacion.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormRegistrarUsuario.resx">
+      <DependentUpon>FormRegistrarUsuario.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormRegistrarTrabajador.resx">
+      <DependentUpon>FormRegistrarTrabajador.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormRutaCritica.resx">
+      <DependentUpon>FormRutaCritica.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormSeleccionarTitulo.resx">
+      <DependentUpon>FormSeleccionarTitulo.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormSplash.resx">
+      <DependentUpon>FormSplash.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PromptJustificacion.resx">
+      <DependentUpon>PromptJustificacion.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormAsignarCuadrilla.resx">
+      <DependentUpon>FormAsignarCuadrilla.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormLogin.resx">
+      <DependentUpon>FormLogin.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FormGenerarOrden.resx">
+      <DependentUpon>FormGenerarOrden.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PanelPrincipal.resx">
+      <DependentUpon>PanelPrincipal.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\licenses.licx" />
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
+    </Compile>
+    <None Include="ACTUALIZACION_ConsultarOrdenes_MenuCompras.md" />
+    <None Include="ACTUALIZACION_EliminacionEmojis_VistaPreviaCostos.md" />
+    <None Include="ACTUALIZACION_EstimacionConcepto.md" />
+    <None Include="ACTUALIZACION_ExplosionInsumos_CarritoManual.md" />
+    <None Include="ACTUALIZACION_FormatoEconomicoSeparadores.md" />
+    <None Include="ACTUALIZACION_FormatoPDF_OrdenesCompra.md" />
+    <None Include="ACTUALIZACION_FormatoPDF_Simplificado.md" />
+    <None Include="ACTUALIZACION_FormAvanceObra_MultiVentana.md" />
+    <None Include="ACTUALIZACION_FormEstimacionConceptoMigrado_Firmas.md" />
+    <None Include="ACTUALIZACION_Layout_BuscarCasa.md" />
+    <None Include="ACTUALIZACION_MaterialSkin_BarraCafe.md" />
+    <None Include="ACTUALIZACION_MaximosDesdeTablas.md" />
+    <None Include="ACTUALIZACION_PanelPrincipal_Tema.md" />
+    <None Include="ACTUALIZACION_ProgresoDosBarras.md" />
+    <None Include="ACTUALIZACION_UI_PanelPrincipal.md" />
+    <None Include="ACTUALIZACION_Unicode_EditarPartidas.md" />
+    <None Include="ANALISIS_DISCREPANCIA_AVANCES.md" />
+    <None Include="ARCHIVOS_GENERADOS.md" />
+    <None Include="CAMBIOS_ESTADO_DESTAJO_ACTIVADO.md" />
+    <None Include="CAMBIOS_REALIZADOS_ESTADO_DESTAJO.md" />
+    <None Include="CAMBIOS_TIPO_TAREA.md" />
+    <None Include="CAMBIO_NumeracionGlobalEstimaciones.md" />
+    <None Include="CORRECCION_Alineacion_PDF_Estimacion.md" />
+    <None Include="CORRECCION_COMPLEMENTARIA_GuardarConceptos_WBSNegativo.md" />
+    <None Include="CORRECCION_COMPLETADA_FormAvanceObra.md" />
+    <None Include="CORRECCION_ConsistenciaAvanceConceptos.md" />
+    <None Include="CORRECCION_Emojis_PanelPrincipal.md" />
+    <None Include="CORRECCION_EstructuraTabla_EntradasAlmacen.md" />
+    <None Include="CORRECCION_FechaFinalizacion_TreeListView.md" />
+    <None Include="CORRECCION_FINAL_OrdenConceptos.md" />
+    <None Include="CORRECCION_FINAL_OrdenNumerico_Ambos_Formularios.md" />
+    <None Include="CORRECCION_GuardadoOrdenesCompra_Repositorio.md" />
+    <None Include="CORRECCION_GuardarCambios_ExplosionInsumos.md" />
+    <None Include="CORRECCION_Layout_FormEstimacionConceptoMigrado.md" />
+    <None Include="CORRECCION_Layout_TabSalidas.md" />
+    <None Include="CORRECCION_MEDIDORES_PROGRESO_PanelPrincipal.md" />
+    <None Include="CORRECCION_OrdenamientoNumericoCodigos.md" />
+    <None Include="CORRECCION_OrdenConceptos_1-12.md" />
+    <None Include="CORRECCION_OrdenNumerico_FormAvanceObra.md" />
+    <None Include="CORRECCION_OrdenNumerico_FormHardProgress.md" />
+    <None Include="CORRECCION_PermitirCeroMetrosCuadrados.md" />
+    <None Include="CORRECCION_ProgresoConceptos_PanelPrincipal.md" />
+    <None Include="CORRECCION_RevertirAvances_Y_Duplicados.md" />
+    <None Include="CORRECCION_TablaAvanceManualObra.md" />
+    <None Include="DATOS_REQUERIDOS_AvanceObra.md" />
+    <None Include="DIAGNOSTICO_FechaFinalizacion.md" />
+    <None Include="DOCUMENTACION_ConsultaPorCasa_FormAlmacen.md" />
+    <None Include="DOCUMENTACION_FormActivarTareasTreeList.md" />
+    <None Include="DOCUMENTACION_FormAvanceConcepto.md" />
+    <None Include="DOCUMENTACION_Inventario_FormAlmacen.md" />
+    <None Include="DOCUMENTACION_PrecioImporteSalidas.md" />
+    <None Include="DOCUMENTACION_PresupuestoDinamico.md" />
+    <None Include="ENTREGA_COMPLETA_ESTADO_DESTAJO.md" />
+    <None Include="ESTADO_COMPILACION_PanelPrincipal.md" />
+    <None Include="ESTRUCTURA_FormEstimacionConceptoMigrado.md" />
+    <None Include="ESTRUCTURA_REAL_PresupuestoObra.md" />
+    <None Include="GUIA_AgregarConceptos.md" />
+    <None Include="GUIA_DRAG_DROP_TreeList.md" />
+    <None Include="GUIA_EditorTreeList.md" />
+    <None Include="GUIA_INTEGRACION_FormActivarTareasTreeList.md" />
+    <None Include="GUIA_IntegrarMapaReal.md" />
+    <None Include="GUIA_MULTIPLES_TREELISTS.md" />
+    <None Include="GUIA_RAPIDA_ConsultaPorCasa.md" />
+    <None Include="GUIA_RAPIDA_ESTADO_DESTAJO.md" />
+    <None Include="GUIA_RAPIDA_FormAlmacen.md" />
+    <None Include="GUIA_RAPIDA_Inventario_FormAlmacen.md" />
+    <None Include="GUIA_RAPIDA_ValesSalidaPDF.md" />
+    <None Include="GUIA_TIPO_TAREA.md" />
+    <None Include="IMPLEMENTACION_COMPLETADA.md" />
+    <None Include="IMPLEMENTACION_COMPLETADA_DRAG_DROP.md" />
+    <None Include="IMPLEMENTACION_COMPLETADA_TreeList.md" />
+    <None Include="IMPLEMENTACION_FechaConceptos_Automatica.md" />
+    <None Include="IMPLEMENTACION_MapaPanZoom.md" />
+    <None Include="INDICE_DOCUMENTACION_ESTADO_DESTAJO.md" />
+    <None Include="INICIO_RAPIDO_FormActivarTareasTreeList.md" />
+    <None Include="INICIO_RAPIDO_TreeList.md" />
+    <None Include="INTEGRACION_FormAlmacen.md" />
+    <None Include="MANUAL_FormAvanceObra.md" />
+    <None Include="MANUAL_USO_ConsultaPorCasa.md" />
+    <None Include="MEJORAS_UI_FormAlmacen.md" />
+    <None Include="MEJORA_ColumnaTotalPresupuestado.md" />
+    <None Include="MEJORA_GraficaPorCategorias.md" />
+    <None Include="MEJORA_TooltipYEstadosParciales.md" />
+    <None Include="MODULARIZACION_FormAlmacen_COMPLETADA.md" />
+    <None Include="packages.config" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+    <None Include="PRUEBAS_VALIDACION_AVANCES.md" />
+    <None Include="README_AvanceObra.md" />
+    <None Include="README_BotonDiagnostico_PanelPrincipal.md" />
+    <None Include="README_DiagnosticoConexion_IMPLEMENTADO.md" />
+    <None Include="README_EditorTreeList.md" />
+    <None Include="README_EstimacionConcepto_IMPLEMENTADO.md" />
+    <None Include="README_FormatoPDF_Corporativo_OrdenesCompra.md" />
+    <None Include="README_FormAvanceConcepto_COMPLETADO.md" />
+    <None Include="README_IMPLEMENTACION_FormAvanceObra.md" />
+    <None Include="README_InstalacionDinamica.md" />
+    <None Include="README_LayoutResponsivo_PanelPrincipal.md" />
+    <None Include="README_Optimizacion_Mapa_60FPS.md" />
+    <None Include="README_OrdenesIndirectas.md" />
+    <None Include="README_PanZoom_Interactivo.md" />
+    <None Include="README_Rediseño_PDF_Estimacion.md" />
+    <None Include="README_SistemaFoliosEstimaciones.md" />
+    <None Include="README_SistemaMapaPanZoom.md" />
+    <None Include="README_SistemaProveedores.md" />
+    <None Include="README_SistemaRepositorioPDFsOrdenesCompra.md" />
+    <None Include="README_SistemaValesSalidaPDF.md" />
+    <None Include="README_SistemaVersionado.md" />
+    <None Include="REDISENO_PANEL_PRINCIPAL.md" />
+    <None Include="REDISEÑO_UI_FormAvanceConcepto.md" />
+    <None Include="REFACTORIZACION_TreeListView_COMPLETADA.md" />
+    <None Include="REFERENCIA_CODIGO_ESTADO_DESTAJO.md" />
+    <None Include="RELEASE_NOTES_ESTADO_DESTAJO.md" />
+    <None Include="RESUMEN_CapturaCeroM2ConEnter.md" />
+    <None Include="RESUMEN_ConsultaPorCasa.md" />
+    <None Include="RESUMEN_CORRECCIONES_FormAgregarConcepto.md" />
+    <None Include="RESUMEN_DRAG_DROP_TreeList.md" />
+    <None Include="RESUMEN_EJECUTIVO_FormAlmacen.md" />
+    <None Include="RESUMEN_FormActivarTareasTreeList.md" />
+    <None Include="RESUMEN_Inventario_FormAlmacen.md" />
+    <None Include="RESUMEN_MODULARIZACION_FormAlmacen.md" />
+    <None Include="RESUMEN_MULTIPLES_TREELISTS.md" />
+    <None Include="RESUMEN_ReorganizacionColumnasSalidas.md" />
+    <None Include="RESUMEN_VISUAL_ESTADO_DESTAJO.md" />
+    <None Include="SOLUCION_ConexionPerdida_AzureSQL.md" />
+    <None Include="SOLUCION_DEFINITIVA_Duplicacion_TreeListView.md" />
+    <None Include="SOLUCION_ErroresAgregarConcepto.md" />
+    <None Include="SOLUCION_FechaFinalizacion_TreeListView.md" />
+    <None Include="SOLUCION_FINAL_ProgresoConceptos.md" />
+    <None Include="SOLUCION_FINAL_TreeList.md" />
+    <None Include="SOLUCION_InvalidCastException.md" />
+    <None Include="SUMARIO_CAMBIOS_ESTADO_DESTAJO.md" />
+    <None Include="TEMATIZACION_APLICADA.md" />
+    <None Include="Test-AzureSQLConnection.ps1" />
+    <None Include="VALIDACION_ESTADO_DESTAJO.md" />
+    <None Include="VERIFICACION_FINAL_Sistema.md" />
+    <None Include="VERIFICACION_GuardadoOrdenesCompra.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <BootstrapperPackage Include=".NETFramework,Version=v4.7.2">
+      <Visible>False</Visible>
+      <ProductName>Microsoft .NET Framework 4.7.2 %28x86 and x64%29</ProductName>
+      <Install>true</Install>
+    </BootstrapperPackage>
+    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
+      <Visible>False</Visible>
+      <ProductName>.NET Framework 3.5 SP1</ProductName>
+      <Install>false</Install>
+    </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="app.ico" />
+    <Content Include="CORRECCION_Emojis_Visual.txt" />
+    <Content Include="CORRECCION_FormHardProgress_NoModal.txt" />
+    <Content Include="DIAGNOSTICO_ClavesDuplicadas_FormHardProgress.sql" />
+    <Content Include="DIAGNOSTICO_OrdenConceptos.sql" />
+    <Content Include="DIAGNOSTICO_Partidas.sql" />
+    <Content Include="EJEMPLOS_IntegracionTreeList.txt" />
+    <Content Include="Properties\Logo.png" />
+    <None Include="Resources\LogoCamaney.bmp" />
+    <None Include="Resources\LogoCamaney.png" />
+    <Content Include="RESUMEN_RAPIDO_ESTADO_DESTAJO.txt" />
+    <Content Include="RESUMEN_VISUAL_Firmas_PorEjecutar.txt" />
+    <Content Include="RESUMEN_VISUAL_FormHardProgress_OrdenNumerico.txt" />
+    <Content Include="SQL_ADD_FechaFinalizacion.sql" />
+    <Content Include="SQL_AgregarCodigo_EstimacionConcepto.sql" />
+    <Content Include="SQL_AgregarCodigo_PresupuestoObra.sql" />
+    <Content Include="SQL_AgregarConceptoImporteAvanceManualObra.sql" />
+    <Content Include="SQL_CorregirPrototipos.sql" />
+    <Content Include="SQL_CORREGIR_MAYUSCULAS.sql" />
+    <Content Include="SQL_CORREGIR_TablaAvanceManual.sql" />
+    <Content Include="SQL_CrearColumnaConceptoAvanceManualObra.sql" />
+    <Content Include="SQL_CrearEImportarPresupuesto.sql" />
+    <Content Include="SQL_CrearEstructuraCompleta.sql" />
+    <Content Include="SQL_CrearTablaAvanceManual.sql" />
+    <Content Include="SQL_CrearTablaEvidencias.sql" />
+    <Content Include="SQL_CrearTablaPDFsDestajos.sql" />
+    <Content Include="SQL_CrearTablasFoliosYPDFs.sql" />
+    <Content Include="SQL_CrearTablasRepositorioPDFsOrdenesCompra.sql" />
+    <Content Include="SQL_CREAR_TablasOrdenesCompra.sql" />
+    <Content Include="SQL_DatosEjemploAvanceObra.sql" />
+    <Content Include="SQL_DiagnosticoWBS_Correcto.sql" />
+    <Content Include="SQL_DIAGNOSTICO_AVANCE_CERO.sql" />
+    <Content Include="SQL_DIAGNOSTICO_CAST_WBS.sql" />
+    <Content Include="SQL_DIAGNOSTICO_COMPLETO.sql" />
+    <Content Include="SQL_DIAGNOSTICO_ConceptosGuardados.sql" />
+    <Content Include="SQL_DIAGNOSTICO_COSTOS_CERO.sql" />
+    <Content Include="SQL_DIAGNOSTICO_OrdenCategorias.sql" />
+    <Content Include="SQL_ELIMINAR_OrdenesCompra.sql" />
+    <Content Include="SQL_IMPORTAR_SIMPLE.sql" />
+    <Content Include="SQL_InicializarDatosAvanceObra.sql" />
+    <Content Include="SQL_INSERTAR_ConceptosCompletados_M5L2.sql" />
+    <Content Include="SQL_INSERTAR_DATOS_TUNERA.sql" />
+    <Content Include="SQL_LIMPIAR_AvanceOrdenesCompra.sql" />
+    <Content Include="SQL_MIGRAR_AvanceManual_AddMonto.sql" />
+    <Content Include="SQL_RESETEAR_AzureSQL.sql" />
+    <Content Include="SQL_RESETEAR_OrdenesCompra_RAPIDO.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarCamposColumnasCalculadas.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarColumnaLimiteM2.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarColumnaMetrosCuadradosAvance.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarColumnaPrototiposAplicables.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarColumnasDinamicas.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarColumnasLimiteM2Prototipo.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarColumnasPrecioSalidas.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarColumnaTipoTarea.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarColumnaWBSFoliosDetalle.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarIdPresupuestoObraAFoliosDetalle.sql" />
+    <Content Include="SQL_SCRIPTS\AgregarNombreOrdenesCompra.sql" />
+    <Content Include="SQL_SCRIPTS\CorregirWBSDuplicados.sql" />
+    <Content Include="SQL_SCRIPTS\CrearTablaActivacionTareasRuta.sql" />
+    <Content Include="SQL_SCRIPTS\CrearTablasRepositorioSalidasAlmacen.sql" />
+    <Content Include="SQL_SCRIPTS\CrearTablasRutaCalandraDestajo.sql" />
+    <Content Include="SQL_SCRIPTS\CrearTablasTreeList.sql" />
+    <Content Include="SQL_SCRIPTS\CrearVinculoPermanenteWBS.sql" />
+    <Content Include="SQL_SCRIPTS\DiagnosticoAvanceManualObra.sql" />
+    <Content Include="SQL_SCRIPTS\DiagnosticoVinculosWBS.sql" />
+    <Content Include="SQL_SCRIPTS\DiagnosticoYCorreccionWBS.sql" />
+    <Content Include="SQL_SCRIPTS\MigracionDesatajoActivado.sql" />
+    <Content Include="SQL_SCRIPTS\RecuperarAvancesPerdidos.sql" />
+    <Content Include="SQL_SCRIPTS\RenombrarTreeListDataARutaTunera.sql" />
+    <Content Include="SQL_SCRIPTS\VerificarEsquemaPresupuestoObra.sql" />
+    <Content Include="SQL_SCRIPTS\VincularProgresoExistente.sql" />
+    <Content Include="SQL_TRANSFORMAR_A_PRESUPUESTO.sql" />
+    <Content Include="SQL_UNIFICAR_AvanceConceptos.sql" />
+    <Content Include="SQL_VerificacionRapida.sql" />
+    <Content Include="SQL_VerificarBaseDatos.sql" />
+    <Content Include="SQL_VerificarComprasIndirectas.sql" />
+    <Content Include="SQL_VerificarEstimacionConcepto.sql" />
+    <Content Include="SQL_VerificarEstructuraConceptos.sql" />
+    <Content Include="SQL_VerificarEstructuraFinal.sql" />
+    <Content Include="SQL_VerificarEstructuraPresupuesto.sql" />
+    <Content Include="SQL_VerificarPresupuestoObra.sql" />
+    <Content Include="SQL_VerificarProveedores.sql" />
+    <Content Include="SQL_VerificarYAgregarFechaFinalizacion.sql" />
+    <Content Include="SQL_VerificarYCrearPresupuestoObra.sql" />
+    <Content Include="SQL_VERIFICAR_AzureSQL.sql" />
+    <Content Include="SQL_VERIFICAR_BaseDatos.sql" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

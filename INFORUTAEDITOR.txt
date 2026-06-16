@@ -1,0 +1,54 @@
+	HABILITADOS ENTREPISO	Padre	-		4					
+39	Habilitado acero TR-1	Sub-Padre	-		0					
+	Habilitado acero TR-1	Hijo	Mano de Obra		0		kg	34.21	12.82	$438.57
+	Varilla corrugada acero de refuerzo del # 3 (⅜")	Hijo	Material		1		kg	11.50	18.10	$208.15
+	Varilla corrugada acero de refuerzo del # 4 (½")	Hijo	Material		2		kg	22.70	18.10	$410.87
+	Cimbra para TR-1 seccion 25x20 cm	Hijo	Mano de Obra		3		m	3.81	207.64	$791.11
+40	Habilitado acero TR-2	Sub-Padre	-		1					
+	Varilla corrugada acero de refuerzo del # 3 (⅜")	Hijo	Material	HABILITADO	0		lote	16.03	18.10	$290.14
+	Varilla corrugada acero de refuerzo del # 5 (5/8")	Hijo	Material	HABILITADO	1		lote	35.47	18.10	$642.01
+	Habilitado de Aacero TR-2	Hijo	Mano de Obra		2		kg	51.50	12.82	$660.23
+	Cimbra para TR-2 seccion 25x20 cm;	Hijo	Mano de Obra		3		m	5.31	207.64	$1,102.57
+41	Habilitado acero TR-3	Sub-Padre	-		2					
+	Habilitadao de varilla de 3/8" y cimbra para TR-3	Hijo	Mano de Obra	HABILITADO	0		kg	12.15	12.82	$155.76
+	Cimbra para TR-3 seccion 20x20 cm;	Hijo	Mano de Obra		1		m	2.47	207.64	$512.87
+	Varilla corrugada acero de refuerzo del # 3 (⅜")	Hijo	Material		2		kg	12.15	18.10	$219.92
+	Cimbra para TR-3 seccion 20x20 cm	Hijo	Mano de Obra		3		m	2.47	207.64	$512.87
+42	Habilitado acero TR-4	Sub-Padre	-		3					
+	Habilitado de varilla corrugada de 3/8" y 1/2". cimbra para TR-4	Hijo	Mano de Obra	HABILITADO	0		kg	123.57	12.82	$1,584.17
+	Varilla corrugada acero de refuerzo del # 3 (⅜")	Hijo	Material		1		kg	108.43	18.10	$1,962.58
+	Varilla corrugada acero de refuerzo del # 4	Hijo	Material		2		kg	15.13	18.10	$273.85
+	Cimbra para TR-4- seccion 30x20 cm;	Hijo	Mano de Obra		3		m	2.54	207.64	$527.41
+43	Habilitado acero TR-5	Sub-Padre	-		4					
+	Habilitadao de varilla de 3/8"y 5/8", cimbra para RT-5	Hijo	Mano de Obra	HABILITADO	0		kg	21.41	12.82	$274.48
+	Cimbra para TR-5- seccion 30x20 cm;	Hijo	Mano de Obra		1		m	2.31	207.64	$479.65
+	Varilla corrugada acero de refuerzo del # 3 (⅜")	Hijo	Material		2		kg	7	18.10	$126.70
+	Varilla corrugada acero de refuerzo del # 5 (5/8-"	Hijo	Material		3		kg	14.40	18.10	$260.64
+44	Habilitado acero CR-1	Sub-Padre	-		5					
+	Habilitadao de Armex 12x20-4; incluye: habilitado, cortes, amarre	Hijo	Mano de Obra	HABILITADO	0		m	35.6	18.91	$673.20
+	Armex 12x20-4	Hijo	Material		1		m	35.6	23.41	$833.40
+	LOSA DE ENTREPISO	Padre	-		5					
+45	Trazo, nivelación y cimbra en escalera losa de cimentación y muros por medios manuales	Sub-Padre	-		0					
+	Trazo, nivelación y cimbra en escalera losa de cimentación y muros por medios manuales	Hijo	Mano de Obra		0		lote	1	2,273.28	$2,273.28
+46	Acero en escalera; armado transversal y longitudinal con Vars. #3 @ 15 cm	Sub-Padre	-		1					
+	Acero en escalera; armado transversal y longitudinal con Vars. #3 @ 15 cm	Hijo	Mano de Obra		0		kg	95.68035	11.82	$1,130.94
+	Varilla corrugada acero de refuerzo del # 3 (⅜") f'y = 4,200 kg/cm²	Hijo	Material		1		kg	95.68035	18.10	$1,731.81
+47	Colocación viguetas y bovedilla en entrepiso	Sub-Padre	-		2					
+	Colocación de viguetapretensasda,cimbra ,malla electrosoldada 66-88	Hijo	Mano de Obra		0		lote	1	8,760.15	$8,760.15
+	VIG V11-40 DE 3.7 (2)	Hijo	Material		1		m	7.4	131	$969.40
+	VIG V11-40 DE 3.57 (2)	Hijo	Material		2		m	7.14	131	$935.34
+	VIG V11-30 DE 3.03 (1)	Hijo	Material		3		m	3.03	125	$378.75
+	VIG V11-30 DE 2.90 (4)	Hijo	Material		4		m	11.6	125	$1,450.00
+	VIG V11-30 DE 2.80 (4)	Hijo	Material		5		m	11.2	125	$1,400.00
+	VIG V11-30 DE 2.45 (2)	Hijo	Material		6		m	4.9	125	$612.50
+	VIG V11-30 DE 2.41 (4)	Hijo	Material		7		m	9.64	125	$1,205.00
+	VIG V11-30 DE 2.33 (2)	Hijo	Material		8		m	4.66	125	$582.50
+	BOVEDILLA 15X61X120 (61)	Hijo	Material		9		pieza	61	117.50	$7,167.50
+48	 Cimbra y acero en volados A1 y A2	Sub-Padre	-		4					
+	Colocación de cimbra y acero #3,#4, icluye malla electrosoldada 66-88	Hijo	Mano de Obra		0		lote	1	5333.82	$5,333.82
+	Varilla corrugada acero de refuerzo del # 3 (⅜") f'y = 4,200 kg/cm²	Hijo	Material		1		kg	41.32	18.10	$747.89
+	Varilla corrugada acero de refuerzo del # 4 (½") f'y = 4,200 kg/cm²	Hijo	Material		2		kg	23.26	18.10	$421.01
+	Malla electrosoldada 66-88 (5.22 kg/m²)	Hijo	Material		3		m2	111.32	26.72	$2,974.47
+49	COLOCACION DE ACERO EN ENTREPISO	Sub-Padre	-		7					
+	colocación de acero vertical incluye varillas #3 ,madarinas, enfajillado y malla electrosoldada 66-88	Hijo	Mano de Obra		0		lote	1	10,520.50	$10,520.50
+	colocación de Cimbra para trabes TR-1 al TR-5	Hijo	Mano de Obra		1		lote	1	3415.68	$3,415.68

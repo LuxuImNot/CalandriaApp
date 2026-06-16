@@ -1,0 +1,347 @@
+/*
+???????????????????????????????????????????????????????????????????????????????
+EJEMPLO DE INTEGRACIÓN - EDITOR DE TREELIST
+???????????????????????????????????????????????????????????????????????????????
+
+Este archivo contiene ejemplos de cómo integrar el Editor de TreeList en tu
+aplicación. Los ejemplos son solo de referencia y no se compilan directamente.
+
+INSTRUCCIONES:
+1. Copia el código que necesites a tu formulario
+2. Ajusta la cadena de conexión según tu configuración
+3. Compila y prueba
+
+???????????????????????????????????????????????????????????????????????????????
+*/
+
+// EJEMPLO 1: ABRIR DESDE UN BOTÓN
+// ==================================
+
+// En tu formulario (ej: FormPrincipal.cs), agregar:
+
+private void btnAbrirEditorTreeList_Click(object sender, EventArgs e)
+{
+    try
+    {
+        // ?? IMPORTANTE: Reemplaza con tu cadena de conexión real
+        string connectionString = @"Server=.\SQLEXPRESS;Database=BaseDatosCalandria;Trusted_Connection=True;";
+        
+        // Abrir el editor
+        using (var form = new FormEditorTreeList(connectionString, "TreeListData"))
+        {
+            form.Text = "Editor de Tareas y Proyectos";
+            form.ShowDialog();
+        }
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show($"Error: {ex.Message}", "Error", 
+            MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+}
+
+
+// EJEMPLO 2: ABRIR DESDE MENÚ
+// ==============================
+
+// En tu menú principal, evento Click del MenuItem:
+
+private void menuItemEditorTareas_Click(object sender, EventArgs e)
+{
+    string conn = @"Server=.\SQLEXPRESS;Database=BaseDatosCalandria;Trusted_Connection=True;";
+    
+    var form = new FormEditorTreeList(conn);
+    form.Text = "Gestor de Tareas";
+    form.Show(); // Modo no modal
+}
+
+
+// EJEMPLO 3: INTEGRAR EN FormEstimacionConceptoMigrado
+// =======================================================
+
+// 1. Agregar botón en FormEstimacionConceptoMigrado.Designer.cs:
+
+/*
+private System.Windows.Forms.Button btnGestionarTareas;
+
+this.btnGestionarTareas = new System.Windows.Forms.Button();
+
+this.btnGestionarTareas.BackColor = System.Drawing.Color.FromArgb(142, 68, 173);
+this.btnGestionarTareas.FlatAppearance.BorderSize = 0;
+this.btnGestionarTareas.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+this.btnGestionarTareas.Font = new System.Drawing.Font("Segoe UI", 9F, FontStyle.Bold);
+this.btnGestionarTareas.ForeColor = System.Drawing.Color.White;
+this.btnGestionarTareas.Location = new System.Drawing.Point(820, 650);
+this.btnGestionarTareas.Name = "btnGestionarTareas";
+this.btnGestionarTareas.Size = new System.Drawing.Size(150, 40);
+this.btnGestionarTareas.Text = "?? Gestionar Tareas";
+this.btnGestionarTareas.Click += new EventHandler(this.btnGestionarTareas_Click);
+
+this.Controls.Add(this.btnGestionarTareas);
+*/
+
+// 2. Agregar evento en FormEstimacionConceptoMigrado.cs:
+
+private void btnGestionarTareas_Click(object sender, EventArgs e)
+{
+    string conn = conexionString; // Usar tu variable de conexión
+    
+    using (var form = new FormEditorTreeList(conn))
+    {
+        form.Text = "Tareas del Proyecto";
+        form.ShowDialog();
+    }
+}
+
+
+// EJEMPLO 4: CON VALIDACIÓN DE PERMISOS
+// ========================================
+
+private void AbrirEditorConPermisos()
+{
+    // Verificar usuario logueado (ajustar según tu sistema)
+    if (UsuarioActual == null)
+    {
+        MessageBox.Show("Debes iniciar sesión", "Acceso Denegado",
+            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        return;
+    }
+    
+    // Solo admin puede editar
+    if (!UsuarioActual.Nombre.Equals("admin", StringComparison.OrdinalIgnoreCase))
+    {
+        MessageBox.Show("No tienes permisos", "Acceso Denegado",
+            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        return;
+    }
+    
+    // Abrir editor
+    string conn = @"Server=.\SQLEXPRESS;Database=BaseDatosCalandria;Trusted_Connection=True;";
+    using (var form = new FormEditorTreeList(conn))
+    {
+        form.ShowDialog();
+    }
+}
+
+
+// EJEMPLO 5: CON TABLA PERSONALIZADA POR OBRA
+// ==============================================
+
+private void AbrirEditorPorObra(string manzana, string lote)
+{
+    // Crear nombre de tabla único para cada obra
+    string nombreTabla = $"TreeList_M{manzana}_L{lote}";
+    
+    string conn = @"Server=.\SQLEXPRESS;Database=BaseDatosCalandria;Trusted_Connection=True;";
+    
+    using (var form = new FormEditorTreeList(conn, nombreTabla))
+    {
+        form.Text = $"Tareas - Manzana {manzana} Lote {lote}";
+        form.ShowDialog();
+    }
+}
+
+
+// EJEMPLO 6: CON CALLBACK AL CERRAR
+// ====================================
+
+private void AbrirEditorConCallback()
+{
+    string conn = @"Server=.\SQLEXPRESS;Database=BaseDatosCalandria;Trusted_Connection=True;";
+    
+    var form = new FormEditorTreeList(conn);
+    
+    form.FormClosed += (s, e) => 
+    {
+        // Ejecutar acción al cerrar
+        MessageBox.Show("Editor cerrado. Recargando datos...");
+        CargarDatos(); // Tu método para recargar
+    };
+    
+    form.ShowDialog();
+}
+
+
+// EJEMPLO 7: AGREGAR AL PanelPrincipal
+// =======================================
+
+// En PanelPrincipal.cs, dentro del método que crea los botones:
+
+private void CrearBotonEditorTareas()
+{
+    var btnEditor = new Button
+    {
+        Text = "??\nEditor de\nTareas",
+        Size = new Size(120, 100),
+        Location = new Point(20, 400),
+        BackColor = Color.FromArgb(142, 68, 173),
+        ForeColor = Color.White,
+        FlatStyle = FlatStyle.Flat,
+        Font = new Font("Segoe UI", 10F, FontStyle.Bold)
+    };
+    
+    btnEditor.FlatAppearance.BorderSize = 0;
+    
+    btnEditor.Click += (s, e) => 
+    {
+        string conn = @"Server=.\SQLEXPRESS;Database=BaseDatosCalandria;Trusted_Connection=True;";
+        using (var form = new FormEditorTreeList(conn))
+        {
+            form.ShowDialog();
+        }
+    };
+    
+    this.Controls.Add(btnEditor);
+}
+
+
+// EJEMPLO 8: VERIFICAR DISPONIBILIDAD
+// ======================================
+
+private bool EditorTreeListDisponible()
+{
+    try
+    {
+        string conn = @"Server=.\SQLEXPRESS;Database=BaseDatosCalandria;Trusted_Connection=True;";
+        
+        using (var sqlConn = new System.Data.SqlClient.SqlConnection(conn))
+        {
+            sqlConn.Open();
+            
+            var cmd = new System.Data.SqlClient.SqlCommand(
+                "SELECT COUNT(*) FROM sys.objects WHERE name = 'TreeListData'", sqlConn);
+            
+            int count = (int)cmd.ExecuteScalar();
+            return count > 0;
+        }
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+private void btnAbrir_Click(object sender, EventArgs e)
+{
+    if (!EditorTreeListDisponible())
+    {
+        MessageBox.Show("Debes ejecutar el script SQL primero:\n\n" +
+            "SQL_SCRIPTS\\CrearTablasTreeList.sql",
+            "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        return;
+    }
+    
+    // Abrir editor...
+}
+
+
+// EJEMPLO 9: OBTENER ESTADÍSTICAS
+// ==================================
+
+private string ObtenerEstadisticasTreeList()
+{
+    try
+    {
+        string conn = @"Server=.\SQLEXPRESS;Database=BaseDatosCalandria;Trusted_Connection=True;";
+        
+        using (var sqlConn = new System.Data.SqlClient.SqlConnection(conn))
+        {
+            sqlConn.Open();
+            
+            var cmd = new System.Data.SqlClient.SqlCommand(@"
+                SELECT 
+                    COUNT(*) as Total,
+                    SUM(CASE WHEN Nivel = 0 THEN 1 ELSE 0 END) as Padres,
+                    SUM(CASE WHEN Nivel = 1 THEN 1 ELSE 0 END) as SubPadres,
+                    SUM(CASE WHEN Nivel = 2 THEN 1 ELSE 0 END) as Hijos
+                FROM TreeListData", sqlConn);
+            
+            using (var reader = cmd.ExecuteReader())
+            {
+                if (reader.Read())
+                {
+                    return $"Total: {reader["Total"]}\n" +
+                           $"Padres: {reader["Padres"]}\n" +
+                           $"Sub-Padres: {reader["SubPadres"]}\n" +
+                           $"Hijos: {reader["Hijos"]}";
+                }
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        return $"Error: {ex.Message}";
+    }
+    
+    return "Sin datos";
+}
+
+// Mostrar en un Label o MessageBox:
+lblEstadisticas.Text = ObtenerEstadisticasTreeList();
+
+
+// EJEMPLO 10: CONFIGURACIÓN AVANZADA
+// =====================================
+
+private void AbrirEditorConfigurado()
+{
+    string conn = @"Server=.\SQLEXPRESS;Database=BaseDatosCalandria;Trusted_Connection=True;";
+    
+    var form = new FormEditorTreeList(conn)
+    {
+        Text = "Gestor de Proyectos y Tareas",
+        StartPosition = FormStartPosition.CenterScreen,
+        WindowState = FormWindowState.Maximized
+    };
+    
+    // Evento al cargar
+    form.Load += (s, e) => 
+    {
+        MessageBox.Show("¡Bienvenido al Editor de Tareas!", 
+            "Información", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    };
+    
+    // Evento al cerrar
+    form.FormClosing += (s, e) =>
+    {
+        var result = MessageBox.Show("¿Seguro que deseas salir?", 
+            "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+        
+        if (result != DialogResult.Yes)
+        {
+            e.Cancel = true;
+        }
+    };
+    
+    form.ShowDialog();
+}
+
+
+/*
+???????????????????????????????????????????????????????????????????????????????
+NOTAS IMPORTANTES:
+???????????????????????????????????????????????????????????????????????????????
+
+1. CADENA DE CONEXIÓN:
+   - Reemplaza la cadena de conexión hardcodeada con tu configuración real
+   - Opciones comunes:
+     * Global.ConnectionString (si existe en tu proyecto)
+     * Properties.Settings.Default.ConnectionString
+     * ConfigurationManager.ConnectionStrings["nombre"].ConnectionString
+
+2. ANTES DE USAR:
+   - Ejecutar el script SQL: CrearTablasTreeList.sql
+   - Verificar que las tablas se crearon correctamente
+   - Compilar el proyecto sin errores
+
+3. PERSONALIZACIÓN:
+   - Cambiar colores de botones según tu diseño
+   - Ajustar tamaños y posiciones
+   - Agregar validaciones específicas de tu negocio
+
+4. SOPORTE:
+   - Ver GUIA_EditorTreeList.md para documentación completa
+   - Ver README_EditorTreeList.md para inicio rápido
+
+???????????????????????????????????????????????????????????????????????????????
+*/
