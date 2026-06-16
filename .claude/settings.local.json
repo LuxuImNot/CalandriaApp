@@ -85,7 +85,16 @@
       "Bash(./Calandria.Api.exe)",
       "Bash(curl -s -m 5 http://localhost:8733/api/health)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -m 5 http://localhost:8733/api/health)",
-      "Bash(curl -s -m 5 -w \"\\\\nHTTP %{http_code}\\\\n\" http://localhost:8733/api/health)"
+      "Bash(curl -s -m 5 -w \"\\\\nHTTP %{http_code}\\\\n\" http://localhost:8733/api/health)",
+      "Bash(openssl rand *)",
+      "Bash(powershell -NoProfile -Command \"[Convert]::ToBase64String\\(\\(1..48 | ForEach-Object {Get-Random -Max 256}\\)\\)\")",
+      "Bash(curl -s -m 8 -w \" [HTTP %{http_code}]\\\\n\" http://localhost:8733/api/health)",
+      "Bash(curl -s -m 8 -w \" [HTTP %{http_code}]\\\\n\" http://localhost:8733/api/almacen/manzanas)",
+      "Bash(curl -s -m 15 -w \" [HTTP %{http_code}]\\\\n\" -X POST http://localhost:8733/api/auth/login -H \"Content-Type: application/json\" -d '{\"usuario\":\"___noexiste___\",\"clave\":\"x\"}')",
+      "Bash(taskkill //IM Calandria.Api.exe //F)",
+      "Bash(openssl dgst *)",
+      "Bash(awk '{print $2}')",
+      "Bash(sqlcmd *)"
     ]
   }
 }

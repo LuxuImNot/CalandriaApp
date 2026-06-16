@@ -8,6 +8,7 @@ namespace Calandria.Api.Controllers
     /// está vivo sin tocar la base de datos. GET /api/health
     /// </summary>
     [RoutePrefix("api/health")]
+    [AllowAnonymous]
     public class HealthController : ApiController
     {
         [HttpGet, Route("")]

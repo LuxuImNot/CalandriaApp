@@ -1,3 +1,4 @@
+using System;
 using System.Configuration;
 
 namespace Calandria.Api
@@ -14,5 +15,25 @@ namespace Calandria.Api
 
         public static string CadenaConexion =>
             ConfigurationManager.ConnectionStrings["CalandriaConn"]?.ConnectionString;
+
+        // ---- JWT ----
+        public static string JwtSecreto =>
+            ConfigurationManager.AppSettings["JwtSecreto"]
+            ?? throw new InvalidOperationException("Falta JwtSecreto en la configuración.");
+
+        public static string JwtIssuer =>
+            ConfigurationManager.AppSettings["JwtIssuer"] ?? "Calandria.Api";
+
+        public static string JwtAudience =>
+            ConfigurationManager.AppSettings["JwtAudience"] ?? "CalandriaCliente";
+
+        public static int JwtHorasVigencia
+        {
+            get
+            {
+                var v = ConfigurationManager.AppSettings["JwtHorasVigencia"];
+                return int.TryParse(v, out int h) && h > 0 ? h : 12;
+            }
+        }
     }
 }
