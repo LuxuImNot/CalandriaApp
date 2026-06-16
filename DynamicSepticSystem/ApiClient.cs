@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -67,6 +68,27 @@ namespace DynamicSepticSystem
                     resp.EnsureSuccessStatusCode();
                     string json = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
                     return JsonConvert.DeserializeObject<T>(json);
+                }
+            }
+        }
+
+        /// <summary>
+        /// GET de contenido binario (p. ej. el PDF de un recibo). Devuelve null
+        /// si el API responde 404 (sin contenido).
+        /// </summary>
+        public static byte[] GetBytes(string rutaRelativa)
+        {
+            using (var req = new HttpRequestMessage(HttpMethod.Get, BaseUrl + rutaRelativa))
+            {
+                if (Autenticado)
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+
+                using (var resp = Http.SendAsync(req).GetAwaiter().GetResult())
+                {
+                    if (resp.StatusCode == HttpStatusCode.NotFound)
+                        return null;
+                    resp.EnsureSuccessStatusCode();
+                    return resp.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
                 }
             }
         }

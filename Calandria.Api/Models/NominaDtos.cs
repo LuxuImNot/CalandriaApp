@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Calandria.Api.Models
@@ -56,5 +57,77 @@ namespace Calandria.Api.Models
         public string CodigoCuadrilla { get; set; }
         public decimal TotalDistribuir { get; set; }
         public List<LineaAsignacionNomina> Lineas { get; set; }
+    }
+
+    // ---- Reporte y recibos de nómina ----
+
+    /// <summary>
+    /// Fila agregada por trabajador del reporte de nómina (FormReporteNomina).
+    /// </summary>
+    public sealed class NominaReporteDto
+    {
+        public int? IdTrabajador { get; set; }
+        public string Clave { get; set; }
+        public string Nombre { get; set; }
+        public string Rol { get; set; }
+        public string Cuadrillas { get; set; }
+        public int NumRecibos { get; set; }
+        public decimal Monto { get; set; }
+    }
+
+    /// <summary>
+    /// Cabecera de un recibo de nómina (FormVisorRecibosNomina). No incluye el
+    /// PDF (binario): se descarga aparte vía /recibos/{id}/pdf.
+    /// </summary>
+    public sealed class ReciboNominaDto
+    {
+        public int Id { get; set; }
+        public int? IdTrabajador { get; set; }
+        public string NombreTrabajador { get; set; }
+        public string Rol { get; set; }
+        public string CodigoCuadrilla { get; set; }
+        public string Concepto { get; set; }
+        public decimal Monto { get; set; }
+        public DateTime FechaRecibo { get; set; }
+        public DateTime? PeriodoDesde { get; set; }
+        public DateTime? PeriodoHasta { get; set; }
+        public decimal TotalCuadrilla { get; set; }
+        public bool TienePdf { get; set; }
+    }
+
+    // ---- Distribución de nómina (escritura: FormDistribucionNomina) ----
+
+    /// <summary>Un recibo a persistir, con su PDF en base64.</summary>
+    public sealed class ReciboInput
+    {
+        public int? IdTrabajador { get; set; }
+        public string NombreTrabajador { get; set; }
+        public string Rol { get; set; }
+        public string Concepto { get; set; }
+        public decimal Monto { get; set; }
+        public string PdfBase64 { get; set; }
+    }
+
+    /// <summary>Un destajo finalizado a marcar como nómina distribuida.</summary>
+    public sealed class DestajoDistribuidoInput
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Ruta { get; set; }
+        public int NodoId { get; set; }
+    }
+
+    /// <summary>
+    /// Cuerpo de POST /api/nomina/distribucion. Persiste todos los recibos de la
+    /// cuadrilla y marca sus destajos como distribuidos, en una transacción.
+    /// </summary>
+    public sealed class DistribucionNominaRequest
+    {
+        public string CodigoCuadrilla { get; set; }
+        public DateTime Desde { get; set; }
+        public DateTime Hasta { get; set; }
+        public decimal TotalCuadrilla { get; set; }
+        public List<ReciboInput> Recibos { get; set; }
+        public List<DestajoDistribuidoInput> Destajos { get; set; }
     }
 }

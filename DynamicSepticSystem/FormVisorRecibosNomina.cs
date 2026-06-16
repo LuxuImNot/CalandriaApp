@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Configuration;
-using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
@@ -20,9 +18,6 @@ namespace DynamicSepticSystem
     /// </summary>
     public class FormVisorRecibosNomina : Form
     {
-        private readonly string _connectionString =
-            ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
-
         private DateTimePicker dtpDesde;
         private DateTimePicker dtpHasta;
         private TextBox txtBuscar;
@@ -352,16 +347,11 @@ namespace DynamicSepticSystem
 
             try
             {
-                if (!ExisteTablaRecibos())
-                {
-                    _recibos.Clear();
-                    olv.SetObjects(_recibos);
-                    lblResumen.Text = "No existe la tabla RecibosNomina aún.";
-                    ActualizarBotones();
-                    return;
-                }
-
-                _recibos = ConsultarRecibos(desde, hasta);
+                // Migrado a API: GET /api/nomina/recibos?desde=&hasta=
+                _recibos = ApiClient.Get<List<ReciboInfo>>(
+                    "/api/nomina/recibos"
+                    + "?desde=" + desde.ToString("yyyy-MM-dd")
+                    + "&hasta=" + dtpHasta.Value.Date.ToString("yyyy-MM-dd"));
                 olv.SetObjects(_recibos);
                 lblResumen.Text = string.Format(
                     "Periodo: {0} a {1}   ·   Recibos: {2}   ·   Total: {3}",
@@ -374,69 +364,6 @@ namespace DynamicSepticSystem
                 MessageBox.Show("Error al consultar recibos:\n" + ex.Message,
                     "Recibos", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private bool ExisteTablaRecibos()
-        {
-            using (var conn = new SqlConnection(_connectionString))
-            {
-                conn.Open();
-                using (var cmd = new SqlCommand(
-                    "SELECT COUNT(*) FROM sys.tables WHERE name = 'RecibosNomina'", conn))
-                    return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
-            }
-        }
-
-        private List<ReciboInfo> ConsultarRecibos(DateTime desde, DateTime hasta)
-        {
-            const string sql = @"
-                SELECT Id, IdTrabajador, NombreTrabajador, Rol, CodigoCuadrilla, Concepto, Monto,
-                       FechaRecibo, PeriodoDesde, PeriodoHasta, TotalCuadrilla,
-                       CASE WHEN Pdf IS NULL THEN 0 ELSE 1 END AS TienePdf
-                FROM RecibosNomina
-                WHERE FechaRecibo BETWEEN @d AND @h
-                   OR (PeriodoDesde IS NOT NULL AND PeriodoHasta IS NOT NULL
-                       AND PeriodoDesde <= @h AND PeriodoHasta >= @d)
-                ORDER BY FechaRecibo DESC, NombreTrabajador";
-
-            var lista = new List<ReciboInfo>();
-            using (var conn = new SqlConnection(_connectionString))
-            {
-                conn.Open();
-                using (var cmd = new SqlCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@d", desde);
-                    cmd.Parameters.AddWithValue("@h", hasta);
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            lista.Add(new ReciboInfo
-                            {
-                                Id = Convert.ToInt32(reader["Id"]),
-                                IdTrabajador = reader["IdTrabajador"] == DBNull.Value
-                                    ? (int?)null : Convert.ToInt32(reader["IdTrabajador"]),
-                                NombreTrabajador = reader["NombreTrabajador"].ToString(),
-                                Rol = reader["Rol"] == DBNull.Value ? "" : reader["Rol"].ToString(),
-                                CodigoCuadrilla = reader["CodigoCuadrilla"] == DBNull.Value
-                                    ? "" : reader["CodigoCuadrilla"].ToString(),
-                                Concepto = reader["Concepto"] == DBNull.Value
-                                    ? "" : reader["Concepto"].ToString(),
-                                Monto = Convert.ToDecimal(reader["Monto"]),
-                                FechaRecibo = Convert.ToDateTime(reader["FechaRecibo"]),
-                                PeriodoDesde = reader["PeriodoDesde"] == DBNull.Value
-                                    ? (DateTime?)null : Convert.ToDateTime(reader["PeriodoDesde"]),
-                                PeriodoHasta = reader["PeriodoHasta"] == DBNull.Value
-                                    ? (DateTime?)null : Convert.ToDateTime(reader["PeriodoHasta"]),
-                                TotalCuadrilla = reader["TotalCuadrilla"] == DBNull.Value
-                                    ? 0m : Convert.ToDecimal(reader["TotalCuadrilla"]),
-                                TienePdf = Convert.ToInt32(reader["TienePdf"]) == 1
-                            });
-                        }
-                    }
-                }
-            }
-            return lista;
         }
 
         private void AplicarFiltro()
@@ -482,17 +409,8 @@ namespace DynamicSepticSystem
 
         private byte[] LeerPdf(int id)
         {
-            using (var conn = new SqlConnection(_connectionString))
-            {
-                conn.Open();
-                using (var cmd = new SqlCommand("SELECT Pdf FROM RecibosNomina WHERE Id = @id", conn))
-                {
-                    cmd.Parameters.AddWithValue("@id", id);
-                    var obj = cmd.ExecuteScalar();
-                    if (obj == null || obj == DBNull.Value) return null;
-                    return (byte[])obj;
-                }
-            }
+            // Migrado a API: GET /api/nomina/recibos/{id}/pdf
+            return ApiClient.GetBytes("/api/nomina/recibos/" + id + "/pdf");
         }
 
         private void AbrirSeleccionado()

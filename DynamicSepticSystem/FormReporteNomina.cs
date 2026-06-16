@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Configuration;
-using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
@@ -21,9 +19,6 @@ namespace DynamicSepticSystem
     /// </summary>
     public class FormReporteNomina : Form
     {
-        private readonly string _connectionString =
-            ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
-
         private DateTimePicker dtpDesde;
         private DateTimePicker dtpHasta;
         private Button btnSemanaActual;
@@ -368,15 +363,11 @@ namespace DynamicSepticSystem
 
             try
             {
-                if (!ExisteTablaRecibos())
-                {
-                    _items.Clear();
-                    olv.SetObjects(_items);
-                    lblResumen.Text = "No existe la tabla RecibosNomina aún (no se han generado distribuciones de nómina).";
-                    return;
-                }
-
-                _items = ConsultarItems(desde, hasta);
+                // Migrado a API: GET /api/nomina/reporte?desde=&hasta=
+                _items = ApiClient.Get<List<NominaItem>>(
+                    "/api/nomina/reporte"
+                    + "?desde=" + desde.ToString("yyyy-MM-dd")
+                    + "&hasta=" + dtpHasta.Value.Date.ToString("yyyy-MM-dd"));
                 int i = 1;
                 foreach (var it in _items) it.Indice = i++;
                 olv.SetObjects(_items);
@@ -387,137 +378,6 @@ namespace DynamicSepticSystem
                 MessageBox.Show("Error al consultar nómina:\n" + ex.Message,
                     "Reporte de Nómina", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private bool ExisteTablaRecibos()
-        {
-            using (var conn = new SqlConnection(_connectionString))
-            {
-                conn.Open();
-                using (var cmd = new SqlCommand(
-                    "SELECT COUNT(*) FROM sys.tables WHERE name = 'RecibosNomina'", conn))
-                    return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
-            }
-        }
-
-        private List<NominaItem> ConsultarItems(DateTime desde, DateTime hasta)
-        {
-            // Agrupa recibos por trabajador (IdTrabajador si existe, sino por nombre).
-            // Considera dos criterios de fecha: FechaRecibo o el periodo del recibo.
-            const string sql = @"
-                SELECT
-                    r.IdTrabajador,
-                    r.NombreTrabajador,
-                    r.Rol,
-                    SUM(r.Monto)          AS Monto,
-                    COUNT(*)              AS NumRecibos,
-                    STRING_AGG(r.CodigoCuadrilla, ', ') WITHIN GROUP (ORDER BY r.CodigoCuadrilla)
-                                          AS Cuadrillas,
-                    MAX(t.ClaveTrabajador) AS Clave
-                FROM RecibosNomina r
-                LEFT JOIN TRABAJADORES t ON t.IdTrabajador = r.IdTrabajador
-                WHERE r.FechaRecibo BETWEEN @d AND @h
-                   OR (r.PeriodoDesde IS NOT NULL AND r.PeriodoHasta IS NOT NULL
-                       AND r.PeriodoDesde <= @h AND r.PeriodoHasta >= @d)
-                GROUP BY r.IdTrabajador, r.NombreTrabajador, r.Rol
-                ORDER BY r.NombreTrabajador";
-
-            // STRING_AGG requiere SQL Server 2017+. Fallback con consulta cliente si falla.
-            try
-            {
-                return EjecutarConsultaServerSide(sql, desde, hasta);
-            }
-            catch
-            {
-                return EjecutarConsultaFallback(desde, hasta);
-            }
-        }
-
-        private List<NominaItem> EjecutarConsultaServerSide(string sql, DateTime desde, DateTime hasta)
-        {
-            var lista = new List<NominaItem>();
-            using (var conn = new SqlConnection(_connectionString))
-            {
-                conn.Open();
-                using (var cmd = new SqlCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@d", desde);
-                    cmd.Parameters.AddWithValue("@h", hasta);
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            lista.Add(new NominaItem
-                            {
-                                IdTrabajador = reader["IdTrabajador"] == DBNull.Value
-                                    ? (int?)null
-                                    : Convert.ToInt32(reader["IdTrabajador"]),
-                                Nombre = reader["NombreTrabajador"].ToString(),
-                                Rol = reader["Rol"] == DBNull.Value ? "" : reader["Rol"].ToString(),
-                                Monto = reader["Monto"] == DBNull.Value ? 0m : Convert.ToDecimal(reader["Monto"]),
-                                NumRecibos = Convert.ToInt32(reader["NumRecibos"]),
-                                Cuadrillas = reader["Cuadrillas"] == DBNull.Value
-                                    ? "" : reader["Cuadrillas"].ToString(),
-                                Clave = reader["Clave"] == DBNull.Value ? "" : reader["Clave"].ToString()
-                            });
-                        }
-                    }
-                }
-            }
-            return lista;
-        }
-
-        private List<NominaItem> EjecutarConsultaFallback(DateTime desde, DateTime hasta)
-        {
-            // Versión sin STRING_AGG (SQL Server < 2017): agrupa en cliente.
-            const string sqlFlat = @"
-                SELECT r.IdTrabajador, r.NombreTrabajador, r.Rol, r.Monto,
-                       r.CodigoCuadrilla, t.ClaveTrabajador
-                FROM RecibosNomina r
-                LEFT JOIN TRABAJADORES t ON t.IdTrabajador = r.IdTrabajador
-                WHERE r.FechaRecibo BETWEEN @d AND @h
-                   OR (r.PeriodoDesde IS NOT NULL AND r.PeriodoHasta IS NOT NULL
-                       AND r.PeriodoDesde <= @h AND r.PeriodoHasta >= @d)";
-            var raw = new List<(int? id, string nombre, string rol, decimal monto, string cuadrilla, string clave)>();
-            using (var conn = new SqlConnection(_connectionString))
-            {
-                conn.Open();
-                using (var cmd = new SqlCommand(sqlFlat, conn))
-                {
-                    cmd.Parameters.AddWithValue("@d", desde);
-                    cmd.Parameters.AddWithValue("@h", hasta);
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            raw.Add((
-                                reader["IdTrabajador"] == DBNull.Value ? (int?)null : Convert.ToInt32(reader["IdTrabajador"]),
-                                reader["NombreTrabajador"].ToString(),
-                                reader["Rol"] == DBNull.Value ? "" : reader["Rol"].ToString(),
-                                reader["Monto"] == DBNull.Value ? 0m : Convert.ToDecimal(reader["Monto"]),
-                                reader["CodigoCuadrilla"] == DBNull.Value ? "" : reader["CodigoCuadrilla"].ToString(),
-                                reader["ClaveTrabajador"] == DBNull.Value ? "" : reader["ClaveTrabajador"].ToString()
-                            ));
-                        }
-                    }
-                }
-            }
-
-            return raw
-                .GroupBy(r => new { r.id, r.nombre })
-                .Select(g => new NominaItem
-                {
-                    IdTrabajador = g.Key.id,
-                    Nombre = g.Key.nombre,
-                    Rol = g.Select(x => x.rol).FirstOrDefault(s => !string.IsNullOrEmpty(s)) ?? "",
-                    Monto = g.Sum(x => x.monto),
-                    NumRecibos = g.Count(),
-                    Cuadrillas = string.Join(", ",
-                        g.Select(x => x.cuadrilla).Where(s => !string.IsNullOrEmpty(s)).Distinct()),
-                    Clave = g.Select(x => x.clave).FirstOrDefault(s => !string.IsNullOrEmpty(s)) ?? ""
-                })
-                .OrderBy(x => x.Nombre)
-                .ToList();
         }
 
         private void ActualizarResumen(DateTime desde, DateTime hasta)

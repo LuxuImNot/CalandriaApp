@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Configuration;
 using System.Data.SqlClient;
 using System.Drawing;
 using System.Globalization;
@@ -22,9 +21,6 @@ namespace DynamicSepticSystem
     /// </summary>
     public class FormDistribucionNomina : Form
     {
-        private readonly string _connectionString =
-            ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
-
         private readonly string _codigoCuadrilla;
         private readonly DateTime _desde;
         private readonly DateTime _hasta;
@@ -59,8 +55,8 @@ namespace DynamicSepticSystem
 
             BuildUI();
             ThemeManager.AplicarTema(this);
-            EnsureTablaRecibos();
-            EnsureColumnasNominaDistribuida(_connectionString);
+            // La tabla RecibosNomina y las columnas de ActivacionTareasRuta las
+            // asegura el servidor (API) al guardar la distribución.
             CargarMiembrosCuadrilla();
             ActualizarResumen();
 
@@ -295,35 +291,15 @@ namespace DynamicSepticSystem
             _miembros.Clear();
             try
             {
-                using (var conn = new SqlConnection(_connectionString))
+                // Migrado a API: GET /api/nomina/cuadrillas/{codigo}/miembros
+                var miembros = ApiClient.Get<List<MiembroRecibo>>(
+                    "/api/nomina/cuadrillas/" + Uri.EscapeDataString(_codigoCuadrilla) + "/miembros");
+
+                foreach (var m in miembros)
                 {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(@"
-                        SELECT IdTrabajador, Nombre, Rol, EsJefe, Telefono
-                        FROM MiembrosCuadrilla
-                        WHERE CodigoCuadrilla = @codigo
-                        ORDER BY EsJefe DESC, Nombre", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@codigo", _codigoCuadrilla);
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                _miembros.Add(new MiembroRecibo
-                                {
-                                    IdTrabajador = reader["IdTrabajador"] == DBNull.Value
-                                        ? (int?)null
-                                        : Convert.ToInt32(reader["IdTrabajador"]),
-                                    Nombre = reader["Nombre"].ToString(),
-                                    Rol = reader["Rol"].ToString(),
-                                    EsJefe = Convert.ToBoolean(reader["EsJefe"]),
-                                    Telefono = reader["Telefono"].ToString(),
-                                    Monto = 0m,
-                                    Concepto = ""
-                                });
-                            }
-                        }
-                    }
+                    m.Monto = 0m;
+                    m.Concepto = "";
+                    _miembros.Add(m);
                 }
             }
             catch (Exception ex)
@@ -443,44 +419,6 @@ namespace DynamicSepticSystem
 
         #region Persistencia
 
-        private void EnsureTablaRecibos()
-        {
-            const string sql = @"
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'RecibosNomina')
-BEGIN
-    CREATE TABLE RecibosNomina (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        IdTrabajador INT NULL,
-        NombreTrabajador NVARCHAR(200) NOT NULL,
-        Rol NVARCHAR(80) NULL,
-        CodigoCuadrilla NVARCHAR(20) NULL,
-        Concepto NVARCHAR(MAX) NULL,
-        Monto DECIMAL(18,2) NOT NULL,
-        FechaRecibo DATE NOT NULL,
-        PeriodoDesde DATE NULL,
-        PeriodoHasta DATE NULL,
-        TotalCuadrilla DECIMAL(18,2) NULL,
-        Pdf VARBINARY(MAX) NULL,
-        Usuario NVARCHAR(120) NULL,
-        FechaCreacion DATETIME NOT NULL DEFAULT GETDATE()
-    );
-END";
-            try
-            {
-                using (var conn = new SqlConnection(_connectionString))
-                {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(sql, conn))
-                        cmd.ExecuteNonQuery();
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("No se pudo preparar la tabla de recibos: " + ex.Message,
-                    "Recibos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
-
         /// <summary>
         /// Agrega de forma idempotente las columnas NominaDistribuida y
         /// FechaDistribucionNomina a ActivacionTareasRuta. Se usa como bandera
@@ -521,93 +459,6 @@ END";
             }
         }
 
-        /// <summary>
-        /// Marca como distribuida la nómina de los destajos pasados, dejando
-        /// también la fecha en que se generó la distribución. Esto evita doble
-        /// pago y permite separar visualmente pendientes vs distribuidas en
-        /// FormDestajosPorCuadrilla.
-        /// </summary>
-        private void MarcarNominaDistribuida(IEnumerable<DestajoTerminado> destajos)
-        {
-            if (destajos == null) return;
-            try
-            {
-                using (var conn = new SqlConnection(_connectionString))
-                {
-                    conn.Open();
-                    foreach (var d in destajos)
-                    {
-                        if (d.NodoID <= 0) continue;
-                        using (var cmd = new SqlCommand(@"
-                            UPDATE ActivacionTareasRuta
-                               SET NominaDistribuida = 1,
-                                   FechaDistribucionNomina = GETDATE()
-                             WHERE Manzana = @m
-                               AND Lote    = @l
-                               AND Ruta    = @r
-                               AND NodoID  = @nodo", conn))
-                        {
-                            cmd.Parameters.AddWithValue("@m", d.Manzana ?? "");
-                            cmd.Parameters.AddWithValue("@l", d.Lote ?? "");
-                            cmd.Parameters.AddWithValue("@r", d.Ruta ?? "");
-                            cmd.Parameters.AddWithValue("@nodo", d.NodoID);
-                            cmd.ExecuteNonQuery();
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    "Los recibos se guardaron pero no se pudo marcar la nómina como distribuida:\n" + ex.Message,
-                    "Marcado de nómina", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
-
-        private void GuardarRecibo(MiembroRecibo m, byte[] pdfRecibo)
-        {
-            try
-            {
-                using (var conn = new SqlConnection(_connectionString))
-                {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(@"
-                        INSERT INTO RecibosNomina
-                        (IdTrabajador, NombreTrabajador, Rol, CodigoCuadrilla, Concepto, Monto,
-                         FechaRecibo, PeriodoDesde, PeriodoHasta, TotalCuadrilla, Pdf, Usuario)
-                        VALUES
-                        (@id, @nombre, @rol, @codigo, @concepto, @monto,
-                         @fecha, @desde, @hasta, @total, @pdf, @usuario)", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@id", (object)m.IdTrabajador ?? DBNull.Value);
-                        cmd.Parameters.AddWithValue("@nombre", m.Nombre ?? "");
-                        cmd.Parameters.AddWithValue("@rol", (object)m.Rol ?? DBNull.Value);
-                        cmd.Parameters.AddWithValue("@codigo", _codigoCuadrilla ?? "");
-                        cmd.Parameters.AddWithValue("@concepto", m.Concepto ?? "");
-                        cmd.Parameters.AddWithValue("@monto", m.Monto);
-                        cmd.Parameters.AddWithValue("@fecha", DateTime.Today);
-                        cmd.Parameters.AddWithValue("@desde", _desde);
-                        cmd.Parameters.AddWithValue("@hasta", _hasta);
-                        cmd.Parameters.AddWithValue("@total", _totalCuadrilla);
-                        var pPdf = cmd.Parameters.Add("@pdf", System.Data.SqlDbType.VarBinary, -1);
-                        pPdf.Value = (pdfRecibo != null && pdfRecibo.Length > 0)
-                            ? (object)pdfRecibo
-                            : DBNull.Value;
-                        cmd.Parameters.AddWithValue("@usuario",
-                            (object)(Global.UsuarioActual?.Nombre) ?? Environment.UserName);
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(
-                    "El PDF se generó pero no se pudo guardar el recibo de " + m.Nombre +
-                    " en la base de datos:\n" + ex.Message,
-                    "Recibos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
-
         #endregion
 
         #region Generación de PDF
@@ -641,15 +492,30 @@ END";
 
                 CrearPdfDistribucion(archivoTemp);
 
-                foreach (var m in _miembros)
+                // Migrado a API: POST /api/nomina/distribucion persiste todos los
+                // recibos (con su PDF) y marca los destajos como distribuidos en
+                // una sola transacción del servidor.
+                var request = new
                 {
-                    byte[] pdfRecibo = CrearPdfReciboIndividual(m);
-                    GuardarRecibo(m, pdfRecibo);
-                }
-
-                // Una vez generados todos los recibos, marcar los destajos
-                // correspondientes como nómina distribuida.
-                MarcarNominaDistribuida(_destajos);
+                    CodigoCuadrilla = _codigoCuadrilla,
+                    Desde = _desde,
+                    Hasta = _hasta,
+                    TotalCuadrilla = _totalCuadrilla,
+                    Recibos = _miembros.Select(m => new
+                    {
+                        m.IdTrabajador,
+                        NombreTrabajador = m.Nombre,
+                        m.Rol,
+                        m.Concepto,
+                        m.Monto,
+                        PdfBase64 = Convert.ToBase64String(CrearPdfReciboIndividual(m))
+                    }).ToList(),
+                    Destajos = _destajos
+                        .Where(d => d.NodoID > 0)
+                        .Select(d => new { d.Manzana, d.Lote, d.Ruta, NodoId = d.NodoID })
+                        .ToList()
+                };
+                ApiClient.Post("/api/nomina/distribucion", request);
 
                 string sugerido = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
