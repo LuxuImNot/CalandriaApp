@@ -537,6 +537,7 @@
     </Compile>
     <Compile Include="GestorEvidencias.cs" />
     <Compile Include="GestorFotosConcepto.cs" />
+    <Compile Include="ApiClient.cs" />
     <Compile Include="NodoConcepto.cs" />
     <Compile Include="NodoTree.cs" />
     <Compile Include="PasswordHasher.cs" />

@@ -28,31 +28,18 @@ namespace DynamicSepticSystem
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
+                // Migrado a API: GET /api/almacen/manzanas
+                var manzanas = ApiClient.Get<System.Collections.Generic.List<string>>(
+                    "/api/almacen/manzanas");
 
-                    string sql = @"
-                        SELECT DISTINCT Manzana
-                        FROM ActivacionTareasRuta
-                        WHERE Manzana IS NOT NULL AND Manzana <> ''
-                        ORDER BY Manzana";
+                cmbManzanaConsulta.Items.Clear();
+                cmbManzanaConsulta.Items.Add("-- Seleccionar --");
 
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        cmbManzanaConsulta.Items.Clear();
-                        cmbManzanaConsulta.Items.Add("-- Seleccionar --");
+                foreach (var m in manzanas)
+                    cmbManzanaConsulta.Items.Add(m);
 
-                        while (reader.Read())
-                        {
-                            cmbManzanaConsulta.Items.Add(reader["Manzana"].ToString());
-                        }
-
-                        if (cmbManzanaConsulta.Items.Count > 0)
-                            cmbManzanaConsulta.SelectedIndex = 0;
-                    }
-                }
+                if (cmbManzanaConsulta.Items.Count > 0)
+                    cmbManzanaConsulta.SelectedIndex = 0;
 
                 CablearEventosConsultaCasa();
             }
@@ -97,32 +84,17 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
+                // Migrado a API: GET /api/almacen/lotes?manzana=...
+                string manzanaSel = cmbManzanaConsulta.SelectedItem.ToString();
+                var lotes = ApiClient.Get<System.Collections.Generic.List<string>>(
+                    "/api/almacen/lotes?manzana=" + Uri.EscapeDataString(manzanaSel));
 
-                    string sql = @"
-                        SELECT DISTINCT Lote
-                        FROM ActivacionTareasRuta
-                        WHERE Manzana = @manzana
-                          AND Lote IS NOT NULL AND Lote <> ''
-                        ORDER BY Lote";
+                cmbLoteConsulta.Items.Add("-- Seleccionar --");
+                foreach (var l in lotes)
+                    cmbLoteConsulta.Items.Add(l);
 
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@manzana", cmbManzanaConsulta.SelectedItem.ToString());
-
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            cmbLoteConsulta.Items.Add("-- Seleccionar --");
-                            while (reader.Read())
-                                cmbLoteConsulta.Items.Add(reader["Lote"].ToString());
-
-                            if (cmbLoteConsulta.Items.Count > 0)
-                                cmbLoteConsulta.SelectedIndex = 0;
-                        }
-                    }
-                }
+                if (cmbLoteConsulta.Items.Count > 0)
+                    cmbLoteConsulta.SelectedIndex = 0;
             }
             catch (Exception ex)
             {
@@ -164,15 +136,15 @@ namespace DynamicSepticSystem
 
                 DataTable dt = ConstruirTablaMateriales();
 
-                bool incluirTunera = filtroRuta == RutaFiltroTodas || filtroRuta == RutaFiltroTunera;
-                bool incluirCalandra = filtroRuta == RutaFiltroTodas || filtroRuta == RutaFiltroCalandra;
+                // Migrado a API: GET /api/almacen/materiales?manzana=&lote=&ruta=
+                string rutaApi = MapearRutaApi(filtroRuta);
+                var materiales = ApiClient.Get<System.Collections.Generic.List<MaterialCasaApi>>(
+                    "/api/almacen/materiales"
+                    + "?manzana=" + Uri.EscapeDataString(manzana)
+                    + "&lote=" + Uri.EscapeDataString(lote)
+                    + "&ruta=" + Uri.EscapeDataString(rutaApi));
 
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    if (incluirTunera) CargarMaterialesDeRuta(conn, dt, TablaRutaTunera, manzana, lote);
-                    if (incluirCalandra) CargarMaterialesDeRuta(conn, dt, TablaRutaCalandra, manzana, lote);
-                }
+                LlenarTablaMateriales(dt, materiales);
 
                 dgvConsultaCasa.DataSource = dt;
                 ConfigurarColumnasConsultaCasa();
@@ -208,6 +180,44 @@ namespace DynamicSepticSystem
             dt.Columns.Add("FechaFinalizacion", typeof(DateTime));
             dt.Columns.Add("Prototipo", typeof(string));
             return dt;
+        }
+
+        /// <summary>
+        /// Traduce el filtro del combo (textos largos) al valor que espera el API
+        /// (Todas / Tunera / Calandra).
+        /// </summary>
+        private static string MapearRutaApi(string filtroRuta)
+        {
+            if (filtroRuta == RutaFiltroTunera) return "Tunera";
+            if (filtroRuta == RutaFiltroCalandra) return "Calandra";
+            return "Todas";
+        }
+
+        /// <summary>
+        /// Vuelca la lista de materiales devuelta por el API al DataTable tipado
+        /// que consume el grid (mismo esquema que antes producía el SQL directo).
+        /// </summary>
+        private static void LlenarTablaMateriales(DataTable dt, System.Collections.Generic.List<MaterialCasaApi> materiales)
+        {
+            if (materiales == null) return;
+
+            foreach (var m in materiales)
+            {
+                DataRow row = dt.NewRow();
+                row["Ruta"] = m.Ruta ?? "";
+                row["Destajo"] = m.Destajo ?? "";
+                row["Material"] = m.Material ?? "";
+                row["Descripcion"] = m.Descripcion ?? "";
+                row["Unidad"] = m.Unidad ?? "";
+                row["Cantidad"] = m.Cantidad;
+                row["PrecioUnitario"] = m.PrecioUnitario;
+                row["Importe"] = m.Importe;
+                row["Cuadrilla"] = m.Cuadrilla ?? "";
+                row["FechaActivacion"] = (object)m.FechaActivacion ?? DBNull.Value;
+                row["FechaFinalizacion"] = (object)m.FechaFinalizacion ?? DBNull.Value;
+                row["Prototipo"] = m.Prototipo ?? "";
+                dt.Rows.Add(row);
+            }
         }
 
         /// <summary>

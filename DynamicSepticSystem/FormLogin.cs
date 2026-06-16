@@ -88,6 +88,18 @@ namespace DynamicSepticSystem
                                             : new List<string> { "Ver" }
                                     };
 
+                                    // Obtener token JWT del API (best-effort): habilita las
+                                    // pantallas ya migradas. Si el API no responde, el login
+                                    // local sigue siendo válido (modo híbrido).
+                                    try
+                                    {
+                                        ApiClient.Login(usuarioIngresado, claveIngresada);
+                                    }
+                                    catch (Exception exApi)
+                                    {
+                                        ErrorLogger.Registrar(exApi, "FormLogin.ApiClient.Login");
+                                    }
+
                                     MessageBox.Show("Logueado como: " + Global.UsuarioActual.Nombre);
                                     this.Hide();
                                     this.DialogResult = DialogResult.OK;
