@@ -70,6 +70,42 @@ namespace DynamicSepticSystem
                 }
             }
         }
+
+        /// <summary>
+        /// POST de un cuerpo JSON a una ruta relativa, sin esperar contenido de
+        /// respuesta tipado (p. ej. guardar una asignación). Lanza si el API
+        /// responde con error.
+        /// </summary>
+        public static void Post(string rutaRelativa, object cuerpo)
+        {
+            EnviarPost(rutaRelativa, cuerpo);
+        }
+
+        /// <summary>POST de un cuerpo JSON que devuelve un resultado tipado.</summary>
+        public static T Post<T>(string rutaRelativa, object cuerpo)
+        {
+            string json = EnviarPost(rutaRelativa, cuerpo);
+            return string.IsNullOrWhiteSpace(json)
+                ? default(T)
+                : JsonConvert.DeserializeObject<T>(json);
+        }
+
+        private static string EnviarPost(string rutaRelativa, object cuerpo)
+        {
+            string body = JsonConvert.SerializeObject(cuerpo);
+            using (var req = new HttpRequestMessage(HttpMethod.Post, BaseUrl + rutaRelativa))
+            {
+                if (Autenticado)
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+                req.Content = new StringContent(body, Encoding.UTF8, "application/json");
+
+                using (var resp = Http.SendAsync(req).GetAwaiter().GetResult())
+                {
+                    resp.EnsureSuccessStatusCode();
+                    return resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                }
+            }
+        }
     }
 
     // ---- Modelos de transporte (coinciden con los DTO del API) ----
@@ -97,5 +133,41 @@ namespace DynamicSepticSystem
         public DateTime? FechaActivacion { get; set; }
         public DateTime? FechaFinalizacion { get; set; }
         public string Prototipo { get; set; }
+    }
+
+    // ---- Nómina ----
+
+    public sealed class MontoTrabajadorApi
+    {
+        public int? IdTrabajador { get; set; }
+        public string NombreTrabajador { get; set; }
+        public decimal Monto { get; set; }
+    }
+
+    public sealed class AsignacionNominaApi
+    {
+        public string CodigoCuadrilla { get; set; }
+        public List<MontoTrabajadorApi> Montos { get; set; } = new List<MontoTrabajadorApi>();
+    }
+
+    public sealed class LineaAsignacionNominaApi
+    {
+        public int? IdTrabajador { get; set; }
+        public string Nombre { get; set; }
+        public string Rol { get; set; }
+        public bool EsJefe { get; set; }
+        public decimal Monto { get; set; }
+    }
+
+    public sealed class GuardarAsignacionRequestApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Ruta { get; set; }
+        public int NodoId { get; set; }
+        public string NombreTarea { get; set; }
+        public string CodigoCuadrilla { get; set; }
+        public decimal TotalDistribuir { get; set; }
+        public List<LineaAsignacionNominaApi> Lineas { get; set; } = new List<LineaAsignacionNominaApi>();
     }
 }

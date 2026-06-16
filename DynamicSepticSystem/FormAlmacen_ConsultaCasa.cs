@@ -5,9 +5,7 @@
 // realmente invertido (destajos finalizados marcados como Material).
 using System;
 using System.Data;
-using System.Data.SqlClient;
 using System.Drawing;
-using System.Globalization;
 using System.Windows.Forms;
 using ClosedXML.Excel;
 
@@ -15,10 +13,6 @@ namespace DynamicSepticSystem
 {
     public partial class FormAlmacen : Form
     {
-        // Nombres físicos de las tablas de rutas
-        private const string TablaRutaTunera = "RutaTuneraDestajo";
-        private const string TablaRutaCalandra = "RutaCalandraDestajo";
-
         private bool _consultaWired = false;
 
         /// <summary>
@@ -218,102 +212,6 @@ namespace DynamicSepticSystem
                 row["Prototipo"] = m.Prototipo ?? "";
                 dt.Rows.Add(row);
             }
-        }
-
-        /// <summary>
-        /// Ejecuta la consulta JOIN para una ruta específica y agrega filas al DataTable.
-        /// Cada fila corresponde a una tarea hija de tipo Material cuyo destajo padre
-        /// (Sub-Padre) está finalizado para la casa. Cantidad/Unidad/Precio provienen
-        /// de las columnas dinámicas de la tarea hija.
-        /// </summary>
-        private static void CargarMaterialesDeRuta(SqlConnection conn, DataTable dt, string tablaRuta, string manzana, string lote)
-        {
-            string sql = $@"
-                SELECT
-                    a.Prototipo,
-                    parent.Nombre        AS DestajoNombre,
-                    child.Nombre         AS MaterialNombre,
-                    child.Descripcion    AS MaterialDescripcion,
-                    a.CuadrillaAsignada,
-                    a.FechaActivacion,
-                    a.FechaFinalizacion,
-                    ISNULL(MAX(CASE WHEN c.NombreColumna = 'Cantidad' THEN c.Valor END), '0') AS Cantidad,
-                    ISNULL(MAX(CASE WHEN c.NombreColumna = 'Unidad'   THEN c.Valor END), '')  AS Unidad,
-                    ISNULL(MAX(CASE WHEN c.NombreColumna = 'Precio'   THEN c.Valor END), '0') AS PrecioUnitario
-                FROM [{tablaRuta}] child
-                INNER JOIN [{tablaRuta}] parent
-                       ON child.ParentId = parent.ID
-                INNER JOIN ActivacionTareasRuta a
-                       ON a.NodoID = parent.ID
-                      AND a.Ruta   = @ruta
-                LEFT JOIN [{tablaRuta}_Columnas] c
-                       ON c.NodoID = child.ID
-                WHERE a.Manzana   = @m
-                  AND a.Lote      = @l
-                  AND a.Finalizado = 1
-                  AND child.TipoTarea = 1   /* TipoTarea.Material */
-                GROUP BY a.Prototipo, parent.Nombre, child.Nombre, child.Descripcion,
-                         a.CuadrillaAsignada, a.FechaActivacion, a.FechaFinalizacion
-                ORDER BY a.FechaFinalizacion DESC, parent.Nombre, child.Nombre";
-
-            using (SqlCommand cmd = new SqlCommand(sql, conn))
-            {
-                cmd.Parameters.AddWithValue("@m", manzana);
-                cmd.Parameters.AddWithValue("@l", lote);
-                cmd.Parameters.AddWithValue("@ruta", tablaRuta);
-
-                using (SqlDataReader reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        decimal cantidad = ParseDecimal(reader["Cantidad"]);
-                        decimal precio = ParseDecimal(reader["PrecioUnitario"]);
-                        decimal importe = cantidad * precio;
-
-                        DataRow row = dt.NewRow();
-                        row["Ruta"] = RutaCorta(tablaRuta);
-                        row["Destajo"] = reader["DestajoNombre"]?.ToString() ?? string.Empty;
-                        row["Material"] = reader["MaterialNombre"]?.ToString() ?? string.Empty;
-                        row["Descripcion"] = reader["MaterialDescripcion"] == DBNull.Value
-                            ? ""
-                            : reader["MaterialDescripcion"].ToString();
-                        row["Unidad"] = reader["Unidad"]?.ToString() ?? "";
-                        row["Cantidad"] = cantidad;
-                        row["PrecioUnitario"] = precio;
-                        row["Importe"] = importe;
-                        row["Cuadrilla"] = reader["CuadrillaAsignada"] == DBNull.Value
-                            ? ""
-                            : reader["CuadrillaAsignada"].ToString();
-                        row["FechaActivacion"] = reader["FechaActivacion"] == DBNull.Value
-                            ? (object)DBNull.Value
-                            : Convert.ToDateTime(reader["FechaActivacion"]);
-                        row["FechaFinalizacion"] = reader["FechaFinalizacion"] == DBNull.Value
-                            ? (object)DBNull.Value
-                            : Convert.ToDateTime(reader["FechaFinalizacion"]);
-                        row["Prototipo"] = reader["Prototipo"] == DBNull.Value
-                            ? ""
-                            : reader["Prototipo"].ToString();
-                        dt.Rows.Add(row);
-                    }
-                }
-            }
-        }
-
-        private static decimal ParseDecimal(object valor)
-        {
-            if (valor == null || valor == DBNull.Value) return 0m;
-            string s = valor.ToString();
-            if (string.IsNullOrWhiteSpace(s)) return 0m;
-            if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out decimal r)) return r;
-            if (decimal.TryParse(s, NumberStyles.Any, CultureInfo.CurrentCulture, out decimal r2)) return r2;
-            return 0m;
-        }
-
-        private static string RutaCorta(string tablaRuta)
-        {
-            if (tablaRuta == TablaRutaTunera) return "Tunera";
-            if (tablaRuta == TablaRutaCalandra) return "Calandra";
-            return tablaRuta;
         }
 
         /// <summary>

@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Configuration;
-using System.Data;
-using System.Data.SqlClient;
 using System.Drawing;
 using System.Globalization;
 using System.IO;
@@ -20,9 +17,6 @@ namespace DynamicSepticSystem
     /// </summary>
     public class FormAsignarNomina : Form
     {
-        private readonly string connectionString =
-            ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
-
         private readonly string _manzana;
         private readonly string _lote;
         private readonly string _ruta;
@@ -63,7 +57,7 @@ namespace DynamicSepticSystem
             BuildUI();
             ThemeManager.AplicarTema(this);
 
-            EnsureTablaNomina();
+            // La tabla NominaTareasAsignada la asegura el servidor (API) bajo demanda.
             CargarCuadrillas();
 
             this.Load += (s, e) => CargarAsignacionExistente();
@@ -271,17 +265,10 @@ namespace DynamicSepticSystem
             cmbCuadrilla.Items.Clear();
             try
             {
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(
-                        "SELECT DISTINCT CodigoCuadrilla FROM MiembrosCuadrilla ORDER BY CodigoCuadrilla", conn))
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                            cmbCuadrilla.Items.Add(reader.GetString(0));
-                    }
-                }
+                // Migrado a API: GET /api/nomina/cuadrillas
+                var cuadrillas = ApiClient.Get<List<string>>("/api/nomina/cuadrillas");
+                foreach (var c in cuadrillas)
+                    cmbCuadrilla.Items.Add(c);
             }
             catch (Exception ex)
             {
@@ -307,39 +294,17 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (var conn = new SqlConnection(connectionString))
+                // Migrado a API: GET /api/nomina/cuadrillas/{codigo}/miembros
+                var miembros = ApiClient.Get<List<MiembroNomina>>(
+                    "/api/nomina/cuadrillas/" + Uri.EscapeDataString(codigoCuadrilla) + "/miembros");
+
+                foreach (var m in miembros)
                 {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(@"
-                        SELECT IdTrabajador, Nombre, Rol, EsJefe, Telefono
-                        FROM MiembrosCuadrilla
-                        WHERE CodigoCuadrilla = @codigo
-                        ORDER BY EsJefe DESC, Nombre", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@codigo", codigoCuadrilla);
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                var m = new MiembroNomina
-                                {
-                                    IdTrabajador = reader["IdTrabajador"] == DBNull.Value
-                                        ? (int?)null
-                                        : Convert.ToInt32(reader["IdTrabajador"]),
-                                    Nombre = reader["Nombre"].ToString(),
-                                    Rol = reader["Rol"].ToString(),
-                                    EsJefe = Convert.ToBoolean(reader["EsJefe"]),
-                                    Telefono = reader["Telefono"].ToString(),
-                                    Monto = 0m
-                                };
+                    m.Monto = 0m;
+                    if (montosPrevios != null && montosPrevios.TryGetValue(m.Clave(), out decimal monto))
+                        m.Monto = monto;
 
-                                if (montosPrevios != null && montosPrevios.TryGetValue(m.Clave(), out decimal monto))
-                                    m.Monto = monto;
-
-                                _miembros.Add(m);
-                            }
-                        }
-                    }
+                    _miembros.Add(m);
                 }
             }
             catch (Exception ex)
@@ -452,76 +417,26 @@ namespace DynamicSepticSystem
 
         #region Persistencia
 
-        private void EnsureTablaNomina()
-        {
-            const string sql = @"
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'NominaTareasAsignada')
-BEGIN
-    CREATE TABLE NominaTareasAsignada (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        Manzana NVARCHAR(10),
-        Lote NVARCHAR(10),
-        Ruta NVARCHAR(50),
-        NodoID INT,
-        NombreTarea NVARCHAR(300),
-        CodigoCuadrilla NVARCHAR(20),
-        IdTrabajador INT NULL,
-        NombreTrabajador NVARCHAR(200),
-        Rol NVARCHAR(50),
-        EsJefe BIT,
-        Monto DECIMAL(18,2),
-        TotalAsignado DECIMAL(18,2),
-        FechaActualizacion DATETIME DEFAULT GETDATE()
-    );
-END";
-            try
-            {
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(sql, conn))
-                        cmd.ExecuteNonQuery();
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("No se pudo preparar la tabla de nómina: " + ex.Message,
-                    "Nómina", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
-
         private void CargarAsignacionExistente()
         {
             try
             {
-                string codigoExistente = null;
-                var montos = new Dictionary<string, decimal>();
+                // Migrado a API: GET /api/nomina/asignacion?manzana=&lote=&ruta=&nodoId=
+                var asignacion = ApiClient.Get<AsignacionNominaApi>(
+                    "/api/nomina/asignacion"
+                    + "?manzana=" + Uri.EscapeDataString(_manzana)
+                    + "&lote=" + Uri.EscapeDataString(_lote)
+                    + "&ruta=" + Uri.EscapeDataString(_ruta)
+                    + "&nodoId=" + _nodoId);
 
-                using (var conn = new SqlConnection(connectionString))
+                string codigoExistente = asignacion?.CodigoCuadrilla;
+                var montos = new Dictionary<string, decimal>();
+                if (asignacion?.Montos != null)
                 {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(@"
-                        SELECT CodigoCuadrilla, IdTrabajador, NombreTrabajador, Monto
-                        FROM NominaTareasAsignada
-                        WHERE Manzana = @m AND Lote = @l AND Ruta = @r AND NodoID = @nodo", conn))
+                    foreach (var mt in asignacion.Montos)
                     {
-                        cmd.Parameters.AddWithValue("@m", _manzana);
-                        cmd.Parameters.AddWithValue("@l", _lote);
-                        cmd.Parameters.AddWithValue("@r", _ruta);
-                        cmd.Parameters.AddWithValue("@nodo", _nodoId);
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                codigoExistente = reader["CodigoCuadrilla"].ToString();
-                                string clave = MiembroNomina.ClaveDe(
-                                    reader["IdTrabajador"] == DBNull.Value
-                                        ? (int?)null
-                                        : Convert.ToInt32(reader["IdTrabajador"]),
-                                    reader["NombreTrabajador"].ToString());
-                                montos[clave] = Convert.ToDecimal(reader["Monto"]);
-                            }
-                        }
+                        string clave = MiembroNomina.ClaveDe(mt.IdTrabajador, mt.NombreTrabajador);
+                        montos[clave] = mt.Monto;
                     }
                 }
 
@@ -588,51 +503,30 @@ END";
 
             try
             {
-                using (var conn = new SqlConnection(connectionString))
+                // Migrado a API: POST /api/nomina/asignacion (DELETE + INSERT en el servidor)
+                var request = new GuardarAsignacionRequestApi
                 {
-                    conn.Open();
-                    using (var tx = conn.BeginTransaction())
+                    Manzana = _manzana,
+                    Lote = _lote,
+                    Ruta = _ruta,
+                    NodoId = _nodoId,
+                    NombreTarea = _nombreTarea,
+                    CodigoCuadrilla = codigoCuadrilla,
+                    TotalDistribuir = _totalDistribuir
+                };
+                foreach (var m in _miembros)
+                {
+                    request.Lineas.Add(new LineaAsignacionNominaApi
                     {
-                        using (var cmdDel = new SqlCommand(@"
-                            DELETE FROM NominaTareasAsignada
-                            WHERE Manzana = @m AND Lote = @l AND Ruta = @r AND NodoID = @nodo", conn, tx))
-                        {
-                            cmdDel.Parameters.AddWithValue("@m", _manzana);
-                            cmdDel.Parameters.AddWithValue("@l", _lote);
-                            cmdDel.Parameters.AddWithValue("@r", _ruta);
-                            cmdDel.Parameters.AddWithValue("@nodo", _nodoId);
-                            cmdDel.ExecuteNonQuery();
-                        }
-
-                        foreach (var m in _miembros)
-                        {
-                            using (var cmdIns = new SqlCommand(@"
-                                INSERT INTO NominaTareasAsignada
-                                (Manzana, Lote, Ruta, NodoID, NombreTarea, CodigoCuadrilla,
-                                 IdTrabajador, NombreTrabajador, Rol, EsJefe, Monto, TotalAsignado, FechaActualizacion)
-                                VALUES
-                                (@m, @l, @r, @nodo, @tarea, @codigo,
-                                 @idTrab, @nombre, @rol, @esJefe, @monto, @total, GETDATE())", conn, tx))
-                            {
-                                cmdIns.Parameters.AddWithValue("@m", _manzana);
-                                cmdIns.Parameters.AddWithValue("@l", _lote);
-                                cmdIns.Parameters.AddWithValue("@r", _ruta);
-                                cmdIns.Parameters.AddWithValue("@nodo", _nodoId);
-                                cmdIns.Parameters.AddWithValue("@tarea", _nombreTarea);
-                                cmdIns.Parameters.AddWithValue("@codigo", codigoCuadrilla);
-                                cmdIns.Parameters.AddWithValue("@idTrab", (object)m.IdTrabajador ?? DBNull.Value);
-                                cmdIns.Parameters.AddWithValue("@nombre", m.Nombre ?? "");
-                                cmdIns.Parameters.AddWithValue("@rol", m.Rol ?? "");
-                                cmdIns.Parameters.AddWithValue("@esJefe", m.EsJefe);
-                                cmdIns.Parameters.AddWithValue("@monto", m.Monto);
-                                cmdIns.Parameters.AddWithValue("@total", _totalDistribuir);
-                                cmdIns.ExecuteNonQuery();
-                            }
-                        }
-
-                        tx.Commit();
-                    }
+                        IdTrabajador = m.IdTrabajador,
+                        Nombre = m.Nombre ?? "",
+                        Rol = m.Rol ?? "",
+                        EsJefe = m.EsJefe,
+                        Monto = m.Monto
+                    });
                 }
+
+                ApiClient.Post("/api/nomina/asignacion", request);
 
                 MessageBox.Show("Nómina guardada correctamente.", "Nómina",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
