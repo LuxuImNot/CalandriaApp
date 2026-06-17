@@ -367,4 +367,32 @@ namespace DynamicSepticSystem
         public DateTime Fecha { get; set; }
         public string Usuario { get; set; }
     }
+
+    // ---- Estimaciones · avance de obra jerárquico (FormAvanceObra / FormHardProgress) ----
+
+    /// <summary>Una partida de PresupuestoObra con su importe (api/avances/jerarquico).</summary>
+    public sealed class PartidaAvanceApi
+    {
+        public int Wbs { get; set; }
+        public string Codigo { get; set; }
+        public string Padre { get; set; }
+        public string Etapa { get; set; }
+        public string Partida { get; set; }
+        public double ImporteTotal { get; set; }
+    }
+
+    /// <summary>Avance guardado de una partida (MontoEjecutado null si no aplica).</summary>
+    public sealed class AvanceGuardadoApi
+    {
+        public int Wbs { get; set; }
+        public double AvancePorcentaje { get; set; }
+        public double? MontoEjecutado { get; set; }
+    }
+
+    /// <summary>Partidas + avances guardados de una casa, para armar el árbol de avance.</summary>
+    public sealed class JerarquicoAvanceApi
+    {
+        public List<PartidaAvanceApi> Partidas { get; set; } = new List<PartidaAvanceApi>();
+        public List<AvanceGuardadoApi> Avances { get; set; } = new List<AvanceGuardadoApi>();
+    }
 }

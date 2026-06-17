@@ -17,7 +17,6 @@ namespace DynamicSepticSystem
 {
     public partial class FormAvanceObra : Form
     {
-        private string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
         private List<NodoCategoria> nodosRaiz = new List<NodoCategoria>();
         private string prototipoActual = "";
 
@@ -50,7 +49,7 @@ namespace DynamicSepticSystem
             };
 
             olvAvance.FullRowSelect = true;
-            // ?? MODO SOLO LECTURA - Edición deshabilitada
+            // ?? MODO SOLO LECTURA - EdiciÃ³n deshabilitada
             olvAvance.CellEditActivation = BrightIdeasSoftware.ObjectListView.CellEditActivateMode.None;
             olvAvance.UseAlternatingBackColors = true;
             olvAvance.AlternateRowBackColor = Color.FromArgb(240, 248, 255);
@@ -60,7 +59,7 @@ namespace DynamicSepticSystem
             olvAvance.Sorting = System.Windows.Forms.SortOrder.None;
 
             // Columnas
-            var colNombre = new OLVColumn("Categoría / Partida", "Nombre") 
+            var colNombre = new OLVColumn("CategorÃ­a / Partida", "Nombre") 
             { 
                 Width = 350,
                 IsEditable = false, 
@@ -105,7 +104,7 @@ namespace DynamicSepticSystem
             {
                 var nodo = (NodoCategoria)item.RowObject;
                 
-                // Si la partida está completada al 100%, ponerla en gris
+                // Si la partida estÃ¡ completada al 100%, ponerla en gris
                 if (!nodo.EsCategoria && nodo.AvancePorcentaje >= 100)
                 {
                     item.BackColor = Color.FromArgb(220, 220, 220);
@@ -150,20 +149,11 @@ namespace DynamicSepticSystem
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Manzana FROM InventarioCasas ORDER BY Manzana";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        cmbManzana.Items.Clear();
-                        while (reader.Read())
-                        {
-                            cmbManzana.Items.Add(reader["Manzana"].ToString());
-                        }
-                    }
-                }
+                cmbManzana.Items.Clear();
+                var manzanas = ApiClient.Get<List<string>>("/api/avances/manzanas");
+                if (manzanas != null)
+                    foreach (var m in manzanas)
+                        cmbManzana.Items.Add(m);
             }
             catch (Exception ex)
             {
@@ -177,23 +167,12 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Lote FROM InventarioCasas WHERE Manzana = @m ORDER BY Lote";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            cmbLote.Items.Clear();
-                            while (reader.Read())
-                            {
-                                cmbLote.Items.Add(reader["Lote"].ToString());
-                            }
-                        }
-                    }
-                }
+                cmbLote.Items.Clear();
+                var lotes = ApiClient.Get<List<string>>(
+                    $"/api/avances/lotes?manzana={Uri.EscapeDataString(cmbManzana.SelectedItem.ToString())}");
+                if (lotes != null)
+                    foreach (var l in lotes)
+                        cmbLote.Items.Add(l);
             }
             catch (Exception ex)
             {
@@ -205,7 +184,7 @@ namespace DynamicSepticSystem
         {
             if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null)
             {
-                MessageBox.Show("Por favor selecciona Manzana y Lote", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Por favor selecciona Manzana y Lote", "AtenciÃ³n", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -215,7 +194,7 @@ namespace DynamicSepticSystem
             prototipoActual = ObtenerPrototipo(manzana, lote);
             if (string.IsNullOrEmpty(prototipoActual))
             {
-                MessageBox.Show($"No se encontró el prototipo para M{manzana}-L{lote}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"No se encontrÃ³ el prototipo para M{manzana}-L{lote}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -228,18 +207,8 @@ namespace DynamicSepticSystem
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT Prototipo FROM InventarioCasas WHERE Manzana = @m AND Lote = @l";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        cmd.Parameters.AddWithValue("@l", lote);
-                        var result = cmd.ExecuteScalar();
-                        return (result?.ToString() ?? "").Trim();
-                    }
-                }
+                return ApiClient.Get<string>(
+                    $"/api/avances/prototipo?manzana={Uri.EscapeDataString(manzana ?? "")}&lote={Uri.EscapeDataString(lote ?? "")}") ?? "";
             }
             catch
             {
@@ -253,106 +222,24 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                var resp = ApiClient.Get<JerarquicoAvanceApi>(
+                    $"/api/avances/jerarquico?manzana={Uri.EscapeDataString(manzana ?? "")}" +
+                    $"&lote={Uri.EscapeDataString(lote ?? "")}" +
+                    $"&prototipo={Uri.EscapeDataString(prototipoActual ?? "")}");
+
+                var partidas = new List<Tuple<int, string, string, string, string, double>>();
+                if (resp?.Partidas != null)
+                    foreach (var p in resp.Partidas)
+                        partidas.Add(Tuple.Create(p.Wbs, p.Codigo ?? "", p.Padre ?? "", p.Etapa ?? "", p.Partida ?? "", p.ImporteTotal));
+
+                var avancesPartidas = new Dictionary<int, Tuple<double, double>>();
+                if (resp?.Avances != null)
+                    foreach (var a in resp.Avances)
+                        avancesPartidas[a.Wbs] = Tuple.Create(a.AvancePorcentaje, a.MontoEjecutado ?? double.NaN);
                 {
-                    conn.Open();
 
-                    // Determinar columna de costo
-                    string columnaCosto = prototipoActual.ToUpper().Contains("TUNERA") ? "CostoTunera" : "CostoCalandra";
-                    
-                    // Verificar si existe la columna
-                    var columnas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    using (SqlCommand cmdCols = new SqlCommand(@"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'PresupuestoObra'", conn))
-                    using (SqlDataReader rc = cmdCols.ExecuteReader())
-                    {
-                        while (rc.Read())
-                        {
-                            columnas.Add(rc.GetString(0));
-                        }
-                    }
-
-                    if (!columnas.Contains(columnaCosto))
-                    {
-                        columnaCosto = columnas.Contains("TOTAL") ? "TOTAL" : 
-                                     columnas.Contains("CostoCalandra") ? "CostoCalandra" : "CostoTunera";
-                    }
-
-                    // ? Verificar si existe la columna Codigo en PresupuestoObra
-                    bool tieneColumnaCodigo = columnas.Contains("Codigo");
-
-                    // Cargar partidas desde PresupuestoObra
-                    // ?? FORZAR ORDEN NUMÉRICO SIEMPRE usando TRY_CAST en SQL
-                    string sql;
-                    if (tieneColumnaCodigo)
-                    {
-                        // ? Usar columna Codigo existente y ordenar NUMÉRICAMENTE (no alfabéticamente)
-                        sql = $@"
-                            SELECT 
-                                ROW_NUMBER() OVER (
-                                    ORDER BY 
-                                        CASE 
-                                            WHEN TRY_CAST(Codigo AS INT) IS NOT NULL 
-                                            THEN TRY_CAST(Codigo AS INT)
-                                            ELSE 999999 
-                                        END,
-                                        Codigo,
-                                        Etapa, 
-                                        Partida
-                                ) as WBS,
-                                Codigo,
-                                Padre,
-                                Etapa,
-                                Partida,
-                                ISNULL(CAST([{columnaCosto}] AS FLOAT),0) as ImporteTotal
-                            FROM PresupuestoObra
-                            ORDER BY 
-                                CASE 
-                                    WHEN TRY_CAST(Codigo AS INT) IS NOT NULL 
-                                    THEN TRY_CAST(Codigo AS INT)
-                                    ELSE 999999 
-                                END,
-                                Codigo,
-                                Etapa, 
-                                Partida";
-                    }
-                    else
-                    {
-                        // Si NO existe Codigo, usar orden alfabético por Padre (fallback)
-                        sql = $@"
-                            SELECT 
-                                ROW_NUMBER() OVER (ORDER BY Padre, Etapa, Partida) as WBS,
-                                Padre,
-                                Etapa,
-                                Partida,
-                                ISNULL(CAST([{columnaCosto}] AS FLOAT),0) as ImporteTotal
-                            FROM PresupuestoObra
-                            ORDER BY Padre, Etapa, Partida";
-                    }
-
-                    var partidas = new List<Tuple<int, string, string, string, string, double>>();
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            int wbs = Convert.ToInt32(reader["WBS"]);
-                            string codigo = tieneColumnaCodigo && !reader.IsDBNull(reader.GetOrdinal("Codigo")) 
-                                ? reader["Codigo"].ToString() 
-                                : "";
-                            string padre = reader["Padre"]?.ToString() ?? "";
-                            string etapa = reader["Etapa"]?.ToString() ?? "";
-                            string partida = reader["Partida"]?.ToString() ?? "";
-                            double importe = Convert.ToDouble(reader["ImporteTotal"]);
-
-                            partidas.Add(Tuple.Create(wbs, codigo, padre, etapa, partida, importe));
-                        }
-                    }
-
-                    // Cargar avances guardados
-                    var avancesPartidas = CargarAvancesGuardadosJerarquico(conn, manzana, lote);
-
-                    // Agrupar por Codigo numérico (NO por Padre alfabético)
-                    // ? Usar un diccionario ordenado por Codigo numérico
+                    // Agrupar por Codigo numÃ©rico (NO por Padre alfabÃ©tico)
+                    // ? Usar un diccionario ordenado por Codigo numÃ©rico
                     var categoriasDict = new SortedDictionary<int, NodoCategoria>();
                     var codigoToCategoria = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
@@ -369,11 +256,11 @@ namespace DynamicSepticSystem
                         }
                         else if (!string.IsNullOrEmpty(padre))
                         {
-                            // Si no hay Codigo, generar uno basado en el Padre usando el diccionario estándar
+                            // Si no hay Codigo, generar uno basado en el Padre usando el diccionario estÃ¡ndar
                             var ordenCategorias = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
                             {
                                 { "Preliminares", 1 },
-                                { "Cimentación", 2 },
+                                { "CimentaciÃ³n", 2 },
                                 { "Cimentacion", 2 },
                                 { "Estructura", 3 },
                                 { "Losas", 3 },
@@ -386,16 +273,16 @@ namespace DynamicSepticSystem
                                 { "Gas LP", 4 },
                                 { "Inst. Electrica", 5 },
                                 { "Instalacion Electrica", 5 },
-                                { "Albañilería", 6 },
+                                { "AlbaÃ±ilerÃ­a", 6 },
                                 { "Albanileria", 6 },
                                 { "Acabados", 7 },
                                 { "Acabados Exteriores", 7 },
                                 { "Acabados Interiores", 7 },
-                                { "Herrería, Aluminio y Vidrio", 8 },
+                                { "HerrerÃ­a, Aluminio y Vidrio", 8 },
                                 { "Herreria, Aluminio y Vidrio", 8 },
-                                { "Carpintería", 9 },
+                                { "CarpinterÃ­a", 9 },
                                 { "Carpinteria", 9 },
-                                { "Cerrajería", 9 },
+                                { "CerrajerÃ­a", 9 },
                                 { "Cerrajeria", 9 },
                                 { "Carpinteria y Cerrajeria", 9 },
                                 { "Muebles", 10 },
@@ -404,7 +291,7 @@ namespace DynamicSepticSystem
                                 { "Inst especiales y Obra Exterior", 11 },
                                 { "Limpieza e Instalaciones especiales", 11 },
                                 { "Obra Exterior", 11 },
-                                { "Urbanización", 12 },
+                                { "UrbanizaciÃ³n", 12 },
                                 { "Urbanizacion", 12 }
                             };
                             
@@ -414,7 +301,7 @@ namespace DynamicSepticSystem
                             }
                         }
                         
-                        // Crear o recuperar categoría
+                        // Crear o recuperar categorÃ­a
                         if (!categoriasDict.ContainsKey(codigoNumerico))
                         {
                             categoriasDict[codigoNumerico] = new NodoCategoria
@@ -457,18 +344,18 @@ namespace DynamicSepticSystem
                         categoriasDict[codigoNumerico].Partidas.Add(nodoPartida);
                     }
 
-                    // Calcular totales por categoría
+                    // Calcular totales por categorÃ­a
                     foreach (var categoria in categoriasDict.Values)
                     {
                         RecalcularAvanceCategoria(categoria);
                     }
 
-                    // ? Las categorías ya están ordenadas numéricamente (1-12) gracias al SortedDictionary
+                    // ? Las categorÃ­as ya estÃ¡n ordenadas numÃ©ricamente (1-12) gracias al SortedDictionary
                     nodosRaiz = categoriasDict.Values.ToList();
                     
                 }
 
-                // Establecer raíces y COLAPSAR todos los nodos
+                // Establecer raÃ­ces y COLAPSAR todos los nodos
                 olvAvance.Roots = nodosRaiz;
                 olvAvance.CollapseAll();
 
@@ -481,69 +368,6 @@ namespace DynamicSepticSystem
             }
         }
 
-        private Dictionary<int, Tuple<double, double>> CargarAvancesGuardadosJerarquico(SqlConnection conn, string manzana, string lote)
-        {
-            var avances = new Dictionary<int, Tuple<double, double>>();
-
-            try
-            {
-                // Crear tabla si no existe
-                using (SqlCommand cmdCheck = new SqlCommand(@"
-                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'AvanceManualObra')
-                    BEGIN
-                        CREATE TABLE AvanceManualObra (
-                            Id INT IDENTITY(1,1) PRIMARY KEY,
-                            Manzana NVARCHAR(10), Lote NVARCHAR(10),
-                            Prototipo NVARCHAR(50), WBS NVARCHAR(50),
-                            Concepto NVARCHAR(200), ImporteTotal FLOAT,
-                            AvancePorcentaje FLOAT,
-                            FechaActualizacion DATETIME DEFAULT GETDATE()
-                        );
-                    END", conn))
-                {
-                    cmdCheck.ExecuteNonQuery();
-                }
-
-                // Detectar columnas disponibles
-                bool tieneMonto = false;
-                using (SqlCommand cmdCols = new SqlCommand(@"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AvanceManualObra' AND (COLUMN_NAME = 'MontoEjecutado' OR COLUMN_NAME = 'ImporteEjecutado')", conn))
-                {
-                    tieneMonto = (int)cmdCols.ExecuteScalar() > 0;
-                }
-
-                string sql = tieneMonto
-                    ? "SELECT WBS, AvancePorcentaje, MontoEjecutado FROM AvanceManualObra WHERE Manzana = @m AND Lote = @l"
-                    : "SELECT WBS, AvancePorcentaje FROM AvanceManualObra WHERE Manzana = @m AND Lote = @l";
-
-                using (SqlCommand cmd = new SqlCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@m", manzana);
-                    cmd.Parameters.AddWithValue("@l", lote);
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            if (int.TryParse(reader["WBS"]?.ToString(), out int wbs))
-                            {
-                                double avance = Convert.ToDouble(reader["AvancePorcentaje"]);
-                                double monto = double.NaN;
-
-                                if (tieneMonto && !reader.IsDBNull(reader.GetOrdinal("MontoEjecutado")))
-                                {
-                                    monto = Convert.ToDouble(reader["MontoEjecutado"]);
-                                }
-
-                                avances[wbs] = Tuple.Create(avance, monto);
-                            }
-                        }
-                    }
-                }
-            }
-            catch { }
-
-            return avances;
-        }
-
         private void GuardarAvancePartidaEnBD(NodoCategoria partida)
         {
             if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null) return;
@@ -553,126 +377,24 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                // El servidor hace el upsert en AvanceManualObra y recalcula el
+                // avance por concepto (AvanceManualConcepto) en la misma llamada.
+                ApiClient.Post("/api/avances/partida", new
                 {
-                    conn.Open();
-
-                    // Verificar columnas disponibles
-                    bool tieneImporteTotal = false;
-                    bool tieneMonto = false;
-                    using (SqlCommand cmdCols = new SqlCommand(@"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'AvanceManualObra'", conn))
-                    using (SqlDataReader rc = cmdCols.ExecuteReader())
-                    {
-                        while (rc.Read())
-                        {
-                            var col = rc.GetString(0);
-                            if (string.Equals(col, "ImporteTotal", StringComparison.OrdinalIgnoreCase))
-                                tieneImporteTotal = true;
-                            if (string.Equals(col, "MontoEjecutado", StringComparison.OrdinalIgnoreCase) || string.Equals(col, "ImporteEjecutado", StringComparison.OrdinalIgnoreCase))
-                                tieneMonto = true;
-                        }
-                    }
-
-                    string sql;
-                    if (tieneImporteTotal && tieneMonto)
-                    {
-                        sql = @"IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                                   UPDATE AvanceManualObra SET AvancePorcentaje=@avance, Concepto=@concepto, ImporteTotal=@importe, MontoEjecutado=@monto, FechaActualizacion=GETDATE()
-                                   WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                               ELSE
-                                   INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, Concepto, ImporteTotal, MontoEjecutado, AvancePorcentaje)
-                                   VALUES (@m, @l, @proto, @wbs, @concepto, @importe, @monto, @avance)";
-                    }
-                    else if (tieneImporteTotal && !tieneMonto)
-                    {
-                        sql = @"IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                                   UPDATE AvanceManualObra SET AvancePorcentaje=@avance, Concepto=@concepto, ImporteTotal=@importe, FechaActualizacion=GETDATE()
-                                   WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                               ELSE
-                                   INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, Concepto, ImporteTotal, AvancePorcentaje)
-                                   VALUES (@m, @l, @proto, @wbs, @concepto, @importe, @avance)";
-                    }
-                    else
-                    {
-                        sql = @"IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                                   UPDATE AvanceManualObra SET AvancePorcentaje=@avance, Concepto=@concepto, FechaActualizacion=GETDATE()
-                                   WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                               ELSE
-                                   INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, Concepto, AvancePorcentaje)
-                                   VALUES (@m, @l, @proto, @wbs, @concepto, @avance)";
-                    }
-
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        cmd.Parameters.AddWithValue("@l", lote);
-                        cmd.Parameters.AddWithValue("@proto", prototipoActual ?? (object)DBNull.Value);
-                        cmd.Parameters.AddWithValue("@wbs", partida.WBS.ToString());
-                        cmd.Parameters.AddWithValue("@avance", partida.AvancePorcentaje);
-                        cmd.Parameters.AddWithValue("@concepto", partida.Padre ?? "");
-
-                        if (tieneImporteTotal)
-                        {
-                            var pImp = cmd.Parameters.Add("@importe", SqlDbType.Decimal);
-                            pImp.Precision = 18;
-                            pImp.Scale = 2;
-                            pImp.Value = Math.Round(partida.ImporteTotal, 2);
-                        }
-
-                        if (tieneMonto)
-                        {
-                            var pMont = cmd.Parameters.Add("@monto", SqlDbType.Decimal);
-                            pMont.Precision = 18;
-                            pMont.Scale = 2;
-                            pMont.Value = Math.Round(partida.ImporteEjecutado, 2);
-                        }
-
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-
-                // Actualizar avances por concepto
-                try
-                {
-                    ActualizarAvanceConceptosEnBD(manzana, lote);
-                }
-                catch { }
+                    Manzana = manzana,
+                    Lote = lote,
+                    Prototipo = prototipoActual,
+                    Wbs = partida.WBS,
+                    AvancePorcentaje = partida.AvancePorcentaje,
+                    Concepto = partida.Padre ?? "",
+                    ImporteTotal = partida.ImporteTotal,
+                    ImporteEjecutado = partida.ImporteEjecutado
+                });
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error al guardar avance: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private void ActualizarAvanceConceptosEnBD(string manzana, string lote)
-        {
-            // Método simplificado - se puede expandir según necesidades
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = @"IF EXISTS (SELECT * FROM sys.tables WHERE name = 'AvanceManualConcepto')
-                                  BEGIN
-                                      UPDATE c SET 
-                                          c.AvancePorcentaje = (
-                                              SELECT AVG(p.AvancePorcentaje) 
-                                              FROM AvanceManualObra p 
-                                              WHERE p.Manzana = @m AND p.Lote = @l AND p.Concepto = c.Concepto
-                                          ),
-                                          c.FechaActualizacion = GETDATE()
-                                      FROM AvanceManualConcepto c
-                                      WHERE c.Manzana = @m AND c.Lote = @l
-                                  END";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        cmd.Parameters.AddWithValue("@l", lote);
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-            }
-            catch { }
         }
 
         private void ActualizarTotales()
@@ -696,7 +418,7 @@ namespace DynamicSepticSystem
 
             progressBarAvance.Value = Math.Min(100, (int)avanceGeneral);
 
-            // Contar partidas (no categorías)
+            // Contar partidas (no categorÃ­as)
             var todasPartidas = nodosRaiz.SelectMany(c => c.Partidas).ToList();
             int completadas = todasPartidas.Count(i => i.AvancePorcentaje >= 100);
             int enProgreso = todasPartidas.Count(i => i.AvancePorcentaje > 0 && i.AvancePorcentaje < 100);
@@ -772,7 +494,7 @@ namespace DynamicSepticSystem
 
         private void DibujarGraficaBarras(Graphics g, Rectangle rect)
         {
-            // Las categorías ya están en nodosRaiz
+            // Las categorÃ­as ya estÃ¡n en nodosRaiz
             var categorias = nodosRaiz
                 .Select(c => new
                 {
@@ -851,7 +573,7 @@ namespace DynamicSepticSystem
         {
             if (nodosRaiz.Count == 0)
             {
-                MessageBox.Show("Primero carga el avance de una casa", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Primero carga el avance de una casa", "AtenciÃ³n", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -866,9 +588,9 @@ namespace DynamicSepticSystem
                 try
                 {
                     GenerarPDFAvance(sfd.FileName);
-                    MessageBox.Show("PDF generado exitosamente", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("PDF generado exitosamente", "Ã‰xito", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                    var result = MessageBox.Show("¿Deseas abrir el PDF?", "Abrir PDF", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    var result = MessageBox.Show("Â¿Deseas abrir el PDF?", "Abrir PDF", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                     if (result == DialogResult.Yes)
                     {
                         Process.Start(new ProcessStartInfo(sfd.FileName) { UseShellExecute = true });
@@ -883,8 +605,8 @@ namespace DynamicSepticSystem
 
         private void GenerarPDFAvance(string rutaPdf)
         {
-            // Método simplificado que solo genera un PDF básico
-            // Puedes expandirlo según necesites
+            // MÃ©todo simplificado que solo genera un PDF bÃ¡sico
+            // Puedes expandirlo segÃºn necesites
             PdfDocument pdf = new PdfDocument();
             PdfPage page = pdf.AddPage();
             XGraphics gfx = XGraphics.FromPdfPage(page);
