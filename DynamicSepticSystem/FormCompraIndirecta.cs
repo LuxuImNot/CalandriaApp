@@ -86,7 +86,6 @@ namespace DynamicSepticSystem
             olv.AlternateRowBackColor = ThemeManager.ColorFondoAlterno;
         }
 
-        string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"]?.ConnectionString;
         private List<InsumoIndirecto> listaCatalogoOriginal = new List<InsumoIndirecto>();
 
         // Catálogo de proveedores cacheado desde el API (PROVEEDORESCALANDRIA).

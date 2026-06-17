@@ -20,7 +20,6 @@ namespace DynamicSepticSystem
         private string manzanaFiltro;
         private string loteFiltro;
         private bool soloIndirectas;
-        private string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"]?.ConnectionString;
 
         public FormRepositorioPDFsOrdenesCompra(string manzana = null, string lote = null, bool soloIndirectas = false)
         {
@@ -33,21 +32,21 @@ namespace DynamicSepticSystem
             AplicarTema();
             CargarOrdenes();
             
-            // Actualizar título según el filtro
+            // Actualizar tï¿½tulo segï¿½n el filtro
             if (soloIndirectas)
             {
-                this.Text = "Repositorio de Órdenes Indirectas/Administrativas";
-                lblTitulo.Text = "ÓRDENES INDIRECTAS Y ADMINISTRATIVAS";
+                this.Text = "Repositorio de ï¿½rdenes Indirectas/Administrativas";
+                lblTitulo.Text = "ï¿½RDENES INDIRECTAS Y ADMINISTRATIVAS";
             }
             else if (!string.IsNullOrEmpty(manzana) && !string.IsNullOrEmpty(lote))
             {
-                this.Text = $"Repositorio de Órdenes - M{manzana} L{lote}";
-                lblTitulo.Text = $"ÓRDENES DE COMPRA - MANZANA {manzana} LOTE {lote}";
+                this.Text = $"Repositorio de ï¿½rdenes - M{manzana} L{lote}";
+                lblTitulo.Text = $"ï¿½RDENES DE COMPRA - MANZANA {manzana} LOTE {lote}";
             }
             else
             {
-                this.Text = "Repositorio de Órdenes de Compra";
-                lblTitulo.Text = "TODAS LAS ÓRDENES DE COMPRA";
+                this.Text = "Repositorio de ï¿½rdenes de Compra";
+                lblTitulo.Text = "TODAS LAS ï¿½RDENES DE COMPRA";
             }
         }
 
@@ -61,7 +60,7 @@ namespace DynamicSepticSystem
             lblTitulo.ForeColor = ThemeManager.ColorTextoClaro;
             lblTitulo.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
             
-            // Botones - aplicar tema básico y personalizar
+            // Botones - aplicar tema bï¿½sico y personalizar
             btnVerPDF.BackColor = ThemeManager.ColorPrincipalMenuBar;
             btnVerPDF.ForeColor = ThemeManager.ColorTextoClaro;
             btnVerPDF.FlatStyle = FlatStyle.Flat;
@@ -178,98 +177,21 @@ namespace DynamicSepticSystem
         {
             try
             {
-                List<OrdenCompraInfo> ordenes = new List<OrdenCompraInfo>();
-
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                var query = "/api/repositorio-ordenes?soloIndirectas=" + (soloIndirectas ? "true" : "false");
+                if (!soloIndirectas && !string.IsNullOrEmpty(manzanaFiltro) && !string.IsNullOrEmpty(loteFiltro))
                 {
-                    conn.Open();
-
-                    string sql = @"
-                        SELECT 
-                            f.Id,
-                            f.Folio,
-                            f.Manzana,
-                            f.Lote,
-                            f.FechaGeneracion,
-                            f.TipoOrden,
-                            f.NombreProveedor,
-                            f.CodigoProveedor,
-                            f.TotalConIVA,
-                            f.NumeroOrden,
-                            f.Estado,
-                            COUNT(DISTINCT d.Id) AS TotalInsumos,
-                            STUFF((
-                                SELECT ', M' + c.Manzana + '-L' + c.Lote
-                                FROM FoliosOrdenCompra_Casas c
-                                WHERE c.FolioId = f.Id
-                                FOR XML PATH(''), TYPE
-                            ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS CasasIncluidas
-                        FROM FoliosOrdenCompra f
-                        LEFT JOIN FoliosOrdenCompraDetalle d ON f.Id = d.FolioId
-                        WHERE 1=1";
-
-                    // Aplicar filtros
-                    if (soloIndirectas)
-                    {
-                        sql += " AND f.TipoOrden IN ('INDIRECTA', 'ADMINISTRATIVA')";
-                    }
-                    else if (!string.IsNullOrEmpty(manzanaFiltro) && !string.IsNullOrEmpty(loteFiltro))
-                    {
-                        sql += @" AND (
-                            (f.Manzana = @manzana AND f.Lote = @lote)
-                            OR EXISTS (
-                                SELECT 1 FROM FoliosOrdenCompra_Casas fc
-                                WHERE fc.FolioId = f.Id 
-                                AND fc.Manzana = @manzana 
-                                AND fc.Lote = @lote
-                            )
-                        )";
-                    }
-
-                    sql += @"
-                        GROUP BY f.Id, f.Folio, f.Manzana, f.Lote, f.FechaGeneracion, f.TipoOrden, 
-                                 f.NombreProveedor, f.CodigoProveedor, f.TotalConIVA, f.NumeroOrden, f.Estado
-                        ORDER BY f.FechaGeneracion DESC";
-
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        if (!soloIndirectas && !string.IsNullOrEmpty(manzanaFiltro) && !string.IsNullOrEmpty(loteFiltro))
-                        {
-                            cmd.Parameters.AddWithValue("@manzana", manzanaFiltro);
-                            cmd.Parameters.AddWithValue("@lote", loteFiltro);
-                        }
-
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                ordenes.Add(new OrdenCompraInfo
-                                {
-                                    Id = reader.GetInt32(0),
-                                    Folio = reader.GetString(1),
-                                    Manzana = reader.IsDBNull(2) ? "N/A" : reader.GetString(2),
-                                    Lote = reader.IsDBNull(3) ? "N/A" : reader.GetString(3),
-                                    FechaGeneracion = reader.GetDateTime(4),
-                                    TipoOrden = reader.GetString(5),
-                                    NombreProveedor = reader.IsDBNull(6) ? "" : reader.GetString(6),
-                                    CodigoProveedor = reader.IsDBNull(7) ? "" : reader.GetString(7),
-                                    TotalConIVA = reader.IsDBNull(8) ? 0 : Convert.ToDecimal(reader.GetValue(8)),
-                                    NumeroOrden = reader.IsDBNull(9) ? (int?)null : reader.GetInt32(9),
-                                    Estado = reader.IsDBNull(10) ? "PENDIENTE" : reader.GetString(10),
-                                    TotalInsumos = reader.GetInt32(11),
-                                    CasasIncluidas = reader.IsDBNull(12) ? "" : reader.GetString(12)
-                                });
-                            }
-                        }
-                    }
+                    query += "&manzana=" + Uri.EscapeDataString(manzanaFiltro) +
+                             "&lote=" + Uri.EscapeDataString(loteFiltro);
                 }
+
+                var ordenes = ApiClient.Get<List<OrdenCompraInfo>>(query) ?? new List<OrdenCompraInfo>();
 
                 olvOrdenes.SetObjects(ordenes);
                 ActualizarContadores(ordenes);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al cargar órdenes: {ex.Message}", "Error", 
+                MessageBox.Show($"Error al cargar ï¿½rdenes: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -287,60 +209,40 @@ namespace DynamicSepticSystem
             var seleccionada = olvOrdenes.SelectedObject as OrdenCompraInfo;
             if (seleccionada == null)
             {
-                MessageBox.Show("Selecciona una orden de la lista", "Atención", 
+                MessageBox.Show("Selecciona una orden de la lista", "Atenciï¿½n", 
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                byte[] pdfBytes = ApiClient.GetBytes($"/api/repositorio-ordenes/{seleccionada.Id}/pdf");
+                if (pdfBytes == null || pdfBytes.Length == 0)
                 {
-                    conn.Open();
+                    MessageBox.Show("No se encontrï¿½ el PDF almacenado para esta orden", "Sin PDF",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
 
-                    string sql = @"
-                        SELECT ContenidoPDF, NombreArchivo 
-                        FROM PDFsOrdenCompra 
-                        WHERE FolioId = @folioId";
+                // Guardar temporalmente y abrir
+                string nombreArchivo = $"OrdenCompra_{seleccionada.Folio}.pdf";
+                string tempPath = Path.Combine(Path.GetTempPath(), nombreArchivo);
+                File.WriteAllBytes(tempPath, pdfBytes);
 
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@folioId", seleccionada.Id);
-
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            if (reader.Read())
-                            {
-                                byte[] pdfBytes = (byte[])reader["ContenidoPDF"];
-                                string nombreArchivo = reader["NombreArchivo"].ToString();
-
-                                // Guardar temporalmente y abrir
-                                string tempPath = Path.Combine(Path.GetTempPath(), nombreArchivo);
-                                File.WriteAllBytes(tempPath, pdfBytes);
-
-                                try
-                                {
-                                    ProcessStartInfo psi = new ProcessStartInfo(tempPath) { UseShellExecute = true };
-                                    Process.Start(psi);
-                                }
-                                catch
-                                {
-                                    MessageBox.Show($"PDF guardado en: {tempPath}\n\nÁbrelo manualmente si no se abrió automáticamente.", 
-                                        "PDF Extraído", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                                }
-                            }
-                            else
-                            {
-                                MessageBox.Show("No se encontró el PDF almacenado para esta orden", "Sin PDF", 
-                                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            }
-                        }
-                    }
+                try
+                {
+                    ProcessStartInfo psi = new ProcessStartInfo(tempPath) { UseShellExecute = true };
+                    Process.Start(psi);
+                }
+                catch
+                {
+                    MessageBox.Show($"PDF guardado en: {tempPath}\n\nï¿½brelo manualmente si no se abriï¿½ automï¿½ticamente.",
+                        "PDF Extraï¿½do", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al abrir PDF: {ex.Message}", "Error", 
+                MessageBox.Show($"Error al abrir PDF: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -350,7 +252,7 @@ namespace DynamicSepticSystem
             var seleccionada = olvOrdenes.SelectedObject as OrdenCompraInfo;
             if (seleccionada == null)
             {
-                MessageBox.Show("Selecciona una orden de la lista", "Atención", 
+                MessageBox.Show("Selecciona una orden de la lista", "Atenciï¿½n", 
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -374,20 +276,20 @@ namespace DynamicSepticSystem
             var seleccionada = olvOrdenes.SelectedObject as OrdenCompraInfo;
             if (seleccionada == null)
             {
-                MessageBox.Show("Selecciona una orden de la lista", "Atención", 
+                MessageBox.Show("Selecciona una orden de la lista", "Atenciï¿½n", 
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
             var result = MessageBox.Show(
-                $"¿Estás seguro de eliminar esta orden?\n\n" +
+                $"ï¿½Estï¿½s seguro de eliminar esta orden?\n\n" +
                 $"Folio: {seleccionada.Folio}\n" +
                 $"Tipo: {seleccionada.TipoOrden}\n" +
                 $"Proveedor: {seleccionada.NombreProveedor}\n" +
                 $"Total: {seleccionada.TotalConIVA:C2}\n\n" +
-                $"Esta acción NO SE PUEDE DESHACER.\n" +
-                $"Se eliminará el folio, detalle y PDF almacenado.",
-                "Confirmar Eliminación",
+                $"Esta acciï¿½n NO SE PUEDE DESHACER.\n" +
+                $"Se eliminarï¿½ el folio, detalle y PDF almacenado.",
+                "Confirmar Eliminaciï¿½n",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
 
@@ -396,32 +298,21 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                // La eliminaciï¿½n en cascada (FK) se encarga del detalle, casas y PDF
+                int rowsAffected = ApiClient.Post<int>($"/api/repositorio-ordenes/{seleccionada.Id}/eliminar", new { });
+
+                if (rowsAffected > 0)
                 {
-                    conn.Open();
+                    MessageBox.Show("Orden eliminada exitosamente", "ï¿½xito",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                    // La eliminación en cascada se encargará del detalle, casas y PDF
-                    string sql = "DELETE FROM FoliosOrdenCompra WHERE Id = @id";
-
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@id", seleccionada.Id);
-                        int rowsAffected = cmd.ExecuteNonQuery();
-
-                        if (rowsAffected > 0)
-                        {
-                            MessageBox.Show("Orden eliminada exitosamente", "Éxito", 
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
-                            
-                            // Recargar lista
-                            CargarOrdenes();
-                        }
-                    }
+                    // Recargar lista
+                    CargarOrdenes();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al eliminar orden: {ex.Message}", "Error", 
+                MessageBox.Show($"Error al eliminar orden: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

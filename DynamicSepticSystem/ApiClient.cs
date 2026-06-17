@@ -291,4 +291,42 @@ namespace DynamicSepticSystem
         public string Descripcion { get; set; }
         public string Unidad { get; set; }
     }
+
+    // ---- Compras · repositorio de PDFs de órdenes ----
+
+    public sealed class GuardarRepoResponseApi
+    {
+        public int FolioId { get; set; }
+        public string TipoOrden { get; set; }
+        public decimal Total { get; set; }
+        public int Insumos { get; set; }
+    }
+
+    public sealed class CasaRepoApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+    }
+
+    /// <summary>Detalle completo de una orden del repositorio (cabecera + casas + insumos).</summary>
+    public sealed class DetalleOrdenRepoApi
+    {
+        public string Folio { get; set; }
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public DateTime FechaGeneracion { get; set; }
+        public string TipoOrden { get; set; }
+        public string NombreProveedor { get; set; }
+        public string CodigoProveedor { get; set; }
+        public decimal TotalSinIVA { get; set; }
+        public decimal IVA { get; set; }
+        public decimal TotalConIVA { get; set; }
+        public int? NumeroOrden { get; set; }
+        public string Usuario { get; set; }
+        public string Estado { get; set; }
+        public string Observaciones { get; set; }
+        public List<CasaRepoApi> Casas { get; set; } = new List<CasaRepoApi>();
+        public List<DetalleInsumo> Insumos { get; set; } = new List<DetalleInsumo>();
+    }
 }

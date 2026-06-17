@@ -1,3 +1,5 @@
+using System;
+
 namespace Calandria.Api.Models
 {
     /// <summary>
@@ -132,5 +134,101 @@ namespace Calandria.Api.Models
         public string Clave { get; set; }
         public string Descripcion { get; set; }
         public string Unidad { get; set; }
+    }
+
+    // ---- Repositorio de PDFs de órdenes de compra ----
+
+    /// <summary>Casa incluida en una orden múltiple del repositorio.</summary>
+    public sealed class CasaRepoDto
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+    }
+
+    /// <summary>Alta de orden MÚLTIPLE en el repositorio (FormCompraMulti).</summary>
+    public sealed class GuardarRepoMultipleRequest
+    {
+        public string FolioOC { get; set; }
+        public string Usuario { get; set; }
+        public string NombreProveedor { get; set; }
+        public string CodigoProveedor { get; set; }
+        public string NombreArchivo { get; set; }
+        public string PdfBase64 { get; set; }
+        public System.Collections.Generic.List<DetalleOrdenDto> Detalles { get; set; }
+        public System.Collections.Generic.List<CasaRepoDto> Casas { get; set; }
+    }
+
+    /// <summary>Alta de orden INDIRECTA/ADMINISTRATIVA en el repositorio (FormCompraIndirecta).</summary>
+    public sealed class GuardarRepoIndirectaRequest
+    {
+        public string FolioOC { get; set; }
+        public string Usuario { get; set; }
+        public string TipoOrden { get; set; }
+        public string NombreProveedor { get; set; }
+        public string CodigoProveedor { get; set; }
+        public string NombreArchivo { get; set; }
+        public string PdfBase64 { get; set; }
+        public System.Collections.Generic.List<DetalleOrdenDto> Detalles { get; set; }
+    }
+
+    /// <summary>Resultado del alta en repositorio (para el mensaje de confirmación).</summary>
+    public sealed class GuardarRepoResponse
+    {
+        public int FolioId { get; set; }
+        public string TipoOrden { get; set; }
+        public decimal Total { get; set; }
+        public int Insumos { get; set; }
+    }
+
+    /// <summary>Fila del listado del repositorio (FormRepositorioPDFsOrdenesCompra).</summary>
+    public sealed class OrdenRepoDto
+    {
+        public int Id { get; set; }
+        public string Folio { get; set; }
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public DateTime FechaGeneracion { get; set; }
+        public string TipoOrden { get; set; }
+        public string NombreProveedor { get; set; }
+        public string CodigoProveedor { get; set; }
+        public decimal TotalConIVA { get; set; }
+        public int? NumeroOrden { get; set; }
+        public string Estado { get; set; }
+        public int TotalInsumos { get; set; }
+        public string CasasIncluidas { get; set; }
+    }
+
+    /// <summary>Línea de detalle de una orden del repositorio.</summary>
+    public sealed class DetalleInsumoRepoDto
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+        public decimal ImporteTotal { get; set; }
+        public string Familia { get; set; }
+    }
+
+    /// <summary>Detalle completo de una orden del repositorio (FormDetalleOrdenCompra).</summary>
+    public sealed class DetalleOrdenRepoResponse
+    {
+        public string Folio { get; set; }
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public DateTime FechaGeneracion { get; set; }
+        public string TipoOrden { get; set; }
+        public string NombreProveedor { get; set; }
+        public string CodigoProveedor { get; set; }
+        public decimal TotalSinIVA { get; set; }
+        public decimal IVA { get; set; }
+        public decimal TotalConIVA { get; set; }
+        public int? NumeroOrden { get; set; }
+        public string Usuario { get; set; }
+        public string Estado { get; set; }
+        public string Observaciones { get; set; }
+        public System.Collections.Generic.List<CasaRepoDto> Casas { get; set; } = new System.Collections.Generic.List<CasaRepoDto>();
+        public System.Collections.Generic.List<DetalleInsumoRepoDto> Insumos { get; set; } = new System.Collections.Generic.List<DetalleInsumoRepoDto>();
     }
 }

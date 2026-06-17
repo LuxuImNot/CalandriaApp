@@ -15,7 +15,6 @@ namespace DynamicSepticSystem
     {
         private int folioId;
         private string folio;
-        private string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"]?.ConnectionString;
 
         public FormDetalleOrdenCompra(int folioId, string folio)
         {
@@ -88,7 +87,7 @@ namespace DynamicSepticSystem
             olvDetalle.Columns.Clear();
             
             olvDetalle.Columns.Add(new OLVColumn("Clave", "Clave") { Width = 120 });
-            olvDetalle.Columns.Add(new OLVColumn("Descripción", "Descripcion") { Width = 300 });
+            olvDetalle.Columns.Add(new OLVColumn("Descripciï¿½n", "Descripcion") { Width = 300 });
             olvDetalle.Columns.Add(new OLVColumn("Unidad", "Unidad") { Width = 80 });
             olvDetalle.Columns.Add(new OLVColumn("Cantidad", "Cantidad") 
             { 
@@ -115,122 +114,46 @@ namespace DynamicSepticSystem
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                var detalle = ApiClient.Get<DetalleOrdenRepoApi>($"/api/repositorio-ordenes/{folioId}/detalle");
+                if (detalle == null)
+                    return;
+
+                // 1. InformaciÃ³n del folio
+                lblFolio.Text = $"Folio: {detalle.Folio}";
+                lblTipo.Text = $"Tipo: {detalle.TipoOrden}";
+                lblFecha.Text = $"Fecha: {detalle.FechaGeneracion:dd/MM/yyyy HH:mm}";
+                lblUsuario.Text = $"Usuario: {detalle.Usuario}";
+                lblEstado.Text = $"Estado: {detalle.Estado}";
+                lblManzanaLote.Text = $"Manzana/Lote: {detalle.Manzana ?? "N/A"}/{detalle.Lote ?? "N/A"}";
+                lblProveedor.Text = $"Proveedor: {detalle.NombreProveedor} ({detalle.CodigoProveedor})";
+                lblSubtotal.Text = $"Subtotal: {detalle.TotalSinIVA:C2}";
+                lblIVA.Text = $"IVA: {detalle.IVA:C2}";
+                lblTotal.Text = $"TOTAL: {detalle.TotalConIVA:C2}";
+                lblTotal.Font = new Font(lblTotal.Font.FontFamily, 12F, FontStyle.Bold);
+
+                // 2. Casas incluidas (si es orden mÃºltiple)
+                var casas = (detalle.Casas ?? new List<CasaRepoApi>())
+                    .Select(c => $"M{c.Manzana}-L{c.Lote} ({c.Prototipo})")
+                    .ToList();
+
+                if (casas.Count > 0)
                 {
-                    conn.Open();
-
-                    // 1. Cargar información del folio
-                    string sqlFolio = @"
-                        SELECT 
-                            Folio, Manzana, Lote, FechaGeneracion, TipoOrden,
-                            NombreProveedor, CodigoProveedor, TotalSinIVA, IVA, TotalConIVA,
-                            NumeroOrden, Usuario, Estado, Observaciones
-                        FROM FoliosOrdenCompra
-                        WHERE Id = @id";
-
-                    using (SqlCommand cmd = new SqlCommand(sqlFolio, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@id", folioId);
-                        
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            if (reader.Read())
-                            {
-                                lblFolio.Text = $"Folio: {reader["Folio"]}";
-                                lblTipo.Text = $"Tipo: {reader["TipoOrden"]}";
-                                lblFecha.Text = $"Fecha: {Convert.ToDateTime(reader["FechaGeneracion"]):dd/MM/yyyy HH:mm}";
-                                lblUsuario.Text = $"Usuario: {reader["Usuario"]}";
-                                lblEstado.Text = $"Estado: {reader["Estado"]}";
-                                
-                                string manzana = reader.IsDBNull(reader.GetOrdinal("Manzana")) ? "N/A" : reader.GetString(reader.GetOrdinal("Manzana"));
-                                string lote = reader.IsDBNull(reader.GetOrdinal("Lote")) ? "N/A" : reader.GetString(reader.GetOrdinal("Lote"));
-                                lblManzanaLote.Text = $"Manzana/Lote: {manzana}/{lote}";
-                                
-                                lblProveedor.Text = $"Proveedor: {reader["NombreProveedor"]} ({reader["CodigoProveedor"]})";
-                                
-                                decimal subtotal = reader.IsDBNull(reader.GetOrdinal("TotalSinIVA")) ? 0 : Convert.ToDecimal(reader["TotalSinIVA"]);
-                                decimal iva = reader.IsDBNull(reader.GetOrdinal("IVA")) ? 0 : Convert.ToDecimal(reader["IVA"]);
-                                decimal total = reader.IsDBNull(reader.GetOrdinal("TotalConIVA")) ? 0 : Convert.ToDecimal(reader["TotalConIVA"]);
-                                
-                                lblSubtotal.Text = $"Subtotal: {subtotal:C2}";
-                                lblIVA.Text = $"IVA: {iva:C2}";
-                                lblTotal.Text = $"TOTAL: {total:C2}";
-                                lblTotal.Font = new Font(lblTotal.Font.FontFamily, 12F, FontStyle.Bold);
-                            }
-                        }
-                    }
-
-                    // 2. Cargar casas incluidas (si es orden múltiple)
-                    List<string> casas = new List<string>();
-                    string sqlCasas = @"
-                        SELECT Manzana, Lote, Prototipo
-                        FROM FoliosOrdenCompra_Casas
-                        WHERE FolioId = @id
-                        ORDER BY Manzana, Lote";
-
-                    using (SqlCommand cmd = new SqlCommand(sqlCasas, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@id", folioId);
-                        
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                string manzana = reader.GetString(0);
-                                string lote = reader.GetString(1);
-                                string prototipo = reader.IsDBNull(2) ? "" : reader.GetString(2);
-                                casas.Add($"M{manzana}-L{lote} ({prototipo})");
-                            }
-                        }
-                    }
-
-                    if (casas.Count > 0)
-                    {
-                        txtCasas.Text = string.Join(Environment.NewLine, casas);
-                        groupBoxCasas.Visible = true;
-                    }
-                    else
-                    {
-                        groupBoxCasas.Visible = false;
-                    }
-
-                    // 3. Cargar detalle de insumos
-                    List<DetalleInsumo> insumos = new List<DetalleInsumo>();
-                    string sqlDetalle = @"
-                        SELECT Clave, Descripcion, Unidad, Cantidad, PrecioUnitario, ImporteTotal, Familia
-                        FROM FoliosOrdenCompraDetalle
-                        WHERE FolioId = @id
-                        ORDER BY Clave";
-
-                    using (SqlCommand cmd = new SqlCommand(sqlDetalle, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@id", folioId);
-                        
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                insumos.Add(new DetalleInsumo
-                                {
-                                    Clave = reader.GetString(0),
-                                    Descripcion = reader.IsDBNull(1) ? "" : reader.GetString(1),
-                                    Unidad = reader.IsDBNull(2) ? "" : reader.GetString(2),
-                                    Cantidad = reader.IsDBNull(3) ? 0 : Convert.ToDecimal(reader.GetValue(3)),
-                                    PrecioUnitario = reader.IsDBNull(4) ? 0 : Convert.ToDecimal(reader.GetValue(4)),
-                                    ImporteTotal = reader.IsDBNull(5) ? 0 : Convert.ToDecimal(reader.GetValue(5)),
-                                    Familia = reader.IsDBNull(6) ? "" : reader.GetString(6)
-                                });
-                            }
-                        }
-                    }
-
-                    olvDetalle.SetObjects(insumos);
-                    lblTotalInsumos.Text = $"Total de insumos: {insumos.Count}";
+                    txtCasas.Text = string.Join(Environment.NewLine, casas);
+                    groupBoxCasas.Visible = true;
                 }
+                else
+                {
+                    groupBoxCasas.Visible = false;
+                }
+
+                // 3. Detalle de insumos
+                var insumos = detalle.Insumos ?? new List<DetalleInsumo>();
+                olvDetalle.SetObjects(insumos);
+                lblTotalInsumos.Text = $"Total de insumos: {insumos.Count}";
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al cargar detalles: {ex.Message}", "Error", 
+                MessageBox.Show($"Error al cargar detalles: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
