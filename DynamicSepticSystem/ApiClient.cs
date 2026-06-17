@@ -237,4 +237,28 @@ namespace DynamicSepticSystem
         public string Direccion { get; set; }
         public string Telefono { get; set; }
     }
+
+    // ---- Compras · Órdenes de compra ----
+
+    public sealed class CasaOrdenApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+    }
+
+    public sealed class DetalleOrdenApi
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+        public decimal ImporteTotal { get; set; }
+        public string Familia { get; set; }
+    }
+
+    public sealed class FolioOrdenApi
+    {
+        public string FolioOC { get; set; }
+    }
 }

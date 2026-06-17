@@ -483,53 +483,36 @@ END";
                 }
             }
 
-            // Generar folio
-            string folioOC = GenerarFolioOC();
+            // Guardar la orden vía API (folio + cabecera + detalle, en una transacción)
+            string folioOC;
             string claveProveedor = txtClaveProveedor.Text;
             string rutaPdf = string.Empty;
 
-            // Guardar en SQL (tablas tradicionales)
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                var resp = ApiClient.Post<FolioOrdenApi>("/api/ordenescompra/indirecta", new
                 {
-                    conn.Open();
-
-                    // Guardar en OrdenesCompra
-                    using (SqlCommand cmd = new SqlCommand(
-                        "INSERT INTO OrdenesCompra (FolioOC, Fecha, Usuario, TipoOrden, ProveedorClave, NombreOrden) VALUES (@folio, @fecha, @usuario, @tipo, @prov, @nombre)", conn))
+                    Usuario = Environment.UserName,
+                    NombreOrden = nombreOrden,
+                    ProveedorClave = claveProveedor,
+                    Detalles = insumosCarrito.Select(i => new DetalleOrdenApi
                     {
-                        cmd.Parameters.AddWithValue("@folio", folioOC);
-                        cmd.Parameters.AddWithValue("@fecha", DateTime.Now);
-                        cmd.Parameters.AddWithValue("@usuario", Environment.UserName);
-                        cmd.Parameters.AddWithValue("@tipo", "INDIRECTA");
-                        cmd.Parameters.AddWithValue("@prov", claveProveedor);
-                        cmd.Parameters.AddWithValue("@nombre", nombreOrden);
-                        cmd.ExecuteNonQuery();
-                    }
+                        Clave = i.Clave,
+                        Descripcion = i.Descripcion,
+                        Unidad = i.Unidad,
+                        Cantidad = i.Cantidad,
+                        PrecioUnitario = i.Costo,
+                        ImporteTotal = i.Importe
+                    }).ToList()
+                });
 
-                    // Guardar detalles
-                    foreach (var insumo in insumosCarrito)
-                    {
-                        using (SqlCommand cmd = new SqlCommand(
-                            "INSERT INTO OrdenesCompraDetalle (FolioOC, Clave, Descripcion, Unidad, Cantidad, PrecioUnitario, ImporteTotal) " +
-                            "VALUES (@folio, @c, @d, @u, @q, @p, @i)", conn))
-                        {
-                            cmd.Parameters.AddWithValue("@folio", folioOC);
-                            cmd.Parameters.AddWithValue("@c", insumo.Clave);
-                            cmd.Parameters.AddWithValue("@d", insumo.Descripcion);
-                            cmd.Parameters.AddWithValue("@u", insumo.Unidad);
-                            cmd.Parameters.AddWithValue("@q", insumo.Cantidad);
-                            cmd.Parameters.AddWithValue("@p", insumo.Costo);
-                            cmd.Parameters.AddWithValue("@i", insumo.Importe);
-                            cmd.ExecuteNonQuery();
-                        }
-                    }
-                }
+                folioOC = resp?.FolioOC;
+                if (string.IsNullOrEmpty(folioOC))
+                    throw new Exception("El servidor no devolvió un folio.");
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al guardar orden: " + ex.Message, "Error", 
+                MessageBox.Show("Error al guardar orden: " + ex.Message, "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -559,24 +542,7 @@ END";
             }
         }
 
-        private string GenerarFolioOC()
-        {
-            string baseFolio = "OC-IND-" + DateTime.Now.ToString("yyyyMMdd") + "-";
-            int consecutivo = 1;
-
-            using (SqlConnection conn = new SqlConnection(connectionString))
-            {
-                conn.Open();
-                using (SqlCommand cmd = new SqlCommand(
-                    "SELECT COUNT(*) FROM OrdenesCompra WHERE FolioOC LIKE @base + '%'", conn))
-                {
-                    cmd.Parameters.AddWithValue("@base", baseFolio);
-                    consecutivo += (int)cmd.ExecuteScalar();
-                }
-            }
-
-            return baseFolio + consecutivo.ToString("D3");
-        }
+        // El folio ahora lo genera el servidor al guardar la orden (OrdenesCompraController).
 
         private string GenerarPDF(string folioOC, string tipoTitulo, List<InsumoIndirecto> insumos, string claveProveedor)
         {
