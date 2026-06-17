@@ -67,4 +67,70 @@ namespace Calandria.Api.Models
     {
         public string FolioOC { get; set; }
     }
+
+    // ---- Catálogos de material (COMPRASCALANDRA / COMPRASTUNERA, por prototipo) ----
+
+    /// <summary>Fila del catálogo de explosión de un prototipo.</summary>
+    public sealed class CatalogoMaterialDto
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public string Familia { get; set; }
+        public decimal Precio { get; set; }
+    }
+
+    /// <summary>Cantidad pendiente de surtir de un insumo en una casa.</summary>
+    public sealed class PendienteMaterialDto
+    {
+        public string Clave { get; set; }
+        public decimal CantidadPendiente { get; set; }
+    }
+
+    /// <summary>
+    /// Alta/edición de una fila del catálogo de un prototipo. Si <see cref="Precio"/>
+    /// llega con valor se actualiza la columna Costo (best-effort). Si
+    /// <see cref="ActualizarCampos"/> es false y la fila ya existe, no se tocan los
+    /// campos descriptivos (solo el costo) — reproduce el caso "aplicar precio".
+    /// </summary>
+    public sealed class UpsertCatalogoRequest
+    {
+        public string Prototipo { get; set; }
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public string Familia { get; set; }
+        public decimal? Precio { get; set; }
+        public bool ActualizarCampos { get; set; }
+    }
+
+    public sealed class UpsertCatalogoResponse
+    {
+        /// <summary>Si se logró escribir la columna Costo (false si la tabla no la tiene).</summary>
+        public bool CostoAplicado { get; set; }
+    }
+
+    public sealed class EliminarCatalogoRequest
+    {
+        public string Prototipo { get; set; }
+        public string Clave { get; set; }
+    }
+
+    // ---- COMPRASINDIRECTAS ----
+
+    public sealed class InsumoIndirectoDto
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+    }
+
+    public sealed class CrearInsumoIndirectoRequest
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+    }
 }

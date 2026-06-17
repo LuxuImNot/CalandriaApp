@@ -261,4 +261,34 @@ namespace DynamicSepticSystem
     {
         public string FolioOC { get; set; }
     }
+
+    // ---- Compras · catálogos de material ----
+
+    public sealed class CatalogoMaterialApi
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public string Familia { get; set; }
+        public decimal Precio { get; set; }
+    }
+
+    public sealed class PendienteMaterialApi
+    {
+        public string Clave { get; set; }
+        public decimal CantidadPendiente { get; set; }
+    }
+
+    public sealed class UpsertCatalogoResponseApi
+    {
+        public bool CostoAplicado { get; set; }
+    }
+
+    public sealed class InsumoIndirectoApi
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+    }
 }

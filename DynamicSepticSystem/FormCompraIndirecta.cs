@@ -28,7 +28,7 @@ namespace DynamicSepticSystem
             
             CargarProveedores();
             ConfigurarListas();
-            InicializarTablaComprasIndirectas();
+            // La tabla COMPRASINDIRECTAS la asegura el API (ComprasController).
             CargarInsumosDesdeSQL();
         }
 
@@ -93,57 +93,30 @@ namespace DynamicSepticSystem
         private List<ProveedorApi> _proveedores = new List<ProveedorApi>();
 
         /// <summary>
-        /// Crea la tabla COMPRASINDIRECTAS si no existe
-        /// </summary>
-        private void InicializarTablaComprasIndirectas()
-        {
-            string sql = @"
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.COMPRASINDIRECTAS') AND type in (N'U'))
-BEGIN
-    CREATE TABLE dbo.COMPRASINDIRECTAS (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        Clave NVARCHAR(100) NOT NULL UNIQUE,
-        Descripcion NVARCHAR(500) NULL,
-        Unidad NVARCHAR(50) NULL,
-        FechaCreacion DATETIME NOT NULL DEFAULT(GETDATE())
-    );
-END";
-
-            using (SqlConnection conn = new SqlConnection(connectionString))
-            {
-                conn.Open();
-                using (SqlCommand cmd = new SqlCommand(sql, conn))
-                {
-                    cmd.ExecuteNonQuery();
-                }
-            }
-        }
-
-        /// <summary>
-        /// Carga los insumos desde la tabla COMPRASINDIRECTAS
+        /// Carga los insumos del catálogo COMPRASINDIRECTAS vía API.
         /// </summary>
         private void CargarInsumosDesdeSQL()
         {
             listaCatalogoOriginal.Clear();
 
-            string sql = "SELECT Clave, Descripcion, Unidad FROM dbo.COMPRASINDIRECTAS ORDER BY Clave";
-
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            try
             {
-                conn.Open();
-                using (SqlCommand cmd = new SqlCommand(sql, conn))
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                var insumos = ApiClient.Get<List<InsumoIndirectoApi>>("/api/compras/indirectas")
+                              ?? new List<InsumoIndirectoApi>();
+                foreach (var i in insumos)
                 {
-                    while (reader.Read())
+                    listaCatalogoOriginal.Add(new InsumoIndirecto
                     {
-                        listaCatalogoOriginal.Add(new InsumoIndirecto
-                        {
-                            Clave = reader["Clave"]?.ToString() ?? "",
-                            Descripcion = reader["Descripcion"]?.ToString() ?? "",
-                            Unidad = reader["Unidad"]?.ToString() ?? ""
-                        });
-                    }
+                        Clave = i.Clave ?? "",
+                        Descripcion = i.Descripcion ?? "",
+                        Unidad = i.Unidad ?? ""
+                    });
                 }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("No se pudo cargar el catálogo de compras indirectas: " + ex.Message,
+                    "Compras indirectas", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
 
             olvCatalogo.SetObjects(listaCatalogoOriginal);
@@ -353,37 +326,28 @@ END";
 
                     try
                     {
-                        using (SqlConnection conn = new SqlConnection(connectionString))
+                        ApiClient.Post("/api/compras/indirectas", new
                         {
-                            conn.Open();
-                            string sql = "INSERT INTO COMPRASINDIRECTAS (Clave, Descripcion, Unidad) VALUES (@c, @d, @u)";
-                            using (SqlCommand cmd = new SqlCommand(sql, conn))
-                            {
-                                cmd.Parameters.AddWithValue("@c", clave);
-                                cmd.Parameters.AddWithValue("@d", descripcion);
-                                cmd.Parameters.AddWithValue("@u", unidad);
-                                cmd.ExecuteNonQuery();
-                            }
-                        }
+                            Clave = clave,
+                            Descripcion = descripcion,
+                            Unidad = unidad
+                        });
 
-                        MessageBox.Show("Insumo agregado exitosamente.", "?xito", 
+                        MessageBox.Show("Insumo agregado exitosamente.", "?xito",
                             MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        
+
                         // Recargar cat?logo
                         CargarInsumosDesdeSQL();
                     }
-                    catch (SqlException ex)
+                    catch (ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
                     {
-                        if (ex.Number == 2627) // Duplicate key
-                        {
-                            MessageBox.Show("Ya existe un insumo con esa clave.", "Error", 
-                                MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        }
-                        else
-                        {
-                            MessageBox.Show("Error al guardar: " + ex.Message, "Error", 
-                                MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        }
+                        MessageBox.Show("Ya existe un insumo con esa clave.", "Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Error al guardar: " + ex.Message, "Error",
+                            MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             }

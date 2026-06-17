@@ -108,60 +108,13 @@ namespace DynamicSepticSystem
 
         private string ObtenerPrototipoDesdeBD(string manzana, string lote)
         {
-            using (SqlConnection conn = new SqlConnection(connectionString))
-            using (SqlCommand cmd = new SqlCommand("SELECT Prototipo FROM InventarioCasas WHERE Manzana = @m AND Lote = @l", conn))
-            {
-                conn.Open();
-                cmd.Parameters.AddWithValue("@m", manzana);
-                cmd.Parameters.AddWithValue("@l", lote);
-                var result = cmd.ExecuteScalar();
-                return result?.ToString();
-            }
+            string prototipo = ApiClient.Get<string>(
+                $"/api/compras/prototipo?manzana={Uri.EscapeDataString(manzana ?? "")}&lote={Uri.EscapeDataString(lote ?? "")}");
+            return string.IsNullOrEmpty(prototipo) ? null : prototipo;
         }
 
-        // Devuelve la tabla de explosion adecuada según el prototipo
-        private string GetExplosionTableForPrototipo(string prototipo)
-        {
-            // Selecciona la tabla que contiene el catálogo de insumos para el prototipo.
-            // Nota: las consultas a la tabla no filtrarán por columna 'Prototipo' porque ya no es necesaria.
-            if (string.IsNullOrWhiteSpace(prototipo))
-                return "COMPRASCALANDRA";
-
-            var p = prototipo.ToUpperInvariant();
-            if (p.Contains("TUNERA"))
-                return "COMPRASTUNERA";
-            if (p.Contains("CALANDRA") || p.Contains("CALANDRIA"))
-                return "COMPRASCALANDRA";
-
-            return "COMPRASCALANDRA"; // fallback seguro
-        }
-
-        // Helper: verifica si el reader tiene una columna
-        private bool ReaderHasColumn(SqlDataReader reader, string columnName)
-        {
-            try
-            {
-                return reader.GetOrdinal(columnName) >= 0;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        // Helper: intenta leer el primer nombre de columna válido y retornar como string
-        private string ReadStringFromReader(SqlDataReader reader, params string[] possibleNames)
-        {
-            foreach (var name in possibleNames)
-            {
-                if (ReaderHasColumn(reader, name))
-                {
-                    var val = reader[name];
-                    return val == DBNull.Value ? string.Empty : val.ToString();
-                }
-            }
-            return string.Empty;
-        }
+        // La selección de tabla por prototipo y el sondeo de columnas ahora viven
+        // en el servidor (ComprasController); el catálogo llega ya resuelto.
 
         private void ActualizarCatalogoInsumos()
         {
@@ -184,121 +137,65 @@ namespace DynamicSepticSystem
             Dictionary<string, InsumoOrdenCompra> insumosTotales = new Dictionary<string, InsumoOrdenCompra>();
             Dictionary<string, decimal> faltantesPorClave = new Dictionary<string, decimal>();
 
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            // Obtener insumos pendientes por casa (vía API)
+            foreach (var (manzana, lote) in casasSeleccionadas)
             {
-                conn.Open();
+                var pendientes = ApiClient.Get<List<PendienteMaterialApi>>(
+                    $"/api/compras/pendientes?manzana={Uri.EscapeDataString(manzana ?? "")}&lote={Uri.EscapeDataString(lote ?? "")}");
 
-                // Obtener insumos pendientes por casa
-                using (SqlCommand cmd = new SqlCommand(@"
-SELECT d.Clave, SUM(d.Cantidad) - ISNULL((
-    SELECT SUM(e.Cantidad)
-    FROM EntradasAlmacen e
-    WHERE e.FolioOC = d.FolioOC AND e.Clave = d.Clave
-), 0) AS CantidadPendiente
-FROM OrdenesCompraDetalle d
-INNER JOIN OrdenesCompra_Casas c ON d.FolioOC = c.FolioOC
-WHERE c.Manzana = @m AND c.Lote = @l AND d.Estado = 'PENDIENTE'
-GROUP BY d.FolioOC, d.Clave, d.Cantidad", conn))
+                foreach (var p in pendientes ?? new List<PendienteMaterialApi>())
                 {
-                    foreach (var (manzana, lote) in casasSeleccionadas)
+                    if (p.CantidadPendiente > 0)
                     {
-                        cmd.Parameters.Clear();
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        cmd.Parameters.AddWithValue("@l", lote);
-
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                string clave = reader["Clave"].ToString();
-                                decimal pendiente = Convert.ToDecimal(reader["CantidadPendiente"]);
-                                if (pendiente > 0)
-                                {
-                                    if (faltantesPorClave.ContainsKey(clave))
-                                        faltantesPorClave[clave] += pendiente;
-                                    else
-                                        faltantesPorClave[clave] = pendiente;
-                                }
-                            }
-                        }
+                        if (faltantesPorClave.ContainsKey(p.Clave))
+                            faltantesPorClave[p.Clave] += p.CantidadPendiente;
+                        else
+                            faltantesPorClave[p.Clave] = p.CantidadPendiente;
                     }
                 }
+            }
 
-                // Obtener insumos por prototipo
-                foreach (var kvp in casasPorPrototipo)
+            // Obtener insumos por prototipo (catálogo de explosión vía API)
+            foreach (var kvp in casasPorPrototipo)
+            {
+                string prototipo = kvp.Key;
+                int cantidadCasas = kvp.Value;
+
+                var filas = ApiClient.Get<List<CatalogoMaterialApi>>(
+                    $"/api/compras/catalogo?prototipo={Uri.EscapeDataString(prototipo ?? "")}");
+
+                foreach (var fila in filas ?? new List<CatalogoMaterialApi>())
                 {
-                    string prototipo = kvp.Key;
-                    int cantidadCasas = kvp.Value;
-                    string tabla = GetExplosionTableForPrototipo(prototipo);
+                    string clave = fila.Clave;
+                    decimal cantidadTotal = fila.Cantidad * cantidadCasas;
 
-                    using (SqlCommand cmd = new SqlCommand($"SELECT Clave, Descripcion, Unidad, Cantidad, Familia FROM {tabla}", conn))
+                    bool fueAjustado = false;
+                    if (faltantesPorClave.TryGetValue(clave, out decimal pendiente))
                     {
-                        using (SqlDataReader reader = cmd.ExecuteReader())
+                        cantidadTotal -= pendiente;
+                        fueAjustado = pendiente > 0;
+                    }
+
+                    if (cantidadTotal <= 0)
+                        continue;
+
+                    if (insumosTotales.ContainsKey(clave))
+                    {
+                        insumosTotales[clave].Cantidad += Math.Round(cantidadTotal, 3);
+                        insumosTotales[clave].EsModificado |= fueAjustado;
+                    }
+                    else
+                    {
+                        insumosTotales[clave] = new InsumoOrdenCompra
                         {
-                            while (reader.Read())
-                            {
-                                string clave = ReadStringFromReader(reader, "Clave");
-                                string desc = ReadStringFromReader(reader, "Descripcion");
-                                string unidad = ReadStringFromReader(reader, "Unidad");
-                                decimal porCasa = 0;
-                                string cantidadCol = ReaderHasColumn(reader, "Cantidad") ? "Cantidad" : (ReaderHasColumn(reader, "cantidad") ? "cantidad" : null);
-                                object cantidadObj = DBNull.Value;
-                                if (cantidadCol != null) cantidadObj = reader[cantidadCol];
-                                if (cantidadObj != DBNull.Value) decimal.TryParse(cantidadObj.ToString(), out porCasa);
-                                string familia = ReadStringFromReader(reader, "Familia");
-
-                                // Leer columna de precio/costo si existe (no obligatorio)
-                                decimal precio = 0m;
-                                string precioCol = null;
-                                if (ReaderHasColumn(reader, "Costo")) precioCol = "Costo";
-                                else if (ReaderHasColumn(reader, "CostoUnitario")) precioCol = "CostoUnitario";
-                                else if (ReaderHasColumn(reader, "Precio")) precioCol = "Precio";
-                                else if (ReaderHasColumn(reader, "precio")) precioCol = "precio";
-                                else if (ReaderHasColumn(reader, "costo")) precioCol = "costo";
-
-                                if (precioCol != null)
-                                {
-                                    try
-                                    {
-                                        var precioObj = reader[precioCol];
-                                        if (precioObj != DBNull.Value) decimal.TryParse(precioObj.ToString(), out precio);
-                                    }
-                                    catch { }
-                                }
-
-                                decimal cantidadTotal = porCasa * cantidadCasas;
-
-                                bool fueAjustado = false;
-                                if (faltantesPorClave.TryGetValue(clave, out decimal pendiente))
-                                {
-                                    cantidadTotal -= pendiente;
-                                    fueAjustado = pendiente > 0;
-                                }
-
-                                if (cantidadTotal <= 0)
-                                    continue;
-
-                                if (insumosTotales.ContainsKey(clave))
-                                {
-                                    insumosTotales[clave].Cantidad += Math.Round(cantidadTotal, 3);
-                                    insumosTotales[clave].EsModificado |= fueAjustado;
-                                }
-                                else
-                                {
-                                    insumosTotales[clave] = new InsumoOrdenCompra
-                                    {
-                                        Clave = clave,
-                                        Descripcion = desc,
-                                        Unidad = unidad,
-                                        Cantidad = Math.Round(cantidadTotal, 3),
-                                        Familia = familia,
-                                        EsModificado = fueAjustado,
-                                        Precio = precio // asignar precio leido
-                                    };
-                                }
-
-                            }
-                        }
+                            Clave = clave,
+                            Descripcion = fila.Descripcion,
+                            Unidad = fila.Unidad,
+                            Cantidad = Math.Round(cantidadTotal, 3),
+                            Familia = fila.Familia,
+                            EsModificado = fueAjustado,
+                            Precio = fila.Precio
+                        };
                     }
                 }
             }
@@ -824,74 +721,35 @@ GROUP BY d.FolioOC, d.Clave, d.Cantidad", conn))
 
             Dictionary<string, InsumoOrdenCompra> insumosTotales = new Dictionary<string, InsumoOrdenCompra>();
 
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            foreach (var kvp in casasPorPrototipo)
             {
-                conn.Open();
+                string prototipo = kvp.Key;
+                int cantidadCasas = kvp.Value;
 
-                foreach (var kvp in casasPorPrototipo)
+                var filas = ApiClient.Get<List<CatalogoMaterialApi>>(
+                    $"/api/compras/catalogo?prototipo={Uri.EscapeDataString(prototipo ?? "")}");
+
+                foreach (var fila in filas ?? new List<CatalogoMaterialApi>())
                 {
-                    string prototipo = kvp.Key;
-                    int cantidadCasas = kvp.Value;
-
-                    string tabla = GetExplosionTableForPrototipo(prototipo);
-
-                    using (SqlCommand cmd = new SqlCommand($"SELECT Clave, Descripcion, Unidad, Cantidad, Familia FROM {tabla}", conn))
-                    {
-                        using (SqlDataReader reader = cmd.ExecuteReader())
+                    string clave = fila.Clave;
+                    if (insumosTotales.ContainsKey(clave))
+                        insumosTotales[clave].Cantidad += fila.Cantidad * cantidadCasas;
+                    else
+                        insumosTotales[clave] = new InsumoOrdenCompra
                         {
-                            while (reader.Read())
-                            {
-                                string clave = ReadStringFromReader(reader, "Clave");
-                                string desc = ReadStringFromReader(reader, "Descripcion");
-                                string unidad = ReadStringFromReader(reader, "Unidad");
-                                string familia = ReadStringFromReader(reader, "Familia");
-
-                                decimal porCasa = 0;
-                                string cantidadCol = ReaderHasColumn(reader, "Cantidad") ? "Cantidad" : (ReaderHasColumn(reader, "cantidad") ? "cantidad" : null);
-                                object cantidadObj = DBNull.Value;
-                                if (cantidadCol != null) cantidadObj = reader[cantidadCol];
-                                if (cantidadObj != DBNull.Value) decimal.TryParse(cantidadObj.ToString(), out porCasa);
-
-                                // Leer precio/costo si existe
-                                decimal precio = 0m;
-                                string precioCol = null;
-                                if (ReaderHasColumn(reader, "Costo")) precioCol = "Costo";
-                                else if (ReaderHasColumn(reader, "CostoUnitario")) precioCol = "CostoUnitario";
-                                else if (ReaderHasColumn(reader, "Precio")) precioCol = "Precio";
-                                else if (ReaderHasColumn(reader, "precio")) precioCol = "precio";
-                                else if (ReaderHasColumn(reader, "costo")) precioCol = "costo";
-
-                                if (precioCol != null)
-                                {
-                                    try
-                                    {
-                                        var precioObj = reader[precioCol];
-                                        if (precioObj != DBNull.Value) decimal.TryParse(precioObj.ToString(), out precio);
-                                    }
-                                    catch { }
-                                }
-
-                                if (insumosTotales.ContainsKey(clave))
-                                    insumosTotales[clave].Cantidad += porCasa * cantidadCasas;
-                                else
-                                    insumosTotales[clave] = new InsumoOrdenCompra
-                                    {
-                                        Clave = clave,
-                                        Descripcion = desc,
-                                        Unidad = unidad,
-                                        Cantidad = porCasa * cantidadCasas,
-                                        Familia = familia,
-                                        Precio = precio // asignar precio leido
-                                    };
-                            }
-                        }
-                    }
+                            Clave = clave,
+                            Descripcion = fila.Descripcion,
+                            Unidad = fila.Unidad,
+                            Cantidad = fila.Cantidad * cantidadCasas,
+                            Familia = fila.Familia,
+                            Precio = fila.Precio
+                        };
                 }
-
-                var lista = insumosTotales.Values.ToList();
-                olvCatalogo.ShowGroups = true;
-                olvCatalogo.SetObjects(lista);
             }
+
+            var lista = insumosTotales.Values.ToList();
+            olvCatalogo.ShowGroups = true;
+            olvCatalogo.SetObjects(lista);
         }
 
         private void AplicarAgrupamientoPorFamilia()
@@ -957,57 +815,22 @@ GROUP BY d.FolioOC, d.Clave, d.Cantidad", conn))
                             if (cantidadCasas > 0)
                                 cantidadPorCasa = Math.Round(nuevaTotal / cantidadCasas, 6);
 
-                            // Aplicar a la tabla de explosión
-                            string tabla = GetExplosionTableForPrototipo(prototipo);
+                            // Aplicar a la tabla de explosión (vía API)
                             try
                             {
-                                using (SqlConnection conn = new SqlConnection(connectionString))
+                                ApiClient.Post("/api/compras/catalogo", new
                                 {
-                                    conn.Open();
-                                    using (SqlCommand cmdCheck = new SqlCommand($"SELECT COUNT(*) FROM {tabla} WHERE Clave = @clave", conn))
-                                    {
-                                        cmdCheck.Parameters.AddWithValue("@clave", insumo.Clave);
-                                        int existe = (int)cmdCheck.ExecuteScalar();
-                                        if (existe > 0)
-                                        {
-                                            using (SqlCommand cmdUpdate = new SqlCommand($"UPDATE {tabla} SET Cantidad = @cantidad, Descripcion = @desc, Unidad = @unidad, Familia = @familia WHERE Clave = @clave", conn))
-                                            {
-                                                cmdUpdate.Parameters.AddWithValue("@cantidad", cantidadPorCasa);
-                                                cmdUpdate.Parameters.AddWithValue("@desc", insumo.Descripcion ?? string.Empty);
-                                                cmdUpdate.Parameters.AddWithValue("@unidad", insumo.Unidad ?? string.Empty);
-                                                cmdUpdate.Parameters.AddWithValue("@familia", insumo.Familia ?? "MANUAL");
-                                                cmdUpdate.Parameters.AddWithValue("@clave", insumo.Clave);
-                                                cmdUpdate.ExecuteNonQuery();
-                                            }
-                                        }
-                                        else
-                                        {
-                                            using (SqlCommand cmdInsert = new SqlCommand($"INSERT INTO {tabla} (Clave, Descripcion, Unidad, Cantidad, Familia) VALUES (@clave, @desc, @unidad, @cantidad, @familia)", conn))
-                                            {
-                                                cmdInsert.Parameters.AddWithValue("@clave", insumo.Clave);
-                                                cmdInsert.Parameters.AddWithValue("@desc", insumo.Descripcion ?? string.Empty);
-                                                cmdInsert.Parameters.AddWithValue("@unidad", insumo.Unidad ?? string.Empty);
-                                                cmdInsert.Parameters.AddWithValue("@cantidad", cantidadPorCasa);
-                                                cmdInsert.Parameters.AddWithValue("@familia", insumo.Familia ?? "MANUAL");
-                                                cmdInsert.ExecuteNonQuery();
-                                            }
-                                        }
-                                    }
+                                    Prototipo = prototipo,
+                                    Clave = insumo.Clave,
+                                    Descripcion = insumo.Descripcion ?? string.Empty,
+                                    Unidad = insumo.Unidad ?? string.Empty,
+                                    Cantidad = cantidadPorCasa,
+                                    Familia = insumo.Familia ?? "MANUAL",
+                                    Precio = (decimal?)insumo.Precio,
+                                    ActualizarCampos = true
+                                });
 
-                                    // Intentar actualizar Precio si existe la columna (no crítico)
-                                    try
-                                    {
-                                        using (SqlCommand cmdPrecio = new SqlCommand($"UPDATE {tabla} SET Costo = @precio WHERE Clave = @clave", conn))
-                                        {
-                                            cmdPrecio.Parameters.AddWithValue("@precio", insumo.Precio);
-                                            cmdPrecio.Parameters.AddWithValue("@clave", insumo.Clave);
-                                            cmdPrecio.ExecuteNonQuery();
-                                        }
-                                    }
-                                    catch { /* ignorar si no existe columna Costo */ }
-                                }
-
-                                MessageBox.Show($"Explosión actualizada en {tabla} (cantidad por casa: {cantidadPorCasa}).", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                                MessageBox.Show($"Explosión actualizada (cantidad por casa: {cantidadPorCasa}).", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }
                             catch (Exception ex)
                             {
@@ -1043,42 +866,23 @@ GROUP BY d.FolioOC, d.Clave, d.Cantidad", conn))
                         else
                         {
                             string prototipo = prototipos[0];
-                            string tabla = GetExplosionTableForPrototipo(prototipo);
                             try
                             {
-                                using (SqlConnection conn = new SqlConnection(connectionString))
+                                // Asegura la fila (la inserta con cantidad 0 si falta) y aplica el costo.
+                                var r = ApiClient.Post<UpsertCatalogoResponseApi>("/api/compras/catalogo", new
                                 {
-                                    conn.Open();
-                                    // Intentar actualizar o insertar Precio if column exists
-                                    using (SqlCommand cmdCheck = new SqlCommand($"SELECT COUNT(*) FROM {tabla} WHERE Clave = @clave", conn))
-                                    {
-                                        cmdCheck.Parameters.AddWithValue("@clave", insumo.Clave);
-                                        int existe = (int)cmdCheck.ExecuteScalar();
-                                        if (existe == 0)
-                                        {
-                                            using (SqlCommand cmdInsert = new SqlCommand($"INSERT INTO {tabla} (Clave, Descripcion, Unidad, Cantidad, Familia) VALUES (@clave, @desc, @unidad, @cantidad, @familia)", conn))
-                                            {
-                                                cmdInsert.Parameters.AddWithValue("@clave", insumo.Clave);
-                                                cmdInsert.Parameters.AddWithValue("@desc", insumo.Descripcion ?? string.Empty);
-                                                cmdInsert.Parameters.AddWithValue("@unidad", insumo.Unidad ?? string.Empty);
-                                                cmdInsert.Parameters.AddWithValue("@cantidad", 0);
-                                                cmdInsert.Parameters.AddWithValue("@familia", insumo.Familia ?? "MANUAL");
-                                                cmdInsert.ExecuteNonQuery();
-                                            }
-                                        }
-                                    }
+                                    Prototipo = prototipo,
+                                    Clave = insumo.Clave,
+                                    Descripcion = insumo.Descripcion ?? string.Empty,
+                                    Unidad = insumo.Unidad ?? string.Empty,
+                                    Cantidad = 0m,
+                                    Familia = insumo.Familia ?? "MANUAL",
+                                    Precio = (decimal?)insumo.Precio,
+                                    ActualizarCampos = false
+                                });
 
-                                    try
-                                    {
-                                        using (SqlCommand cmdPrecio = new SqlCommand($"UPDATE {tabla} SET Costo = @precio WHERE Clave = @clave", conn))
-                                        {
-                                            cmdPrecio.Parameters.AddWithValue("@precio", insumo.Precio);
-                                            cmdPrecio.Parameters.AddWithValue("@clave", insumo.Clave);
-                                            cmdPrecio.ExecuteNonQuery();
-                                        }
-                                    }
-                                    catch { MessageBox.Show("La tabla de explosión no tiene columna 'Costo'. El costo fue actualizado solo en el catálogo.", "Información", MessageBoxButtons.OK, MessageBoxIcon.Information); }
-                                }
+                                if (r != null && !r.CostoAplicado)
+                                    MessageBox.Show("La tabla de explosión no tiene columna 'Costo'. El costo fue actualizado solo en el catálogo.", "Información", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }
                             catch (Exception ex)
                             {
@@ -1397,26 +1201,20 @@ GROUP BY d.FolioOC, d.Clave, d.Cantidad", conn))
             int eliminados = 0;
             List<string> errores = new List<string>();
 
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            foreach (var prototipo in prototiposUnicos)
             {
-                conn.Open();
-
-                foreach (var prototipo in prototiposUnicos)
+                try
                 {
-                    string tabla = GetExplosionTableForPrototipo(prototipo);
-                    try
+                    int aff = ApiClient.Post<int>("/api/compras/catalogo/eliminar", new
                     {
-                        using (SqlCommand cmd = new SqlCommand($"DELETE FROM {tabla} WHERE Clave = @clave", conn))
-                        {
-                            cmd.Parameters.AddWithValue("@clave", seleccionado.Clave);
-                            int aff = cmd.ExecuteNonQuery();
-                            eliminados += aff;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        errores.Add($"{tabla}: {ex.Message}");
-                    }
+                        Prototipo = prototipo,
+                        Clave = seleccionado.Clave
+                    });
+                    eliminados += aff;
+                }
+                catch (Exception ex)
+                {
+                    errores.Add($"{prototipo}: {ex.Message}");
                 }
             }
 
@@ -1547,59 +1345,26 @@ GROUP BY d.FolioOC, d.Clave, d.Cantidad", conn))
             int insumosAgregados = 0;
             List<string> errores = new List<string>();
 
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            foreach (string prototipo in prototiposUnicos)
             {
-                conn.Open();
-
-                foreach (string prototipo in prototiposUnicos)
+                try
                 {
-                    string tabla = GetExplosionTableForPrototipo(prototipo);
-
-                    try
+                    ApiClient.Post("/api/compras/catalogo", new
                     {
-                        // Verificar si el insumo ya existe en esta tabla
-                        using (SqlCommand cmdCheck = new SqlCommand(
-                            $"SELECT COUNT(*) FROM {tabla} WHERE Clave = @clave", conn))
-                        {
-                            cmdCheck.Parameters.AddWithValue("@clave", clave);
-                            int existe = (int)cmdCheck.ExecuteScalar();
-
-                            if (existe > 0)
-                            {
-                                // Actualizar la cantidad existente
-                                using (SqlCommand cmdUpdate = new SqlCommand(
-                                    $"UPDATE {tabla} SET Descripcion = @desc, Unidad = @unidad, Cantidad = @cantidad, Familia = @familia WHERE Clave = @clave", conn))
-                                {
-                                    cmdUpdate.Parameters.AddWithValue("@clave", clave);
-                                    cmdUpdate.Parameters.AddWithValue("@desc", descripcion);
-                                    cmdUpdate.Parameters.AddWithValue("@unidad", unidad);
-                                    cmdUpdate.Parameters.AddWithValue("@cantidad", cantidadPorCasa);
-                                    cmdUpdate.Parameters.AddWithValue("@familia", "MANUAL");
-                                    cmdUpdate.ExecuteNonQuery();
-                                    insumosAgregados++;
-                                }
-                            }
-                            else
-                            {
-                                // Insertar nuevo insumo
-                                using (SqlCommand cmdInsert = new SqlCommand(
-                                    $"INSERT INTO {tabla} (Clave, Descripcion, Unidad, Cantidad, Familia) VALUES (@clave, @desc, @unidad, @cantidad, @familia)", conn))
-                                {
-                                    cmdInsert.Parameters.AddWithValue("@clave", clave);
-                                    cmdInsert.Parameters.AddWithValue("@desc", descripcion);
-                                    cmdInsert.Parameters.AddWithValue("@unidad", unidad);
-                                    cmdInsert.Parameters.AddWithValue("@cantidad", cantidadPorCasa);
-                                    cmdInsert.Parameters.AddWithValue("@familia", "MANUAL");
-                                    cmdInsert.ExecuteNonQuery();
-                                    insumosAgregados++;
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        errores.Add($"Error en {tabla}: {ex.Message}");
-                    }
+                        Prototipo = prototipo,
+                        Clave = clave,
+                        Descripcion = descripcion,
+                        Unidad = unidad,
+                        Cantidad = cantidadPorCasa,
+                        Familia = "MANUAL",
+                        Precio = (decimal?)null,
+                        ActualizarCampos = true
+                    });
+                    insumosAgregados++;
+                }
+                catch (Exception ex)
+                {
+                    errores.Add($"Error en {prototipo}: {ex.Message}");
                 }
             }
 
@@ -1673,62 +1438,19 @@ GROUP BY d.FolioOC, d.Clave, d.Cantidad", conn))
                         else
                         {
                             string prototipo = prototipos[0];
-                            string tabla = GetExplosionTableForPrototipo(prototipo);
                             try
                             {
-                                using (SqlConnection conn = new SqlConnection(connectionString))
+                                ApiClient.Post("/api/compras/catalogo", new
                                 {
-                                    conn.Open();
-                                    using (SqlCommand cmdCheck = new SqlCommand($"SELECT COUNT(*) FROM {tabla} WHERE Clave = @clave", conn))
-                                    {
-                                        cmdCheck.Parameters.AddWithValue("@clave", insumo.Clave);
-                                        int existe = (int)cmdCheck.ExecuteScalar();
-                                        if (existe > 0)
-                                        {
-                                            using (SqlCommand cmdUpdate = new SqlCommand($"UPDATE {tabla} SET Descripcion = @desc, Unidad = @unidad, Cantidad = @cantidad, Familia = @familia WHERE Clave = @clave", conn))
-                                            {
-                                                cmdUpdate.Parameters.AddWithValue("@desc", insumo.Descripcion);
-                                                cmdUpdate.Parameters.AddWithValue("@unidad", insumo.Unidad);
-                                                cmdUpdate.Parameters.AddWithValue("@cantidad", insumo.Cantidad);
-                                                cmdUpdate.Parameters.AddWithValue("@familia", insumo.Familia ?? "MANUAL");
-                                                cmdUpdate.Parameters.AddWithValue("@clave", insumo.Clave);
-                                                cmdUpdate.ExecuteNonQuery();
-                                            }
-                                            try
-                                            {
-                                                using (SqlCommand cmdPrecio = new SqlCommand($"UPDATE {tabla} SET Costo = @precio WHERE Clave = @clave", conn))
-                                                {
-                                                    cmdPrecio.Parameters.AddWithValue("@precio", insumo.Precio);
-                                                    cmdPrecio.Parameters.AddWithValue("@clave", insumo.Clave);
-                                                    cmdPrecio.ExecuteNonQuery();
-                                                }
-                                            }
-                                            catch { }
-                                        }
-                                        else
-                                        {
-                                            using (SqlCommand cmdInsert = new SqlCommand($"INSERT INTO {tabla} (Clave, Descripcion, Unidad, Cantidad, Familia) VALUES (@clave, @desc, @unidad, @cantidad, @familia)", conn))
-                                            {
-                                                cmdInsert.Parameters.AddWithValue("@clave", insumo.Clave);
-                                                cmdInsert.Parameters.AddWithValue("@desc", insumo.Descripcion);
-                                                cmdInsert.Parameters.AddWithValue("@unidad", insumo.Unidad);
-                                                cmdInsert.Parameters.AddWithValue("@cantidad", insumo.Cantidad);
-                                                cmdInsert.Parameters.AddWithValue("@familia", insumo.Familia ?? "MANUAL");
-                                                cmdInsert.ExecuteNonQuery();
-                                            }
-                                            try
-                                            {
-                                                using (SqlCommand cmdPrecio = new SqlCommand($"UPDATE {tabla} SET Costo = @precio WHERE Clave = @clave", conn))
-                                                {
-                                                    cmdPrecio.Parameters.AddWithValue("@precio", insumo.Precio);
-                                                    cmdPrecio.Parameters.AddWithValue("@clave", insumo.Clave);
-                                                    cmdPrecio.ExecuteNonQuery();
-                                                }
-                                            }
-                                            catch { }
-                                        }
-                                    }
-                                }
+                                    Prototipo = prototipo,
+                                    Clave = insumo.Clave,
+                                    Descripcion = insumo.Descripcion,
+                                    Unidad = insumo.Unidad,
+                                    Cantidad = insumo.Cantidad,
+                                    Familia = insumo.Familia ?? "MANUAL",
+                                    Precio = (decimal?)insumo.Precio,
+                                    ActualizarCampos = true
+                                });
 
                                 MessageBox.Show("Explosión actualizada.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
                             }
