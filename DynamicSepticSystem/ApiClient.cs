@@ -45,8 +45,7 @@ namespace DynamicSepticSystem
             using (var resp = Http.PostAsync(BaseUrl + "/api/auth/login", content)
                                   .GetAwaiter().GetResult())
             {
-                resp.EnsureSuccessStatusCode();
-                string json = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                string json = LeerOLanzar(resp);
                 var login = JsonConvert.DeserializeObject<LoginResponseApi>(json);
                 Token = login?.Token;
                 return login;
@@ -65,8 +64,7 @@ namespace DynamicSepticSystem
 
                 using (var resp = Http.SendAsync(req).GetAwaiter().GetResult())
                 {
-                    resp.EnsureSuccessStatusCode();
-                    string json = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    string json = LeerOLanzar(resp);
                     return JsonConvert.DeserializeObject<T>(json);
                 }
             }
@@ -87,7 +85,8 @@ namespace DynamicSepticSystem
                 {
                     if (resp.StatusCode == HttpStatusCode.NotFound)
                         return null;
-                    resp.EnsureSuccessStatusCode();
+                    if (!resp.IsSuccessStatusCode)
+                        throw CrearExcepcion(resp);
                     return resp.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
                 }
             }
@@ -123,10 +122,45 @@ namespace DynamicSepticSystem
 
                 using (var resp = Http.SendAsync(req).GetAwaiter().GetResult())
                 {
-                    resp.EnsureSuccessStatusCode();
-                    return resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    return LeerOLanzar(resp);
                 }
             }
+        }
+
+        /// <summary>
+        /// Lee el cuerpo de una respuesta exitosa o lanza <see cref="ApiException"/>
+        /// con el código de estado y el mensaje del servidor si falló.
+        /// </summary>
+        private static string LeerOLanzar(HttpResponseMessage resp)
+        {
+            if (!resp.IsSuccessStatusCode)
+                throw CrearExcepcion(resp);
+            return resp.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+        }
+
+        private static ApiException CrearExcepcion(HttpResponseMessage resp)
+        {
+            string cuerpo = "";
+            try { cuerpo = resp.Content.ReadAsStringAsync().GetAwaiter().GetResult(); }
+            catch { /* sin cuerpo */ }
+            return new ApiException(resp.StatusCode, cuerpo);
+        }
+    }
+
+    /// <summary>
+    /// Error devuelto por el API (código de estado distinto de 2xx). Permite a los
+    /// formularios distinguir casos como 409 Conflict (clave duplicada).
+    /// </summary>
+    public sealed class ApiException : Exception
+    {
+        public HttpStatusCode StatusCode { get; }
+        public string Cuerpo { get; }
+
+        public ApiException(HttpStatusCode statusCode, string cuerpo)
+            : base($"El API respondió {(int)statusCode} ({statusCode}).")
+        {
+            StatusCode = statusCode;
+            Cuerpo = cuerpo;
         }
     }
 
@@ -191,5 +225,16 @@ namespace DynamicSepticSystem
         public string CodigoCuadrilla { get; set; }
         public decimal TotalDistribuir { get; set; }
         public List<LineaAsignacionNominaApi> Lineas { get; set; } = new List<LineaAsignacionNominaApi>();
+    }
+
+    // ---- Compras · Proveedores ----
+
+    public sealed class ProveedorApi
+    {
+        public string ClaveUnica { get; set; }
+        public string Nombre { get; set; }
+        public string Rfc { get; set; }
+        public string Direccion { get; set; }
+        public string Telefono { get; set; }
     }
 }

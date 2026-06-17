@@ -40,7 +40,7 @@ namespace DynamicSepticSystem
             // Aplicar tema general
             ThemeManager.AplicarTema(this);
             
-            // Estilizar controles específicos
+            // Estilizar controles especï¿½ficos
             ThemeManager.EstilizarBotonExito(btnAgregarInsumo);
             ThemeManager.EstilizarBotonExito(btnGenerarOrden);
             
@@ -62,7 +62,7 @@ namespace DynamicSepticSystem
             olv.GridLines = true;
             olv.Font = new Font("Segoe UI", 9F);
             
-            // Aplicar estilo de encabezados después de que se configuren las columnas
+            // Aplicar estilo de encabezados despuï¿½s de que se configuren las columnas
             olv.HeaderFormatStyle = new HeaderFormatStyle
             {
                 Hot = new HeaderStateStyle
@@ -88,6 +88,9 @@ namespace DynamicSepticSystem
 
         string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"]?.ConnectionString;
         private List<InsumoIndirecto> listaCatalogoOriginal = new List<InsumoIndirecto>();
+
+        // CatÃ¡logo de proveedores cacheado desde el API (PROVEEDORESCALANDRIA).
+        private List<ProveedorApi> _proveedores = new List<ProveedorApi>();
 
         /// <summary>
         /// Crea la tabla COMPRASINDIRECTAS si no existe
@@ -148,7 +151,7 @@ END";
 
         private void ConfigurarListas()
         {
-            // ?? Catálogo
+            // ?? Catï¿½logo
             olvCatalogo.FullRowSelect = true;
             olvCatalogo.ShowGroups = false;
             olvCatalogo.Columns.Clear();
@@ -214,18 +217,23 @@ END";
         {
             txtClaveProveedor.Items.Clear();
 
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            try
             {
-                conn.Open();
-                using (SqlCommand cmd = new SqlCommand("SELECT ClaveUnica FROM PROVEEDORESCALANDRIA ORDER BY ClaveUnica", conn))
-                using (SqlDataReader reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        string clave = reader["ClaveUnica"]?.ToString() ?? "";
-                        txtClaveProveedor.Items.Add(clave);
-                    }
-                }
+                _proveedores = ApiClient.Get<List<ProveedorApi>>("/api/proveedores")
+                               ?? new List<ProveedorApi>();
+            }
+            catch (Exception ex)
+            {
+                _proveedores = new List<ProveedorApi>();
+                MessageBox.Show("No se pudieron cargar los proveedores: " + ex.Message, "Proveedores",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+
+            foreach (var clave in _proveedores
+                         .Select(p => p.ClaveUnica ?? "")
+                         .OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
+            {
+                txtClaveProveedor.Items.Add(clave);
             }
 
             txtClaveProveedor.SelectedIndex = -1;
@@ -241,29 +249,18 @@ END";
                 return;
             }
 
-            // Cargar informaci?n del proveedor
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            var prov = _proveedores.FirstOrDefault(p =>
+                string.Equals(p.ClaveUnica, claveSeleccionada, StringComparison.OrdinalIgnoreCase));
+            if (prov != null)
             {
-                conn.Open();
-                string sql = "SELECT Nombre, RFC, Direccion, Telefono FROM PROVEEDORESCALANDRIA WHERE ClaveUnica = @clave";
-                using (SqlCommand cmd = new SqlCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@clave", claveSeleccionada);
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        if (reader.Read())
-                        {
-                            lblNombreProveedor.Text = "Nombre: " + (reader["Nombre"]?.ToString() ?? "");
-                            lblRFCProveedor.Text = "RFC: " + (reader["RFC"]?.ToString() ?? "");
-                            lblDireccionProveedor.Text = "Direcci?n: " + (reader["Direccion"]?.ToString() ?? "N/A");
-                            lblTelefonoProveedor.Text = "Tel?fono: " + (reader["Telefono"]?.ToString() ?? "N/A");
-                        }
-                        else
-                        {
-                            LimpiarInfoProveedor();
-                        }
-                    }
-                }
+                lblNombreProveedor.Text = "Nombre: " + (prov.Nombre ?? "");
+                lblRFCProveedor.Text = "RFC: " + (prov.Rfc ?? "");
+                lblDireccionProveedor.Text = "Direcci?n: " + (string.IsNullOrEmpty(prov.Direccion) ? "N/A" : prov.Direccion);
+                lblTelefonoProveedor.Text = "Tel?fono: " + (string.IsNullOrEmpty(prov.Telefono) ? "N/A" : prov.Telefono);
+            }
+            else
+            {
+                LimpiarInfoProveedor();
             }
         }
 
@@ -398,14 +395,14 @@ END";
 
             if (insumosCarrito.Count == 0)
             {
-                MessageBox.Show("Agrega al menos un insumo al carrito.", "Atención", 
+                MessageBox.Show("Agrega al menos un insumo al carrito.", "Atenciï¿½n", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(txtClaveProveedor.Text))
             {
-                MessageBox.Show("Selecciona un proveedor.", "Atención", 
+                MessageBox.Show("Selecciona un proveedor.", "Atenciï¿½n", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -468,11 +465,11 @@ END";
                 }
                 else
                 {
-                    return; // Usuario canceló
+                    return; // Usuario cancelï¿½
                 }
             }
 
-            // Preguntar el tipo de título
+            // Preguntar el tipo de tï¿½tulo
             string tipoTitulo = "";
             using (var formTitulo = new FormSeleccionarTitulo())
             {
@@ -482,7 +479,7 @@ END";
                 }
                 else
                 {
-                    return; // Usuario canceló
+                    return; // Usuario cancelï¿½
                 }
             }
 
@@ -549,12 +546,12 @@ END";
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"? Advertencia: La orden se generó correctamente pero no se pudo guardar en el repositorio de PDFs:\n\n{ex.Message}", 
+                    MessageBox.Show($"? Advertencia: La orden se generï¿½ correctamente pero no se pudo guardar en el repositorio de PDFs:\n\n{ex.Message}", 
                         "Advertencia", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
                 
                 MessageBox.Show($"Orden de compra generada exitosamente.\nFolio: {folioOC}", 
-                    "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    "ï¿½xito", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
@@ -611,14 +608,14 @@ END";
             int pageWidth = (int)page.Width - (margin * 2);
 
             // ==================== ENCABEZADO ====================
-            // INFORMACIÓN DE LA EMPRESA (IZQUIERDA)
+            // INFORMACIï¿½N DE LA EMPRESA (IZQUIERDA)
             int leftColumnWidth = 380;
             
             gfx.DrawString("Desarrolladora de Casas Camaney", 
                 new XFont("Arial", 9, XFontStyle.Bold), XBrushes.Black, x, y);
             y += 12;
             
-            gfx.DrawString("Blvd. Periférico sur. Y Carretera a la Colorada", 
+            gfx.DrawString("Blvd. Perifï¿½rico sur. Y Carretera a la Colorada", 
                 fontSmall, XBrushes.Black, x, y);
             y += 10;
             
@@ -649,7 +646,7 @@ END";
 
             y = margin + 85;
 
-            // ==================== TÍTULO ====================
+            // ==================== Tï¿½TULO ====================
             gfx.DrawString("ORDEN DE COMPRA", fontTitle, XBrushes.Black, 
                 new XRect(margin, y, pageWidth, 20), XStringFormats.Center);
             y += 30;
@@ -658,43 +655,33 @@ END";
             int folioBoxWidth = 180;
             int folioBoxX = (int)page.Width - margin - folioBoxWidth;
             
-            // Línea para Folio
+            // Lï¿½nea para Folio
             int folioY = y;
             gfx.DrawString("Folio_________", fontNormal, XBrushes.Black, folioBoxX, folioY);
             gfx.DrawString(folioOC, fontNormal, XBrushes.Black, folioBoxX + 60, folioY);
             
-            // Línea para Fecha
+            // Lï¿½nea para Fecha
             folioY += 15;
             gfx.DrawString("Fecha_________", fontNormal, XBrushes.Black, folioBoxX, folioY);
             gfx.DrawString(DateTime.Now.ToString("dd/MM/yyyy"), fontNormal, XBrushes.Black, folioBoxX + 60, folioY);
 
             y += 45;
 
-            // ==================== INFORMACIÓN DEL PROVEEDOR ====================
+            // ==================== INFORMACIï¿½N DEL PROVEEDOR ====================
             // Obtener datos del proveedor
             string nombreProv = "";
             string rfcProv = "";
             string direccionProv = "";
             string telefonoProv = "";
 
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            var provPdf = _proveedores.FirstOrDefault(p =>
+                string.Equals(p.ClaveUnica, claveProveedor, StringComparison.OrdinalIgnoreCase));
+            if (provPdf != null)
             {
-                conn.Open();
-                using (SqlCommand cmd = new SqlCommand(
-                    "SELECT Nombre, RFC, Direccion, Telefono FROM PROVEEDORESCALANDRIA WHERE ClaveUnica = @clave", conn))
-                {
-                    cmd.Parameters.AddWithValue("@clave", claveProveedor);
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        if (reader.Read())
-                        {
-                            nombreProv = reader["Nombre"]?.ToString() ?? "";
-                            rfcProv = reader["RFC"]?.ToString() ?? "";
-                            direccionProv = reader["Direccion"]?.ToString() ?? "";
-                            telefonoProv = reader["Telefono"]?.ToString() ?? "";
-                        }
-                    }
-                }
+                nombreProv = provPdf.Nombre ?? "";
+                rfcProv = provPdf.Rfc ?? "";
+                direccionProv = provPdf.Direccion ?? "";
+                telefonoProv = provPdf.Telefono ?? "";
             }
 
             int provY = y;
@@ -734,7 +721,7 @@ END";
 
             foreach (var insumo in insumos)
             {
-                // Verificar si necesitamos nueva página
+                // Verificar si necesitamos nueva pï¿½gina
                 if (y + dataRowHeight > page.Height - 120)
                 {
                     page = pdf.AddPage();
@@ -742,7 +729,7 @@ END";
                     gfx = XGraphics.FromPdfPage(page);
                     y = margin;
                     
-                    // Redibujar encabezado de tabla en nueva página
+                    // Redibujar encabezado de tabla en nueva pï¿½gina
                     currentX = x;
                     for (int i = 0; i < headers.Length; i++)
                     {
@@ -769,7 +756,7 @@ END";
                 gfx.DrawLine(XPens.Black, currentX + widths[0], y, currentX + widths[0], y + dataRowHeight);
                 currentX += widths[0];
 
-                // INSUMO (DESCRIPCIÓN)
+                // INSUMO (DESCRIPCIï¿½N)
                 string descCorta = insumo.Descripcion;
                 if (descCorta.Length > 40)
                     descCorta = descCorta.Substring(0, 37) + "...";
@@ -809,7 +796,7 @@ END";
                 total += insumo.Importe;
             }
 
-            // Línea final de la tabla
+            // Lï¿½nea final de la tabla
             gfx.DrawLine(XPens.Black, x, y, x + totalTableWidth, y);
 
             // ==================== TOTALES (SUBTOTAL, IVA, TOTAL) ====================
@@ -840,7 +827,7 @@ END";
                 new XRect(totalesBoxX + labelWidth, y, valueWidth, 15), XStringFormats.CenterRight);
             y += 18;
 
-            // Línea separadora antes del total
+            // Lï¿½nea separadora antes del total
             gfx.DrawLine(XPens.Black, totalesBoxX, y, totalesBoxX + totalesBoxWidth, y);
             y += 5;
 

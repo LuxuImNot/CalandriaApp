@@ -102,6 +102,9 @@ namespace DynamicSepticSystem
 
         string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"]?.ConnectionString;
 
+        // Catálogo de proveedores cacheado desde el API (PROVEEDORESCALANDRIA).
+        private List<ProveedorApi> _proveedores = new List<ProveedorApi>();
+
 
         private string ObtenerPrototipoDesdeBD(string manzana, string lote)
         {
@@ -1292,25 +1295,26 @@ GROUP BY d.FolioOC, d.Clave, d.Cantidad", conn))
         }
         private void CargarProveedores()
         {
-            // Ahora usamos la tabla unificada PROVEEDORESCALANDRIA con ClaveUnica y Nombre
+            // Tabla unificada PROVEEDORESCALANDRIA, ahora vía API (ordenada por Nombre).
             cmbCodigoProveedor.Items.Clear();
             cmbNombreProveedor.Items.Clear();
 
-            using (SqlConnection conn = new SqlConnection(connectionString))
+            try
             {
-                conn.Open();
-                using (SqlCommand cmd = new SqlCommand("SELECT ClaveUnica, Nombre FROM PROVEEDORESCALANDRIA ORDER BY Nombre", conn))
-                using (SqlDataReader reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        string codigo = ReadStringFromReader(reader, "ClaveUnica", "Clave");
-                        string nombre = ReadStringFromReader(reader, "Nombre");
+                _proveedores = ApiClient.Get<List<ProveedorApi>>("/api/proveedores")
+                               ?? new List<ProveedorApi>();
+            }
+            catch (Exception ex)
+            {
+                _proveedores = new List<ProveedorApi>();
+                MessageBox.Show("No se pudieron cargar los proveedores: " + ex.Message, "Proveedores",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
 
-                        cmbCodigoProveedor.Items.Add(codigo);
-                        cmbNombreProveedor.Items.Add(nombre);
-                    }
-                }
+            foreach (var p in _proveedores)
+            {
+                cmbCodigoProveedor.Items.Add(p.ClaveUnica ?? "");
+                cmbNombreProveedor.Items.Add(p.Nombre ?? "");
             }
 
             cmbCodigoProveedor.SelectedIndex = -1;
@@ -1328,33 +1332,12 @@ GROUP BY d.FolioOC, d.Clave, d.Cantidad", conn))
             if (cmbCodigoProveedor.SelectedItem == null) return;
             string clave = cmbCodigoProveedor.SelectedItem.ToString();
 
-            // seleccionar nombre correspondiente si existe
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (SqlCommand cmd = new SqlCommand("SELECT Nombre, RFC, Direccion, Telefono FROM PROVEEDORESCALANDRIA WHERE ClaveUnica = @c", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@c", clave);
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            if (reader.Read())
-                            {
-                                string nombre = ReadStringFromReader(reader, "Nombre");
-                                SetProveedorSelectionByName(nombre);
+            var prov = _proveedores.FirstOrDefault(p =>
+                string.Equals(p.ClaveUnica, clave, StringComparison.OrdinalIgnoreCase));
+            if (prov == null) return;
 
-                                // mostrar detalles si hay labels
-                                lblProvNombre.Text = "Nombre: " + nombre;
-                                lblProvRFC.Text = "RFC: " + ReadStringFromReader(reader, "RFC");
-                                lblProvDireccion.Text = "Dirección: " + ReadStringFromReader(reader, "Direccion");
-                                lblProvTelefono.Text = "Tel: " + ReadStringFromReader(reader, "Telefono");
-                            }
-                        }
-                    }
-                }
-            }
-            catch { }
+            SetProveedorSelectionByName(prov.Nombre);
+            MostrarDetalleProveedor(prov);
         }
 
         private void cmbNombreProveedor_SelectedIndexChanged(object sender, EventArgs e)
@@ -1365,32 +1348,20 @@ GROUP BY d.FolioOC, d.Clave, d.Cantidad", conn))
             // seleccionar código correspondiente si existe
             SetProveedorSelectionByName(nombre);
 
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (SqlCommand cmd = new SqlCommand("SELECT ClaveUnica, RFC, Direccion, Telefono FROM PROVEEDORESCALANDRIA WHERE Nombre = @n", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@n", nombre);
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            if (reader.Read())
-                            {
-                                string clave = ReadStringFromReader(reader, "ClaveUnica");
-                                // sincronizar código
-                                cmbCodigoProveedor.SelectedItem = clave;
+            var prov = _proveedores.FirstOrDefault(p =>
+                string.Equals(p.Nombre, nombre, StringComparison.OrdinalIgnoreCase));
+            if (prov == null) return;
 
-                                lblProvNombre.Text = "Nombre: " + nombre;
-                                lblProvRFC.Text = "RFC: " + ReadStringFromReader(reader, "RFC");
-                                lblProvDireccion.Text = "Dirección: " + ReadStringFromReader(reader, "Direccion");
-                                lblProvTelefono.Text = "Tel: " + ReadStringFromReader(reader, "Telefono");
-                            }
-                        }
-                    }
-                }
-            }
-            catch { }
+            cmbCodigoProveedor.SelectedItem = prov.ClaveUnica;
+            MostrarDetalleProveedor(prov);
+        }
+
+        private void MostrarDetalleProveedor(ProveedorApi prov)
+        {
+            lblProvNombre.Text = "Nombre: " + (prov.Nombre ?? "");
+            lblProvRFC.Text = "RFC: " + (prov.Rfc ?? "");
+            lblProvDireccion.Text = "Dirección: " + (prov.Direccion ?? "");
+            lblProvTelefono.Text = "Tel: " + (prov.Telefono ?? "");
         }
 
         private void SetProveedorSelectionByName(string nombre)

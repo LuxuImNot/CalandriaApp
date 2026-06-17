@@ -1,6 +1,5 @@
 ﻿using System;
-using System.Configuration;
-using System.Data.SqlClient;
+using System.Net;
 using System.Windows.Forms;
 
 namespace DynamicSepticSystem
@@ -11,45 +10,7 @@ namespace DynamicSepticSystem
         {
             InitializeComponent();
             ThemeManager.AplicarTema(this);
-            InicializarTablaProveedores();
-        }
-
-        /// <summary>
-        /// Crea la tabla PROVEEDORESCALANDRIA si no existe
-        /// </summary>
-        private void InicializarTablaProveedores()
-        {
-            string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
-            string sql = @"
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.PROVEEDORESCALANDRIA') AND type in (N'U'))
-BEGIN
-    CREATE TABLE dbo.PROVEEDORESCALANDRIA (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        ClaveUnica NVARCHAR(50) NOT NULL UNIQUE,
-        Nombre NVARCHAR(200) NOT NULL,
-        RFC NVARCHAR(13) NOT NULL,
-        Direccion NVARCHAR(500) NULL,
-        Telefono NVARCHAR(20) NULL,
-        FechaCreacion DATETIME NOT NULL DEFAULT(GETDATE())
-    );
-END";
-
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error al inicializar tabla de proveedores: " + ex.Message, "Error", 
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            // La tabla PROVEEDORESCALANDRIA la asegura el API (ProveedoresController).
         }
 
         private void btnGuardar_Click(object sender, EventArgs e)
@@ -94,47 +55,32 @@ END";
                 return;
             }
 
-            string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
-            
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                ApiClient.Post("/api/proveedores", new
                 {
-                    conn.Open();
-                    
-                    string sql = @"INSERT INTO PROVEEDORESCALANDRIA (ClaveUnica, Nombre, RFC, Direccion, Telefono) 
-                                   VALUES (@clave, @nombre, @rfc, @direccion, @telefono)";
-                    
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@clave", claveUnica);
-                        cmd.Parameters.AddWithValue("@nombre", nombre);
-                        cmd.Parameters.AddWithValue("@rfc", rfc);
-                        cmd.Parameters.AddWithValue("@direccion", string.IsNullOrWhiteSpace(direccion) ? (object)DBNull.Value : direccion);
-                        cmd.Parameters.AddWithValue("@telefono", string.IsNullOrWhiteSpace(telefono) ? (object)DBNull.Value : telefono);
-                        
-                        cmd.ExecuteNonQuery();
-                        
-                        MessageBox.Show("Proveedor guardado correctamente.", "Éxito", 
-                            MessageBoxButtons.OK, MessageBoxIcon.Information);
-                        
-                        this.DialogResult = DialogResult.OK;
-                        this.Close();
-                    }
-                }
+                    ClaveUnica = claveUnica,
+                    Nombre = nombre,
+                    Rfc = rfc,
+                    Direccion = direccion,
+                    Telefono = telefono
+                });
+
+                MessageBox.Show("Proveedor guardado correctamente.", "Éxito",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                this.DialogResult = DialogResult.OK;
+                this.Close();
             }
-            catch (SqlException ex)
+            catch (ApiException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
             {
-                if (ex.Number == 2627) // Duplicate key
-                {
-                    MessageBox.Show("Ya existe un proveedor con esa Clave Única.", "Error", 
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                else
-                {
-                    MessageBox.Show("Error al guardar: " + ex.Message, "Error", 
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+                MessageBox.Show("Ya existe un proveedor con esa Clave Única.", "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al guardar: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
