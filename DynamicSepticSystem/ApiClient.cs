@@ -329,4 +329,42 @@ namespace DynamicSepticSystem
         public List<CasaRepoApi> Casas { get; set; } = new List<CasaRepoApi>();
         public List<DetalleInsumo> Insumos { get; set; } = new List<DetalleInsumo>();
     }
+
+    // ---- Estimaciones · evidencias fotográficas ----
+
+    /// <summary>
+    /// Evidencia fotográfica (api/evidencias). FotoBase64 solo viene relleno al
+    /// pedir la última evidencia de un lote; en el listado va vacío.
+    /// </summary>
+    public sealed class EvidenciaApi
+    {
+        public int Id { get; set; }
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public string Titulo { get; set; }
+        public string FotoBase64 { get; set; }
+        public string Extension { get; set; }
+        public double TamanioKB { get; set; }
+        public DateTime Fecha { get; set; }
+        public string Usuario { get; set; }
+    }
+
+    // ---- Estimaciones · fotos de concepto/partida ----
+
+    /// <summary>Metadatos de una foto de concepto/partida (api/fotos-concepto).</summary>
+    public sealed class FotoConceptoApi
+    {
+        public int Id { get; set; }
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Identificador { get; set; }
+        public bool EsConcepto { get; set; }
+        public string NombreNodo { get; set; }
+        public string Descripcion { get; set; }
+        public string Extension { get; set; }
+        public double TamanioKB { get; set; }
+        public DateTime Fecha { get; set; }
+        public string Usuario { get; set; }
+    }
 }
