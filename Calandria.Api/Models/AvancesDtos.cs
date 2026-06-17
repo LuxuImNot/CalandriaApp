@@ -42,4 +42,33 @@ namespace Calandria.Api.Models
         public double ImporteTotal { get; set; }
         public double ImporteEjecutado { get; set; }
     }
+
+    // ---- Avance por concepto (FormAvanceConcepto) ----
+
+    /// <summary>Un concepto de Estimacion(Concepto) con su importe total (columna según prototipo).</summary>
+    public sealed class ConceptoAvanceDto
+    {
+        public string Codigo { get; set; }
+        public string Concepto { get; set; }
+        public double Total { get; set; }
+    }
+
+    /// <summary>Total e importe ejecutado agregados por Padre (de PresupuestoObra + AvanceManualObra).</summary>
+    public sealed class AvancePorPadreDto
+    {
+        public string Padre { get; set; }
+        public double Total { get; set; }
+        public double Ejecutado { get; set; }
+    }
+
+    /// <summary>Alta/actualización del avance de un concepto (upsert en AvanceManualConcepto).</summary>
+    public sealed class GuardarAvanceConceptoRequest
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public string Codigo { get; set; }
+        public string Concepto { get; set; }
+        public double AvancePorcentaje { get; set; }
+    }
 }

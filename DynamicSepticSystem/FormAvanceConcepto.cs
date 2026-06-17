@@ -20,7 +20,6 @@ namespace DynamicSepticSystem
 {
     public partial class FormAvanceConcepto : Form
     {
-        private string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
         private List<ItemConcepto> itemsConceptos = new List<ItemConcepto>();
         private string prototipoActual = "";
 
@@ -50,8 +49,8 @@ namespace DynamicSepticSystem
             olvAvanceConceptos.ShowGroups = true;
             olvAvanceConceptos.GroupImageList = new ImageList();
 
-            // Columna C�digo
-            var colCodigo = new OLVColumn("C�digo", "Codigo") 
+            // Columna Cï¿½digo
+            var colCodigo = new OLVColumn("Cï¿½digo", "Codigo") 
             { 
                 Width = 80, 
                 IsEditable = false,
@@ -123,20 +122,11 @@ namespace DynamicSepticSystem
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Manzana FROM InventarioCasas ORDER BY Manzana";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        cmbManzana.Items.Clear();
-                        while (reader.Read())
-                        {
-                            cmbManzana.Items.Add(reader["Manzana"].ToString());
-                        }
-                    }
-                }
+                cmbManzana.Items.Clear();
+                var manzanas = ApiClient.Get<List<string>>("/api/avances/manzanas");
+                if (manzanas != null)
+                    foreach (var m in manzanas)
+                        cmbManzana.Items.Add(m);
             }
             catch (Exception ex)
             {
@@ -150,23 +140,12 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Lote FROM InventarioCasas WHERE Manzana = @m ORDER BY Lote";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            cmbLote.Items.Clear();
-                            while (reader.Read())
-                            {
-                                cmbLote.Items.Add(reader["Lote"].ToString());
-                            }
-                        }
-                    }
-                }
+                cmbLote.Items.Clear();
+                var lotes = ApiClient.Get<List<string>>(
+                    $"/api/avances/lotes?manzana={Uri.EscapeDataString(cmbManzana.SelectedItem.ToString())}");
+                if (lotes != null)
+                    foreach (var l in lotes)
+                        cmbLote.Items.Add(l);
             }
             catch (Exception ex)
             {
@@ -178,7 +157,7 @@ namespace DynamicSepticSystem
         {
             if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null)
             {
-                MessageBox.Show("Por favor selecciona Manzana y Lote", "Atenci�n", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Por favor selecciona Manzana y Lote", "Atenciï¿½n", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -188,7 +167,7 @@ namespace DynamicSepticSystem
             prototipoActual = ObtenerPrototipo(manzana, lote);
             if (string.IsNullOrEmpty(prototipoActual))
             {
-                MessageBox.Show($"No se encontr� el prototipo para M{manzana}-L{lote}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"No se encontrï¿½ el prototipo para M{manzana}-L{lote}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -214,10 +193,10 @@ namespace DynamicSepticSystem
             ActualizarTotales();
             DibujarGraficas();
 
-            // Cargar y mostrar la �ltima foto de la casa en el control pictureBoxFotoUltima
+            // Cargar y mostrar la ï¿½ltima foto de la casa en el control pictureBoxFotoUltima
             try
             {
-                var gestor = new GestorEvidencias(connectionString);
+                var gestor = new GestorEvidencias();
                 var ultima = gestor.ObtenerUltimaEvidencia(manzana, lote);
                 if (ultima != null &&ultima.FotoBytes != null && ultima.FotoBytes.Length > 0)
                 {
@@ -240,18 +219,8 @@ namespace DynamicSepticSystem
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT Prototipo FROM InventarioCasas WHERE Manzana = @m AND Lote = @l";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        cmd.Parameters.AddWithValue("@l", lote);
-                        var result = cmd.ExecuteScalar();
-                        return result?.ToString() ?? "";
-                    }
-                }
+                return ApiClient.Get<string>(
+                    $"/api/avances/prototipo?manzana={Uri.EscapeDataString(manzana ?? "")}&lote={Uri.EscapeDataString(lote ?? "")}") ?? "";
             }
             catch
             {
@@ -265,122 +234,18 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-
-                    // Determinar columna de importe en la tabla Estimacion(Concepto) seg�n prototipo
-                    // Nota: el prototipo correcto es 'CALANDRA' (sin 'I')
-                    string columnaDeseada = prototipo.ToUpper().Contains("CALANDRA") ? "CostoCalandra" : "CostoTunera";
-                    string columnaACast = "TOTAL"; // valor por defecto si existe
-
-                    // Verificar si existe la columna deseada
-                    string sqlCheckCol = @"
-                        SELECT COUNT(*) 
-                        FROM INFORMATION_SCHEMA.COLUMNS 
-                        WHERE TABLE_NAME = 'Estimacion(Concepto)' 
-                        AND COLUMN_NAME = @col";
-
-                    using (SqlCommand cmdCheckCol = new SqlCommand(sqlCheckCol, conn))
-                    {
-                        cmdCheckCol.Parameters.AddWithValue("@col", columnaDeseada);
-                        int countCol = (int)cmdCheckCol.ExecuteScalar();
-                        if (countCol > 0)
+                var conceptos = ApiClient.Get<List<ConceptoAvanceApi>>(
+                    $"/api/avances/conceptos?prototipo={Uri.EscapeDataString(prototipo ?? "")}");
+                if (conceptos != null)
+                    foreach (var c in conceptos)
+                        items.Add(new ItemConcepto
                         {
-                            columnaACast = columnaDeseada;
-                        }
-                        else
-                        {
-                            // Si no existe la columna deseada, verificar si existe TOTAL (compatibilidad)
-                            using (SqlCommand cmdCheckTotal = new SqlCommand(@"
-                                SELECT COUNT(*) 
-                                FROM INFORMATION_SCHEMA.COLUMNS 
-                                WHERE TABLE_NAME = 'Estimacion(Concepto)' 
-                                AND COLUMN_NAME = 'TOTAL'", conn))
-                            {
-                                int countTotal = (int)cmdCheckTotal.ExecuteScalar();
-                                if (countTotal > 0)
-                                {
-                                    columnaACast = "TOTAL";
-                                }
-                                else
-                                {
-                                    // No se encontr� columna de importe, mostrar mensaje y retornar vac�o
-                                    MessageBox.Show($"No se encontr� columna de importe en la tabla Estimacion(Concepto). Buscada: {columnaDeseada} o TOTAL", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                    return items;
-                                }
-                            }
-                        }
-                    }
-
-                    // ? CORREGIDO: Verifica si existe columna Codigo y ordena num�ricamente
-                    string sqlCheck = @"
-                        SELECT COUNT(*) 
-                        FROM INFORMATION_SCHEMA.COLUMNS 
-                        WHERE TABLE_NAME = 'Estimacion(Concepto)' 
-                        AND COLUMN_NAME = 'Codigo'";
-
-                    bool tieneColumnaCodigo = false;
-                    using (SqlCommand cmdCheck = new SqlCommand(sqlCheck, conn))
-                    {
-                        int count = (int)cmdCheck.ExecuteScalar();
-                        tieneColumnaCodigo = count > 0;
-                    }
-
-                    string sql;
-                    if (tieneColumnaCodigo)
-                    {
-                        // ? Usar la columna Codigo existente y ordenar NUM�RICAMENTE
-                        sql = $@"
-                            SELECT 
-                                Codigo,
-                                Concepto,
-                                SUM(CAST([{columnaACast}] as FLOAT)) as Total
-                            FROM [dbo].[Estimacion(Concepto)]
-                            GROUP BY Codigo, Concepto
-                            ORDER BY 
-                                CASE 
-                                    WHEN TRY_CAST(Codigo AS INT) IS NOT NULL 
-                                    THEN TRY_CAST(Codigo AS INT)
-                                    ELSE 999999 
-                                END,
-                                Codigo";
-                    }
-                    else
-                    {
-                        // Si no existe, generar c�digos con ROW_NUMBER()
-                        sql = $@"
-                            SELECT 
-                                ROW_NUMBER() OVER (ORDER BY Concepto) as Codigo,
-                                Concepto,
-                                SUM(CAST([{columnaACast}] as FLOAT)) as Total
-                            FROM [dbo].[Estimacion(Concepto)]
-                            GROUP BY Concepto
-                            ORDER BY Concepto";
-                    }
-
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                string codigo = reader["Codigo"].ToString();
-                                string concepto = reader["Concepto"].ToString();
-                                double total = Convert.ToDouble(reader["Total"]);
-
-                                items.Add(new ItemConcepto
-                                {
-                                    Codigo = codigo,
-                                    Concepto = concepto,
-                                    Total = total,
-                                    AvancePorcentaje = 0,
-                                    MontoEjecutado = 0
-                                });
-                            }
-                        }
-                    }
-                }
+                            Codigo = c.Codigo,
+                            Concepto = c.Concepto,
+                            Total = c.Total,
+                            AvancePorcentaje = 0,
+                            MontoEjecutado = 0
+                        });
             }
             catch (Exception ex)
             {
@@ -394,87 +259,24 @@ namespace DynamicSepticSystem
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                var padresApi = ApiClient.Get<List<AvancePorPadreApi>>(
+                    $"/api/avances/avance-por-padre?manzana={Uri.EscapeDataString(manzana ?? "")}" +
+                    $"&lote={Uri.EscapeDataString(lote ?? "")}" +
+                    $"&prototipo={Uri.EscapeDataString(prototipoActual ?? "")}");
+
+                var padreDict = new Dictionary<string, Tuple<double, double>>(StringComparer.OrdinalIgnoreCase);
+                if (padresApi != null)
+                    foreach (var pp in padresApi)
+                        padreDict[pp.Padre] = Tuple.Create(pp.Total, pp.Ejecutado);
                 {
-                    conn.Open();
 
-                    // Leer filas de PresupuestoObra con WBS, Padre, ImporteTotal
-                    // Determinar columna de costo seg�n prototipoActual
-                    // Nota: el prototipo correcto es 'CALANDRA' (sin 'I')
-                    string columnaCosto = prototipoActual.ToUpper().Contains("CALANDRA") ? "CostoCalandra" : "CostoTunera";
-
-                    string sqlPres = $@"
-                        SELECT ROW_NUMBER() OVER (ORDER BY Padre, Etapa, Partida) AS WBS,
-                               Padre,
-                               {columnaCosto} as ImporteTotal
-                        FROM PresupuestoObra
-                        ORDER BY Padre, Etapa, Partida";
-
-                    var presRows = new List<Tuple<int, string, double>>();
-                    using (SqlCommand cmdPres = new SqlCommand(sqlPres, conn))
-                    {
-                        using (SqlDataReader r = cmdPres.ExecuteReader())
-                        {
-                            while (r.Read())
-                            {
-                                int wbs = r["WBS"] != DBNull.Value ? Convert.ToInt32(r["WBS"]) : 0;
-                                string padre = r["Padre"]?.ToString() ?? "";
-                                double importe = r["ImporteTotal"] != DBNull.Value ? Convert.ToDouble(r["ImporteTotal"]) : 0.0;
-                                presRows.Add(Tuple.Create(wbs, padre, importe));
-                            }
-                        }
-                    }
-
-                    // Leer avances por WBS desde AvanceManualObra (solo Manzana/Lote seleccionados)
-                    var avancePorWbs = new Dictionary<int, double>();
-                    string sqlAvancesObra = "SELECT WBS, AvancePorcentaje FROM AvanceManualObra WHERE Manzana = @m AND Lote = @l";
-                    using (SqlCommand cmdAv = new SqlCommand(sqlAvancesObra, conn))
-                    {
-                        cmdAv.Parameters.AddWithValue("@m", manzana);
-                        cmdAv.Parameters.AddWithValue("@l", lote);
-                        using (SqlDataReader r = cmdAv.ExecuteReader())
-                        {
-                            while (r.Read())
-                            {
-                                int wbs = 0;
-                                int.TryParse(r["WBS"]?.ToString(), out wbs);
-                                double av = r["AvancePorcentaje"] != DBNull.Value ? Convert.ToDouble(r["AvancePorcentaje"]) : 0.0;
-                                if (wbs > 0)
-                                    avancePorWbs[wbs] = av;
-                            }
-                        }
-                    }
-
-                    // Construir diccionario por Padre: Total y Ejecutado (sumando por WBS)
-                    var padreDict = new Dictionary<string, Tuple<double, double>>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var pr in presRows)
-                    {
-                        string padre = pr.Item2?.Trim() ?? "";
-                        double importe = pr.Item3;
-                        double ejecutado = 0.0;
-
-                        if (avancePorWbs.TryGetValue(pr.Item1, out double avPerc))
-                        {
-                            ejecutado = importe * (avPerc / 100.0);
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(padre))
-                        {
-                            if (!padreDict.ContainsKey(padre))
-                                padreDict[padre] = Tuple.Create(0.0, 0.0);
-
-                            var prev = padreDict[padre];
-                            padreDict[padre] = Tuple.Create(prev.Item1 + importe, prev.Item2 + ejecutado);
-                        }
-                    }
-
-                    // Mapeo en c�digo: Concepto -> lista de Padres que componen ese concepto
+                    // Mapeo en cï¿½digo: Concepto -> lista de Padres que componen ese concepto
                     var mapping = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
                     {
                         { "Acabados", new[] { "Acabados Exteriores", "Acabados Interiores" } },
                         { "Estructura", new[] { "Losas", "Muros" } },
                         { "Limpieza e Instalaciones especiales", new[] { "Inst especiales y Obra Exterior" } },
-                        // Agregar aqu� m�s mapeos seg�n sea necesario
+                        // Agregar aquï¿½ mï¿½s mapeos segï¿½n sea necesario
                     };
 
                     // Para cada concepto, sumar los padres mapeados y aplicar avance agregado
@@ -548,29 +350,16 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                // El servidor hace el upsert en AvanceManualConcepto (y asegura la tabla).
+                ApiClient.Post("/api/avances/concepto", new
                 {
-                    conn.Open();
-                    string sql = @"
-                        IF EXISTS (SELECT 1 FROM AvanceManualConcepto WHERE Manzana=@m AND Lote=@l AND Codigo=@cod)
-                            UPDATE AvanceManualConcepto 
-                            SET AvancePorcentaje=@avance, FechaActualizacion=GETDATE()
-                            WHERE Manzana=@m AND Lote=@l AND Codigo=@cod
-                        ELSE
-                            INSERT INTO AvanceManualConcepto (Manzana, Lote, Prototipo, Codigo, Concepto, AvancePorcentaje)
-                            VALUES (@m, @l, @proto, @cod, @concepto, @avance)";
-
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        cmd.Parameters.AddWithValue("@l", lote);
-                        cmd.Parameters.AddWithValue("@proto", prototipoActual);
-                        cmd.Parameters.AddWithValue("@cod", item.Codigo);
-                        cmd.Parameters.AddWithValue("@concepto", item.Concepto);
-                        cmd.Parameters.AddWithValue("@avance", item.AvancePorcentaje);
-                        cmd.ExecuteNonQuery();
-                    }
-                }
+                    Manzana = manzana,
+                    Lote = lote,
+                    Prototipo = prototipoActual,
+                    Codigo = item.Codigo,
+                    Concepto = item.Concepto,
+                    AvancePorcentaje = item.AvancePorcentaje
+                });
             }
             catch (Exception ex)
             {
@@ -671,7 +460,7 @@ namespace DynamicSepticSystem
         {
             if (itemsConceptos.Count == 0)
             {
-                MessageBox.Show("Primero carga el avance de una casa", "Atenci�n", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Primero carga el avance de una casa", "Atenciï¿½n", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -686,9 +475,9 @@ namespace DynamicSepticSystem
                 try
                 {
                     GenerarPDFAvance(sfd.FileName);
-                    MessageBox.Show("PDF generado exitosamente", "�xito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("PDF generado exitosamente", "ï¿½xito", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                    var result = MessageBox.Show("�Deseas abrir el PDF?", "Abrir PDF", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    var result = MessageBox.Show("ï¿½Deseas abrir el PDF?", "Abrir PDF", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                     if (result == DialogResult.Yes)
                     {
                         Process.Start(new ProcessStartInfo(sfd.FileName) { UseShellExecute = true });
@@ -711,7 +500,7 @@ namespace DynamicSepticSystem
             pdf.Info.Title = $"Avance por Conceptos - M{cmbManzana.SelectedItem} L{cmbLote.SelectedItem}";
             pdf.Info.Author = "Sistema Calandria Residencial";
             pdf.Info.Subject = "Reporte de Avance por Conceptos";
-            pdf.Info.Keywords = "Construcci�n, Avance, Conceptos";
+            pdf.Info.Keywords = "Construcciï¿½n, Avance, Conceptos";
 
             double totalPresupuestado = itemsConceptos.Sum(i => i.Total);
             double totalEjecutado = itemsConceptos.Sum(i => i.MontoEjecutado);
@@ -722,7 +511,7 @@ namespace DynamicSepticSystem
             XColor colorAccento = XColor.FromArgb(52, 73, 94);
             XColor colorFondo = XColor.FromArgb(236, 240, 241);
 
-            // ============= P�GINA 1: PORTADA Y RESUMEN =============
+            // ============= Pï¿½GINA 1: PORTADA Y RESUMEN =============
             PdfPage page = pdf.AddPage();
             page.Size = PdfSharp.PageSize.Letter;
             XGraphics gfx = XGraphics.FromPdfPage(page);
@@ -739,7 +528,7 @@ namespace DynamicSepticSystem
 
             gfx.DrawString("AVANCE POR CONCEPTOS", fontTituloGrande, XBrushes.White,
                 new XRect(0, 25, page.Width, 30), XStringFormats.TopCenter);
-            gfx.DrawString("Sistema de Control de Construcci�n", fontSubtitulo, XBrushes.White,
+            gfx.DrawString("Sistema de Control de Construcciï¿½n", fontSubtitulo, XBrushes.White,
                 new XRect(0, 55, page.Width, 20), XStringFormats.TopCenter);
 
             double y = 130;
@@ -748,14 +537,14 @@ namespace DynamicSepticSystem
 
             gfx.DrawRectangle(penBorde, new XSolidBrush(colorFondo), 40, y, 240, 80);
             gfx.DrawString("DATOS DEL PROYECTO", fontSubtituloSeccion, new XSolidBrush(colorPrimario), 50, y + 10);
-            gfx.DrawString($"Ubicaci�n:", fontNegrita, XBrushes.Black, 50, y + 30);
+            gfx.DrawString($"Ubicaciï¿½n:", fontNegrita, XBrushes.Black, 50, y + 30);
             gfx.DrawString($"Manzana {cmbManzana.SelectedItem}, Lote {cmbLote.SelectedItem}", fontNormal, XBrushes.Black, 50, y + 45);
             gfx.DrawString($"Prototipo:", fontNegrita, XBrushes.Black, 50, y + 60);
             gfx.DrawString($"{prototipoActual}", fontNormal, XBrushes.Black, 120, y + 60);
 
             gfx.DrawRectangle(penBorde, new XSolidBrush(colorFondo), 300, y, 260, 80);
-            gfx.DrawString("INFORMACI�N DEL REPORTE", fontSubtituloSeccion, new XSolidBrush(colorPrimario), 310, y + 10);
-            gfx.DrawString($"Fecha de generaci�n:", fontNegrita, XBrushes.Black, 310, y + 30);
+            gfx.DrawString("INFORMACIï¿½N DEL REPORTE", fontSubtituloSeccion, new XSolidBrush(colorPrimario), 310, y + 10);
+            gfx.DrawString($"Fecha de generaciï¿½n:", fontNegrita, XBrushes.Black, 310, y + 30);
             gfx.DrawString($"{DateTime.Now:dd/MM/yyyy HH:mm}", fontNormal, XBrushes.Black, 430, y + 30);
             gfx.DrawString($"Total de conceptos:", fontNegrita, XBrushes.Black, 310, y + 45);
             gfx.DrawString($"{itemsConceptos.Count}", fontNormal, XBrushes.Black, 430, y + 45);
@@ -827,7 +616,7 @@ namespace DynamicSepticSystem
 
             DibujarPiePagina(gfx, page, 1, fontPequena);
 
-            // ============= P�GINA 2: DETALLE DE CONCEPTOS =============
+            // ============= Pï¿½GINA 2: DETALLE DE CONCEPTOS =============
             GenerarPaginasDetalleConceptos(pdf, fontTitulo, fontSubtituloSeccion, fontNormal, fontPequena, fontNegrita,
                 colorPrimario, colorSecundario, colorAccento, colorFondo);
 
@@ -870,7 +659,7 @@ namespace DynamicSepticSystem
             // Encabezado de tabla
             XPen penBorde = new XPen(colorPrimario, 1.5);
             gfxPagina.DrawRectangle(new XSolidBrush(colorPrimario), 40, y, 520, 25);
-            gfxPagina.DrawString("C�d.", fontNegrita, XBrushes.White, 45, y + 7);
+            gfxPagina.DrawString("Cï¿½d.", fontNegrita, XBrushes.White, 45, y + 7);
             gfxPagina.DrawString("Concepto", fontNegrita, XBrushes.White, 90, y + 7);
             gfxPagina.DrawString("Presupuesto", fontNegrita, XBrushes.White, 320, y + 7);
             gfxPagina.DrawString("Avance", fontNegrita, XBrushes.White, 420, y + 7);
@@ -887,7 +676,7 @@ namespace DynamicSepticSystem
                     pagina.Size = PdfSharp.PageSize.Letter;
                     gfxPagina = XGraphics.FromPdfPage(pagina);
                     gfxPagina.DrawRectangle(new XSolidBrush(colorPrimario), 0, 0, pagina.Width, 50);
-                    gfxPagina.DrawString("DETALLE DE CONCEPTOS (continuaci�n)", fontSubtituloSeccion, XBrushes.White,
+                    gfxPagina.DrawString("DETALLE DE CONCEPTOS (continuaciï¿½n)", fontSubtituloSeccion, XBrushes.White,
                         new XRect(0, 15, pagina.Width, 30), XStringFormats.TopCenter);
                     y = 70;
                     alternar = false;
@@ -955,7 +744,7 @@ namespace DynamicSepticSystem
             gfx.DrawString("Sistema Calandria Residencial - Avance por Conceptos", fontPequena,
                 XBrushes.Gray, 40, yPie);
 
-            gfx.DrawString($"P�gina {numeroPagina}", fontPequena, XBrushes.Gray,
+            gfx.DrawString($"Pï¿½gina {numeroPagina}", fontPequena, XBrushes.Gray,
                 new XRect(0, yPie, page.Width, 20), XStringFormats.TopCenter);
 
             gfx.DrawString(DateTime.Now.ToString("dd/MM/yyyy"), fontPequena, XBrushes.Gray,

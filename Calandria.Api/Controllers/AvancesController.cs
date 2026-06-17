@@ -220,6 +220,163 @@ ORDER BY Padre, Etapa, Partida";
             return Ok();
         }
 
+        /// <summary>
+        /// GET /api/avances/conceptos?prototipo= · conceptos de Estimacion(Concepto)
+        /// con su importe total (columna de costo según prototipo, con fallback a TOTAL).
+        /// </summary>
+        [HttpGet, Route("conceptos")]
+        public IHttpActionResult Conceptos(string prototipo)
+        {
+            var items = new List<ConceptoAvanceDto>();
+            using (var conn = Db.Abrir())
+            {
+                var columnas = ColumnasDe(conn, "Estimacion(Concepto)");
+                string columnaDeseada = (prototipo ?? "").ToUpperInvariant().Contains("CALANDRA")
+                    ? "CostoCalandra" : "CostoTunera";
+                string columnaACast = columnas.Contains(columnaDeseada) ? columnaDeseada
+                    : columnas.Contains("TOTAL") ? "TOTAL" : null;
+                if (columnaACast == null)
+                    return BadRequest($"No se encontró columna de importe en la tabla Estimacion(Concepto). Buscada: {columnaDeseada} o TOTAL");
+
+                bool tieneCodigo = columnas.Contains("Codigo");
+                string sql = tieneCodigo
+                    ? $@"
+SELECT Codigo, Concepto, SUM(CAST([{columnaACast}] AS FLOAT)) AS Total
+FROM [dbo].[Estimacion(Concepto)]
+GROUP BY Codigo, Concepto
+ORDER BY CASE WHEN TRY_CAST(Codigo AS INT) IS NOT NULL THEN TRY_CAST(Codigo AS INT) ELSE 999999 END, Codigo"
+                    : $@"
+SELECT ROW_NUMBER() OVER (ORDER BY Concepto) AS Codigo, Concepto, SUM(CAST([{columnaACast}] AS FLOAT)) AS Total
+FROM [dbo].[Estimacion(Concepto)]
+GROUP BY Concepto
+ORDER BY Concepto";
+
+                using (var cmd = new SqlCommand(sql, conn))
+                using (var r = cmd.ExecuteReader())
+                {
+                    while (r.Read())
+                        items.Add(new ConceptoAvanceDto
+                        {
+                            Codigo = r["Codigo"].ToString(),
+                            Concepto = r["Concepto"].ToString(),
+                            Total = Convert.ToDouble(r["Total"])
+                        });
+                }
+            }
+            return Ok(items);
+        }
+
+        /// <summary>
+        /// GET /api/avances/avance-por-padre?manzana=&amp;lote=&amp;prototipo= · agrega
+        /// por Padre el total (de PresupuestoObra) y el ejecutado (aplicando el avance
+        /// de AvanceManualObra de la casa). El mapeo concepto→padres lo hace el cliente.
+        /// </summary>
+        [HttpGet, Route("avance-por-padre")]
+        public IHttpActionResult AvancePorPadre(string manzana, string lote, string prototipo = null)
+        {
+            var resultado = new List<AvancePorPadreDto>();
+            using (var conn = Db.Abrir())
+            {
+                EnsureTablaAvanceManualObra(conn);
+
+                var columnas = ColumnasDe(conn, "PresupuestoObra");
+                string columnaCosto = (prototipo ?? "").ToUpperInvariant().Contains("CALANDRA")
+                    ? "CostoCalandra" : "CostoTunera";
+                if (!columnas.Contains(columnaCosto))
+                    columnaCosto = columnas.Contains("TOTAL") ? "TOTAL"
+                        : columnas.Contains("CostoTunera") ? "CostoTunera" : "CostoCalandra";
+
+                // Partidas con WBS y Padre.
+                var presRows = new List<Tuple<int, string, double>>();
+                string sqlPres = $@"
+SELECT ROW_NUMBER() OVER (ORDER BY Padre, Etapa, Partida) AS WBS, Padre,
+       ISNULL(CAST([{columnaCosto}] AS FLOAT), 0) AS ImporteTotal
+FROM PresupuestoObra
+ORDER BY Padre, Etapa, Partida";
+                using (var cmd = new SqlCommand(sqlPres, conn))
+                using (var r = cmd.ExecuteReader())
+                {
+                    while (r.Read())
+                        presRows.Add(Tuple.Create(
+                            r["WBS"] != DBNull.Value ? Convert.ToInt32(r["WBS"]) : 0,
+                            r["Padre"]?.ToString() ?? "",
+                            r["ImporteTotal"] != DBNull.Value ? Convert.ToDouble(r["ImporteTotal"]) : 0.0));
+                }
+
+                // Avance por WBS de la casa.
+                var avancePorWbs = new Dictionary<int, double>();
+                using (var cmd = new SqlCommand(
+                    "SELECT WBS, AvancePorcentaje FROM AvanceManualObra WHERE Manzana = @m AND Lote = @l", conn))
+                {
+                    cmd.Parameters.AddWithValue("@m", manzana ?? "");
+                    cmd.Parameters.AddWithValue("@l", lote ?? "");
+                    using (var r = cmd.ExecuteReader())
+                    {
+                        while (r.Read())
+                        {
+                            if (int.TryParse(r["WBS"]?.ToString(), out int wbs) && wbs > 0)
+                                avancePorWbs[wbs] = r["AvancePorcentaje"] != DBNull.Value
+                                    ? Convert.ToDouble(r["AvancePorcentaje"]) : 0.0;
+                        }
+                    }
+                }
+
+                // Agregar por Padre (total y ejecutado).
+                var padreDict = new Dictionary<string, Tuple<double, double>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var pr in presRows)
+                {
+                    string padre = pr.Item2?.Trim() ?? "";
+                    if (string.IsNullOrWhiteSpace(padre)) continue;
+
+                    double importe = pr.Item3;
+                    double ejecutado = avancePorWbs.TryGetValue(pr.Item1, out double avPerc)
+                        ? importe * (avPerc / 100.0) : 0.0;
+
+                    var prev = padreDict.TryGetValue(padre, out var t) ? t : Tuple.Create(0.0, 0.0);
+                    padreDict[padre] = Tuple.Create(prev.Item1 + importe, prev.Item2 + ejecutado);
+                }
+
+                foreach (var kvp in padreDict)
+                    resultado.Add(new AvancePorPadreDto { Padre = kvp.Key, Total = kvp.Value.Item1, Ejecutado = kvp.Value.Item2 });
+            }
+            return Ok(resultado);
+        }
+
+        /// <summary>
+        /// POST /api/avances/concepto · upsert del avance de un concepto en
+        /// AvanceManualConcepto (asegura la tabla).
+        /// </summary>
+        [HttpPost, Route("concepto")]
+        public IHttpActionResult GuardarConcepto([FromBody] GuardarAvanceConceptoRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Manzana) || string.IsNullOrWhiteSpace(req.Lote))
+                return BadRequest("Faltan manzana y/o lote.");
+
+            using (var conn = Db.Abrir())
+            {
+                EnsureTablaAvanceManualConcepto(conn);
+
+                const string sql = @"
+IF EXISTS (SELECT 1 FROM AvanceManualConcepto WHERE Manzana=@m AND Lote=@l AND Codigo=@cod)
+    UPDATE AvanceManualConcepto SET AvancePorcentaje=@avance, FechaActualizacion=GETDATE()
+    WHERE Manzana=@m AND Lote=@l AND Codigo=@cod
+ELSE
+    INSERT INTO AvanceManualConcepto (Manzana, Lote, Prototipo, Codigo, Concepto, AvancePorcentaje)
+    VALUES (@m, @l, @proto, @cod, @concepto, @avance)";
+                using (var cmd = new SqlCommand(sql, conn))
+                {
+                    cmd.Parameters.AddWithValue("@m", req.Manzana);
+                    cmd.Parameters.AddWithValue("@l", req.Lote);
+                    cmd.Parameters.AddWithValue("@proto", (object)req.Prototipo ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@cod", (object)req.Codigo ?? "");
+                    cmd.Parameters.AddWithValue("@concepto", (object)req.Concepto ?? "");
+                    cmd.Parameters.AddWithValue("@avance", req.AvancePorcentaje);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            return Ok();
+        }
+
         // ---- helpers ----
 
         private static List<AvanceGuardadoDto> CargarAvancesGuardados(SqlConnection conn, string manzana, string lote)
@@ -297,6 +454,23 @@ BEGIN
         Prototipo NVARCHAR(50), WBS NVARCHAR(50),
         Concepto NVARCHAR(200), ImporteTotal FLOAT,
         AvancePorcentaje FLOAT,
+        FechaActualizacion DATETIME DEFAULT GETDATE()
+    );
+END";
+            using (var cmd = new SqlCommand(sql, conn))
+                cmd.ExecuteNonQuery();
+        }
+
+        private static void EnsureTablaAvanceManualConcepto(SqlConnection conn)
+        {
+            const string sql = @"
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'AvanceManualConcepto')
+BEGIN
+    CREATE TABLE AvanceManualConcepto (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        Manzana NVARCHAR(10), Lote NVARCHAR(10),
+        Prototipo NVARCHAR(50), Codigo NVARCHAR(50),
+        Concepto NVARCHAR(200), AvancePorcentaje FLOAT,
         FechaActualizacion DATETIME DEFAULT GETDATE()
     );
 END";

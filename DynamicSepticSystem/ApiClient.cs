@@ -395,4 +395,22 @@ namespace DynamicSepticSystem
         public List<PartidaAvanceApi> Partidas { get; set; } = new List<PartidaAvanceApi>();
         public List<AvanceGuardadoApi> Avances { get; set; } = new List<AvanceGuardadoApi>();
     }
+
+    // ---- Estimaciones · avance por concepto (FormAvanceConcepto) ----
+
+    /// <summary>Un concepto de Estimacion(Concepto) con su importe total (api/avances/conceptos).</summary>
+    public sealed class ConceptoAvanceApi
+    {
+        public string Codigo { get; set; }
+        public string Concepto { get; set; }
+        public double Total { get; set; }
+    }
+
+    /// <summary>Total y ejecutado agregados por Padre (api/avances/avance-por-padre).</summary>
+    public sealed class AvancePorPadreApi
+    {
+        public string Padre { get; set; }
+        public double Total { get; set; }
+        public double Ejecutado { get; set; }
+    }
 }
