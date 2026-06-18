@@ -15,20 +15,11 @@ namespace DynamicSepticSystem
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Manzana FROM InventarioCasas ORDER BY Manzana";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        cmbManzana.Items.Clear();
-                        while (reader.Read())
-                        {
-                            cmbManzana.Items.Add(reader["Manzana"].ToString());
-                        }
-                    }
-                }
+                cmbManzana.Items.Clear();
+                var manzanas = ApiClient.Get<List<string>>("/api/avances/manzanas");
+                if (manzanas != null)
+                    foreach (var m in manzanas)
+                        cmbManzana.Items.Add(m);
             }
             catch (Exception ex)
             {
@@ -42,32 +33,21 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Lote FROM InventarioCasas WHERE Manzana = @m ORDER BY Lote";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            cmbLote.Items.Clear();
-                            while (reader.Read())
-                            {
-                                cmbLote.Items.Add(reader["Lote"].ToString());
-                            }
-                        }
-                    }
-                }
+                cmbLote.Items.Clear();
+                var lotes = ApiClient.Get<List<string>>(
+                    $"/api/avances/lotes?manzana={Uri.EscapeDataString(cmbManzana.SelectedItem.ToString())}");
+                if (lotes != null)
+                    foreach (var l in lotes)
+                        cmbLote.Items.Add(l);
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error al cargar lotes: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            
+
             ActualizarLabelFolio();
         }
-        
+
         private void CargarLotes(string manzana)
         {
             try
@@ -78,27 +58,15 @@ namespace DynamicSepticSystem
                 if (string.IsNullOrEmpty(manzana))
                     return;
 
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Lote FROM InventarioCasas WHERE Manzana = @m ORDER BY Lote";
-                    
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                cmbLote.Items.Add(reader["Lote"].ToString());
-                            }
-                        }
-                    }
-                }
+                var lotes = ApiClient.Get<List<string>>(
+                    $"/api/avances/lotes?manzana={Uri.EscapeDataString(manzana)}");
+                if (lotes != null)
+                    foreach (var l in lotes)
+                        cmbLote.Items.Add(l);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al cargar lotes: {ex.Message}", "Error", 
+                MessageBox.Show($"Error al cargar lotes: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -117,17 +85,40 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                var resp = ApiClient.Get<EstimacionJerarquicaApi>(
+                    $"/api/avances/estimacion-jerarquica?manzana={Uri.EscapeDataString(manzana ?? "")}" +
+                    $"&lote={Uri.EscapeDataString(lote ?? "")}" +
+                    $"&prototipo={Uri.EscapeDataString(prototipoActual ?? "")}");
                 {
-                    conn.Open();
+                    var avancesPartidas = new Dictionary<int, Tuple<double, double, DateTime?>>();
+                    if (resp?.Avances != null)
+                        foreach (var a in resp.Avances)
+                        {
+                            avancesPartidas[a.Wbs] = Tuple.Create(a.AvancePorcentaje, a.MontoEjecutado, a.FechaFinalizacion);
+                            if (a.MetrosCuadrados > 0 && !avancesMetrosCuadrados.ContainsKey(a.Wbs))
+                                avancesMetrosCuadrados[a.Wbs] = a.MetrosCuadrados;
+                        }
 
-                    // Cargar avances primero (incluyendo m²)
-                    var avancesPartidas = CargarAvancesPartidas(conn, manzana, lote);
-                    System.Diagnostics.Debug.WriteLine($"📋 Avances cargados: {avancesPartidas.Count}");
-
-                    // Cargar todas las partidas con su información completa
-                    var todasLasPartidas = CargarTodasLasPartidas(conn);
-                    System.Diagnostics.Debug.WriteLine($"📋 Total partidas en BD: {todasLasPartidas.Count}");
+                    var todasLasPartidas = new List<PartidaDinamica>();
+                    if (resp?.Partidas != null)
+                        foreach (var p in resp.Partidas)
+                            todasLasPartidas.Add(new PartidaDinamica
+                            {
+                                WBS = p.Wbs,
+                                Codigo = p.Codigo ?? "",
+                                Padre = p.Padre ?? "",
+                                Etapa = p.Etapa ?? "",
+                                Partida = p.Partida ?? "",
+                                Costo = p.Costo,
+                                EsDinamica = p.EsDinamica,
+                                ValorM2Tunera = p.ValorM2Tunera,
+                                ValorM2Calandra = p.ValorM2Calandra,
+                                LimiteM2 = p.LimiteM2,
+                                LimiteM2Tunera = p.LimiteM2Tunera,
+                                LimiteM2Calandra = p.LimiteM2Calandra,
+                                PrototiposAplicables = p.PrototiposAplicables,
+                                MetrosCuadrados = 0
+                            });
                     
                     // Filtrar partidas por prototipo actual si está definido
                     if (!string.IsNullOrEmpty(prototipoActual))
@@ -285,165 +276,6 @@ namespace DynamicSepticSystem
             return $"Concepto {codigo}";
         }
 
-        /// <summary>
-        /// Carga todas las partidas de PresupuestoObra con toda la información necesaria
-        /// </summary>
-        private List<PartidaDinamica> CargarTodasLasPartidas(SqlConnection conn)
-        {
-            var partidas = new List<PartidaDinamica>();
-            
-            try
-            {
-                // Verificar columnas existentes
-                var columnasExistentes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                using (SqlCommand cmdCols = new SqlCommand(@"
-                    SELECT COLUMN_NAME 
-                    FROM INFORMATION_SCHEMA.COLUMNS 
-                    WHERE TABLE_NAME = 'PresupuestoObra'", conn))
-                using (var reader = cmdCols.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        columnasExistentes.Add(reader.GetString(0));
-                    }
-                }
-
-                bool tieneWBS = columnasExistentes.Contains("WBS_Correcto");
-                bool tieneCodigo = columnasExistentes.Contains("Codigo");
-                bool tienePadre = columnasExistentes.Contains("Padre");
-                bool tieneEtapa = columnasExistentes.Contains("Etapa");
-                bool tienePartida = columnasExistentes.Contains("Partida");
-                bool tieneCostoTunera = columnasExistentes.Contains("CostoTunera");
-                bool tieneCostoCalandra = columnasExistentes.Contains("CostoCalandra");
-                bool tieneEsDinamica = columnasExistentes.Contains("EsDinamica");
-                bool tieneValorM2Tunera = columnasExistentes.Contains("ValorM2Tunera");
-                bool tieneValorM2Calandra = columnasExistentes.Contains("ValorM2Calandra");
-                bool tieneLimiteM2 = columnasExistentes.Contains("LimiteM2");
-                bool tieneLimiteM2Tunera = columnasExistentes.Contains("LimiteM2Tunera");
-                bool tieneLimiteM2Calandra = columnasExistentes.Contains("LimiteM2Calandra");
-                bool tienePrototipos = columnasExistentes.Contains("PrototiposAplicables");
-
-                System.Diagnostics.Debug.WriteLine($"📋 Columnas de PresupuestoObra detectadas:");
-                System.Diagnostics.Debug.WriteLine($"   WBS_Correcto: {tieneWBS}, Codigo: {tieneCodigo}, Padre: {tienePadre}");
-                System.Diagnostics.Debug.WriteLine($"   EsDinamica: {tieneEsDinamica}, Prototipos: {tienePrototipos}");
-
-                if (!tieneWBS)
-                {
-                    System.Diagnostics.Debug.WriteLine("⚠️ La tabla PresupuestoObra no tiene columna WBS_Correcto");
-                    return partidas;
-                }
-
-                // Construir query dinámicamente
-                var columnas = new List<string> { "WBS_Correcto AS WBS" };
-                
-                if (tieneCodigo) columnas.Add("Codigo");
-                if (tienePadre) columnas.Add("Padre");
-                if (tieneEtapa) columnas.Add("Etapa");
-                if (tienePartida) columnas.Add("Partida");
-                if (tieneCostoTunera) columnas.Add("ISNULL(CostoTunera, 0) AS CostoTunera");
-                if (tieneCostoCalandra) columnas.Add("ISNULL(CostoCalandra, 0) AS CostoCalandra");
-                if (tieneEsDinamica) columnas.Add("ISNULL(EsDinamica, 0) AS EsDinamica");
-                if (tieneValorM2Tunera) columnas.Add("ISNULL(ValorM2Tunera, 0) AS ValorM2Tunera");
-                if (tieneValorM2Calandra) columnas.Add("ISNULL(ValorM2Calandra, 0) AS ValorM2Calandra");
-                if (tieneLimiteM2) columnas.Add("ISNULL(LimiteM2, 0) AS LimiteM2");
-                if (tieneLimiteM2Tunera) columnas.Add("ISNULL(LimiteM2Tunera, 0) AS LimiteM2Tunera");
-                if (tieneLimiteM2Calandra) columnas.Add("ISNULL(LimiteM2Calandra, 0) AS LimiteM2Calandra");
-                if (tienePrototipos) columnas.Add("PrototiposAplicables");
-
-                string sql = $@"
-                    SELECT {string.Join(", ", columnas)}
-                    FROM PresupuestoObra
-                    WHERE WBS_Correcto IS NOT NULL AND WBS_Correcto > 0
-                    ORDER BY {(tieneCodigo ? "Codigo, " : "")}WBS_Correcto";
-
-                using (SqlCommand cmd = new SqlCommand(sql, conn))
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        var partida = new PartidaDinamica
-                        {
-                            WBS = Convert.ToInt32(reader["WBS"]),
-                            Codigo = tieneCodigo ? (reader["Codigo"]?.ToString() ?? "") : "",
-                            Padre = tienePadre ? (reader["Padre"]?.ToString() ?? "") : "",
-                            Etapa = tieneEtapa ? (reader["Etapa"]?.ToString() ?? "") : "",
-                            Partida = tienePartida ? (reader["Partida"]?.ToString() ?? "") : "",
-                            Costo = tieneCostoTunera ? Convert.ToDouble(reader["CostoTunera"]) : 0,
-                            EsDinamica = tieneEsDinamica && Convert.ToBoolean(reader["EsDinamica"]),
-                            ValorM2Tunera = tieneValorM2Tunera ? Convert.ToDouble(reader["ValorM2Tunera"]) : 0,
-                            ValorM2Calandra = tieneValorM2Calandra ? Convert.ToDouble(reader["ValorM2Calandra"]) : 0,
-                            LimiteM2 = tieneLimiteM2 ? Convert.ToDouble(reader["LimiteM2"]) : 0,
-                            LimiteM2Tunera = tieneLimiteM2Tunera ? Convert.ToDouble(reader["LimiteM2Tunera"]) : 0,
-                            LimiteM2Calandra = tieneLimiteM2Calandra ? Convert.ToDouble(reader["LimiteM2Calandra"]) : 0,
-                            PrototiposAplicables = tienePrototipos ? (reader["PrototiposAplicables"]?.ToString()) : null,
-                            MetrosCuadrados = 0
-                        };
-                        
-                        // Usar CostoCalandra si está usando prototipo Calandra
-                        if (!string.IsNullOrEmpty(prototipoActual) && 
-                            !prototipoActual.ToUpper().Contains("TUNERA") && 
-                            tieneCostoCalandra)
-                        {
-                            partida.Costo = Convert.ToDouble(reader["CostoCalandra"]);
-                        }
-                        
-                        partidas.Add(partida);
-                    }
-                }
-                
-                System.Diagnostics.Debug.WriteLine($"📋 Partidas cargadas de BD: {partidas.Count}");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"❌ Error al cargar partidas: {ex.Message}");
-            }
-            
-            return partidas;
-        }
-
-        private List<Tuple<string, string>> CargarConceptos(SqlConnection conn)
-        {
-            var conceptos = new List<Tuple<string, string>>();
-            
-            try
-            {
-                string sql = @"
-                    SELECT DISTINCT Codigo, Concepto
-                    FROM [Estimacion(Concepto)]
-                    WHERE Codigo IS NOT NULL AND Concepto IS NOT NULL
-                    ORDER BY Codigo";
-                
-                using (SqlCommand cmd = new SqlCommand(sql, conn))
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        string codigo = reader["Codigo"]?.ToString() ?? "";
-                        string nombre = reader["Concepto"]?.ToString() ?? "";
-                        
-                        if (!string.IsNullOrEmpty(codigo) && int.TryParse(codigo, out int _))
-                        {
-                            conceptos.Add(new Tuple<string, string>(codigo, nombre));
-                        }
-                    }
-                }
-                
-                conceptos = conceptos.OrderBy(c => int.TryParse(c.Item1, out int num) ? num : 999).ToList();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"❌ Error al cargar conceptos: {ex.Message}");
-            }
-            
-            return conceptos;
-        }
-
-        private List<PartidaDinamica> CargarPartidasConDinamicas(SqlConnection conn)
-        {
-            // Este método ahora delega a CargarTodasLasPartidas para evitar duplicación
-            return CargarTodasLasPartidas(conn);
-        }
-
         private NodoConcepto CrearNodoPartidaDinamica(PartidaDinamica partida, 
             Dictionary<int, Tuple<double, double, DateTime?>> avances)
         {
@@ -524,99 +356,6 @@ namespace DynamicSepticSystem
             }
 
             return nodo;
-        }
-
-        private Dictionary<int, Tuple<double, double, DateTime?>> CargarAvancesPartidas(SqlConnection conn, string manzana, string lote)
-        {
-            var avances = new Dictionary<int, Tuple<double, double, DateTime?>>();
-
-            try
-            {
-                // Verificar columnas existentes
-                var columnasExistentes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                using (SqlCommand cmdCols = new SqlCommand(@"
-                    SELECT COLUMN_NAME 
-                    FROM INFORMATION_SCHEMA.COLUMNS 
-                    WHERE TABLE_NAME = 'AvanceManualObra'", conn))
-                using (var reader = cmdCols.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        columnasExistentes.Add(reader.GetString(0));
-                    }
-                }
-
-                bool tieneMetrosCuadrados = columnasExistentes.Contains("MetrosCuadrados");
-                bool tieneFechaFinalizacion = columnasExistentes.Contains("FechaFinalizacion");
-
-                string sql = "SELECT WBS, AvancePorcentaje, MontoEjecutado";
-                if (tieneFechaFinalizacion) sql += ", FechaFinalizacion";
-                if (tieneMetrosCuadrados) sql += ", MetrosCuadrados";
-                sql += " FROM AvanceManualObra WHERE Manzana = @manzana AND Lote = @lote";
-
-                using (SqlCommand cmd = new SqlCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@manzana", manzana);
-                    cmd.Parameters.AddWithValue("@lote", lote);
-
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            try
-                            {
-                                string wbsString = reader["WBS"]?.ToString();
-                                if (string.IsNullOrWhiteSpace(wbsString) || !int.TryParse(wbsString, out int wbs))
-                                    continue;
-
-                                double avancePorcentaje = 0;
-                                double montoEjecutado = 0;
-                                double metrosCuadrados = 0;
-                
-                                object avanceObj = reader["AvancePorcentaje"];
-                                if (avanceObj != null && avanceObj != DBNull.Value)
-                                    avancePorcentaje = Convert.ToDouble(avanceObj);
-
-                                object montoObj = reader["MontoEjecutado"];
-                                if (montoObj != null && montoObj != DBNull.Value)
-                                    montoEjecutado = Convert.ToDouble(montoObj);
-
-                                if (tieneMetrosCuadrados)
-                                {
-                                    object m2Obj = reader["MetrosCuadrados"];
-                                    if (m2Obj != null && m2Obj != DBNull.Value)
-                                        metrosCuadrados = Convert.ToDouble(m2Obj);
-                                }
-
-                                DateTime? fechaFinalizacion = null;
-                                if (tieneFechaFinalizacion)
-                                {
-                                    object fechaObj = reader["FechaFinalizacion"];
-                                    if (fechaObj != null && fechaObj != DBNull.Value)
-                                        fechaFinalizacion = Convert.ToDateTime(fechaObj);
-                                }
-
-                                avances[wbs] = new Tuple<double, double, DateTime?>(avancePorcentaje, montoEjecutado, fechaFinalizacion);
-
-                                if (metrosCuadrados > 0 && !avancesMetrosCuadrados.ContainsKey(wbs))
-                                {
-                                    avancesMetrosCuadrados[wbs] = metrosCuadrados;
-                                }
-                            }
-                            catch (Exception exRow)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"❌ Error al procesar fila: {exRow.Message}");
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"❌ Error al cargar avances: {ex.Message}");
-            }
-
-            return avances;
         }
 
         private string NormalizeForComparison(string input)

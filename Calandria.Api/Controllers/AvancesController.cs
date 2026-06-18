@@ -377,7 +377,140 @@ ELSE
             return Ok();
         }
 
+        /// <summary>
+        /// GET /api/avances/estimacion-jerarquica?manzana=&amp;lote=&amp;prototipo= ·
+        /// partidas de PresupuestoObra (con costo resuelto por prototipo y sondeo de
+        /// columnas) + avances guardados de AvanceManualObra (con m² y fecha). El
+        /// cliente arma el árbol de conceptos.
+        /// </summary>
+        [HttpGet, Route("estimacion-jerarquica")]
+        public IHttpActionResult EstimacionJerarquica(string manzana, string lote, string prototipo = null)
+        {
+            var resp = new EstimacionJerarquicaResponse();
+            using (var conn = Db.Abrir())
+            {
+                EnsureTablaAvanceManualObra(conn);
+                resp.Partidas = PartidasDinamicas(conn, prototipo);
+                resp.Avances = AvancesPartidas(conn, manzana, lote);
+            }
+            return Ok(resp);
+        }
+
         // ---- helpers ----
+
+        /// <summary>Porta CargarTodasLasPartidas: lee PresupuestoObra con sondeo de columnas.</summary>
+        private static List<PartidaDinamicaDto> PartidasDinamicas(SqlConnection conn, string prototipo)
+        {
+            var partidas = new List<PartidaDinamicaDto>();
+            var cols = ColumnasDe(conn, "PresupuestoObra");
+
+            if (!cols.Contains("WBS_Correcto"))
+                return partidas; // sin WBS_Correcto no hay nada que armar
+
+            bool tieneCodigo = cols.Contains("Codigo");
+            bool tienePadre = cols.Contains("Padre");
+            bool tieneEtapa = cols.Contains("Etapa");
+            bool tienePartida = cols.Contains("Partida");
+            bool tieneCostoTunera = cols.Contains("CostoTunera");
+            bool tieneCostoCalandra = cols.Contains("CostoCalandra");
+            bool tieneEsDinamica = cols.Contains("EsDinamica");
+            bool tieneValorM2Tunera = cols.Contains("ValorM2Tunera");
+            bool tieneValorM2Calandra = cols.Contains("ValorM2Calandra");
+            bool tieneLimiteM2 = cols.Contains("LimiteM2");
+            bool tieneLimiteM2Tunera = cols.Contains("LimiteM2Tunera");
+            bool tieneLimiteM2Calandra = cols.Contains("LimiteM2Calandra");
+            bool tienePrototipos = cols.Contains("PrototiposAplicables");
+
+            var columnas = new List<string> { "WBS_Correcto AS WBS" };
+            if (tieneCodigo) columnas.Add("Codigo");
+            if (tienePadre) columnas.Add("Padre");
+            if (tieneEtapa) columnas.Add("Etapa");
+            if (tienePartida) columnas.Add("Partida");
+            if (tieneCostoTunera) columnas.Add("ISNULL(CostoTunera, 0) AS CostoTunera");
+            if (tieneCostoCalandra) columnas.Add("ISNULL(CostoCalandra, 0) AS CostoCalandra");
+            if (tieneEsDinamica) columnas.Add("ISNULL(EsDinamica, 0) AS EsDinamica");
+            if (tieneValorM2Tunera) columnas.Add("ISNULL(ValorM2Tunera, 0) AS ValorM2Tunera");
+            if (tieneValorM2Calandra) columnas.Add("ISNULL(ValorM2Calandra, 0) AS ValorM2Calandra");
+            if (tieneLimiteM2) columnas.Add("ISNULL(LimiteM2, 0) AS LimiteM2");
+            if (tieneLimiteM2Tunera) columnas.Add("ISNULL(LimiteM2Tunera, 0) AS LimiteM2Tunera");
+            if (tieneLimiteM2Calandra) columnas.Add("ISNULL(LimiteM2Calandra, 0) AS LimiteM2Calandra");
+            if (tienePrototipos) columnas.Add("PrototiposAplicables");
+
+            string sql = $@"
+SELECT {string.Join(", ", columnas)}
+FROM PresupuestoObra
+WHERE WBS_Correcto IS NOT NULL AND WBS_Correcto > 0
+ORDER BY {(tieneCodigo ? "Codigo, " : "")}WBS_Correcto";
+
+            bool usarCalandra = !string.IsNullOrEmpty(prototipo)
+                && !prototipo.ToUpperInvariant().Contains("TUNERA") && tieneCostoCalandra;
+
+            using (var cmd = new SqlCommand(sql, conn))
+            using (var r = cmd.ExecuteReader())
+            {
+                while (r.Read())
+                {
+                    double costo = tieneCostoTunera ? Convert.ToDouble(r["CostoTunera"]) : 0;
+                    if (usarCalandra) costo = Convert.ToDouble(r["CostoCalandra"]);
+
+                    partidas.Add(new PartidaDinamicaDto
+                    {
+                        Wbs = Convert.ToInt32(r["WBS"]),
+                        Codigo = tieneCodigo ? (r["Codigo"]?.ToString() ?? "") : "",
+                        Padre = tienePadre ? (r["Padre"]?.ToString() ?? "") : "",
+                        Etapa = tieneEtapa ? (r["Etapa"]?.ToString() ?? "") : "",
+                        Partida = tienePartida ? (r["Partida"]?.ToString() ?? "") : "",
+                        Costo = costo,
+                        EsDinamica = tieneEsDinamica && Convert.ToBoolean(r["EsDinamica"]),
+                        ValorM2Tunera = tieneValorM2Tunera ? Convert.ToDouble(r["ValorM2Tunera"]) : 0,
+                        ValorM2Calandra = tieneValorM2Calandra ? Convert.ToDouble(r["ValorM2Calandra"]) : 0,
+                        LimiteM2 = tieneLimiteM2 ? Convert.ToDouble(r["LimiteM2"]) : 0,
+                        LimiteM2Tunera = tieneLimiteM2Tunera ? Convert.ToDouble(r["LimiteM2Tunera"]) : 0,
+                        LimiteM2Calandra = tieneLimiteM2Calandra ? Convert.ToDouble(r["LimiteM2Calandra"]) : 0,
+                        PrototiposAplicables = tienePrototipos ? r["PrototiposAplicables"]?.ToString() : null
+                    });
+                }
+            }
+            return partidas;
+        }
+
+        /// <summary>Porta CargarAvancesPartidas: lee AvanceManualObra con m² y fecha (sondeadas).</summary>
+        private static List<AvancePartidaDto> AvancesPartidas(SqlConnection conn, string manzana, string lote)
+        {
+            var lista = new List<AvancePartidaDto>();
+            var cols = ColumnasDe(conn, "AvanceManualObra");
+            bool tieneM2 = cols.Contains("MetrosCuadrados");
+            bool tieneFecha = cols.Contains("FechaFinalizacion");
+
+            string sql = "SELECT WBS, AvancePorcentaje, MontoEjecutado";
+            if (tieneFecha) sql += ", FechaFinalizacion";
+            if (tieneM2) sql += ", MetrosCuadrados";
+            sql += " FROM AvanceManualObra WHERE Manzana = @manzana AND Lote = @lote";
+
+            using (var cmd = new SqlCommand(sql, conn))
+            {
+                cmd.Parameters.AddWithValue("@manzana", manzana ?? "");
+                cmd.Parameters.AddWithValue("@lote", lote ?? "");
+                using (var r = cmd.ExecuteReader())
+                {
+                    while (r.Read())
+                    {
+                        if (!int.TryParse(r["WBS"]?.ToString(), out int wbs)) continue;
+
+                        lista.Add(new AvancePartidaDto
+                        {
+                            Wbs = wbs,
+                            AvancePorcentaje = r["AvancePorcentaje"] != DBNull.Value ? Convert.ToDouble(r["AvancePorcentaje"]) : 0,
+                            MontoEjecutado = r["MontoEjecutado"] != DBNull.Value ? Convert.ToDouble(r["MontoEjecutado"]) : 0,
+                            FechaFinalizacion = tieneFecha && r["FechaFinalizacion"] != DBNull.Value
+                                ? (DateTime?)Convert.ToDateTime(r["FechaFinalizacion"]) : null,
+                            MetrosCuadrados = tieneM2 && r["MetrosCuadrados"] != DBNull.Value ? Convert.ToDouble(r["MetrosCuadrados"]) : 0
+                        });
+                    }
+                }
+            }
+            return lista;
+        }
 
         private static List<AvanceGuardadoDto> CargarAvancesGuardados(SqlConnection conn, string manzana, string lote)
         {

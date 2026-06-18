@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Calandria.Api.Models
@@ -70,5 +71,42 @@ namespace Calandria.Api.Models
         public string Codigo { get; set; }
         public string Concepto { get; set; }
         public double AvancePorcentaje { get; set; }
+    }
+
+    // ---- Estimación jerárquica (FormEstimacionConceptoMigrado.CargaDatos) ----
+
+    /// <summary>Partida de PresupuestoObra con su info dinámica (Costo ya resuelto por prototipo).</summary>
+    public sealed class PartidaDinamicaDto
+    {
+        public int Wbs { get; set; }
+        public string Codigo { get; set; }
+        public string Padre { get; set; }
+        public string Etapa { get; set; }
+        public string Partida { get; set; }
+        public double Costo { get; set; }
+        public bool EsDinamica { get; set; }
+        public double ValorM2Tunera { get; set; }
+        public double ValorM2Calandra { get; set; }
+        public double LimiteM2 { get; set; }
+        public double LimiteM2Tunera { get; set; }
+        public double LimiteM2Calandra { get; set; }
+        public string PrototiposAplicables { get; set; }
+    }
+
+    /// <summary>Avance guardado de una partida con m² y fecha de finalización (AvanceManualObra).</summary>
+    public sealed class AvancePartidaDto
+    {
+        public int Wbs { get; set; }
+        public double AvancePorcentaje { get; set; }
+        public double MontoEjecutado { get; set; }
+        public DateTime? FechaFinalizacion { get; set; }
+        public double MetrosCuadrados { get; set; }
+    }
+
+    /// <summary>Partidas (PresupuestoObra) + avances (AvanceManualObra) para armar el árbol de estimación.</summary>
+    public sealed class EstimacionJerarquicaResponse
+    {
+        public List<PartidaDinamicaDto> Partidas { get; set; } = new List<PartidaDinamicaDto>();
+        public List<AvancePartidaDto> Avances { get; set; } = new List<AvancePartidaDto>();
     }
 }

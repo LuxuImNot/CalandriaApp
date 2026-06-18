@@ -413,4 +413,41 @@ namespace DynamicSepticSystem
         public double Total { get; set; }
         public double Ejecutado { get; set; }
     }
+
+    // ---- Estimaciones · estimación jerárquica (FormEstimacionConceptoMigrado) ----
+
+    /// <summary>Partida de PresupuestoObra con info dinámica (api/avances/estimacion-jerarquica).</summary>
+    public sealed class PartidaDinamicaApi
+    {
+        public int Wbs { get; set; }
+        public string Codigo { get; set; }
+        public string Padre { get; set; }
+        public string Etapa { get; set; }
+        public string Partida { get; set; }
+        public double Costo { get; set; }
+        public bool EsDinamica { get; set; }
+        public double ValorM2Tunera { get; set; }
+        public double ValorM2Calandra { get; set; }
+        public double LimiteM2 { get; set; }
+        public double LimiteM2Tunera { get; set; }
+        public double LimiteM2Calandra { get; set; }
+        public string PrototiposAplicables { get; set; }
+    }
+
+    /// <summary>Avance guardado de una partida con m² y fecha (AvanceManualObra).</summary>
+    public sealed class AvancePartidaApi
+    {
+        public int Wbs { get; set; }
+        public double AvancePorcentaje { get; set; }
+        public double MontoEjecutado { get; set; }
+        public DateTime? FechaFinalizacion { get; set; }
+        public double MetrosCuadrados { get; set; }
+    }
+
+    /// <summary>Partidas + avances de una casa, para armar el árbol de estimación.</summary>
+    public sealed class EstimacionJerarquicaApi
+    {
+        public List<PartidaDinamicaApi> Partidas { get; set; } = new List<PartidaDinamicaApi>();
+        public List<AvancePartidaApi> Avances { get; set; } = new List<AvancePartidaApi>();
+    }
 }
