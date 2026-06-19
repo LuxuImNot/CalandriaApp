@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
+using System.Linq;
 using System.Web.Http;
 using Calandria.Api.Data;
 using Calandria.Api.Models;
@@ -396,7 +397,308 @@ ELSE
             return Ok(resp);
         }
 
+        /// <summary>
+        /// GET /api/avances/conceptos-selector · conceptos existentes (Codigo numérico +
+        /// Nombre) para el selector de posición al agregar un concepto. Si la tabla no
+        /// tiene columna Codigo, genera uno según el orden estándar de conceptos.
+        /// </summary>
+        [HttpGet, Route("conceptos-selector")]
+        public IHttpActionResult ConceptosSelector()
+        {
+            var conceptos = new List<ConceptoExistenteDto>();
+            using (var conn = Db.Abrir())
+            {
+                bool tieneCodigo = ColumnasDe(conn, "Estimacion(Concepto)").Contains("Codigo");
+
+                string sql = tieneCodigo
+                    ? @"
+SELECT Codigo, Concepto
+FROM (
+    SELECT DISTINCT Codigo, Concepto,
+        CASE WHEN TRY_CAST(Codigo AS INT) IS NOT NULL THEN TRY_CAST(Codigo AS INT) ELSE 999999 END AS CodigoNumerico
+    FROM [dbo].[Estimacion(Concepto)]
+    WHERE Codigo IS NOT NULL AND Concepto IS NOT NULL
+) AS Conceptos
+ORDER BY CodigoNumerico, Codigo"
+                    : @"
+WITH ConceptosOrdenados AS (
+    SELECT DISTINCT Concepto,
+        CASE Concepto
+            WHEN 'Preliminares' THEN 1
+            WHEN 'Cimentación' THEN 2 WHEN 'Cimentacion' THEN 2
+            WHEN 'Estructura' THEN 3
+            WHEN 'Ins. Hidraulica, Sanitaria y Gas LP' THEN 4 WHEN 'Inst. Hidraulica, Sanitaria y Gas LP' THEN 4
+            WHEN 'Inst. Eléctrica' THEN 5 WHEN 'Inst. Electrica' THEN 5
+            WHEN 'Albañilería' THEN 6 WHEN 'AlbanILERIA' THEN 6 WHEN 'Albañileria' THEN 6
+            WHEN 'Acabados' THEN 7
+            WHEN 'Herrería, Aluminio y Vidrio' THEN 8 WHEN 'Herreria, Aluminio y Vidrio' THEN 8
+            WHEN 'Carpintería y Cerrajería' THEN 9 WHEN 'Carpinteria y Cerrajeria' THEN 9
+            WHEN 'Muebles y Accesorios' THEN 10
+            WHEN 'Inst especiales y Obra Exterior' THEN 11
+            WHEN 'Urbanización' THEN 12 WHEN 'Urbanizacion' THEN 12
+            ELSE 999
+        END AS OrdenConcepto
+    FROM [dbo].[Estimacion(Concepto)]
+    WHERE Concepto IS NOT NULL
+)
+SELECT CAST(OrdenConcepto AS NVARCHAR(10)) AS Codigo, Concepto
+FROM ConceptosOrdenados
+ORDER BY OrdenConcepto";
+
+                using (var cmd = new SqlCommand(sql, conn))
+                using (var r = cmd.ExecuteReader())
+                {
+                    while (r.Read())
+                    {
+                        if (int.TryParse(r["Codigo"]?.ToString(), out int codigo))
+                            conceptos.Add(new ConceptoExistenteDto
+                            {
+                                Codigo = codigo,
+                                Nombre = r["Concepto"]?.ToString() ?? ""
+                            });
+                    }
+                }
+            }
+            return Ok(conceptos);
+        }
+
+        /// <summary>
+        /// POST /api/avances/concepto-nuevo · inserta un concepto nuevo (sus partidas en
+        /// Estimacion(Concepto) y PresupuestoObra) opcionalmente renumerando los conceptos
+        /// posteriores (Codigo &gt;= @codigo), todo en una transacción.
+        /// </summary>
+        [HttpPost, Route("concepto-nuevo")]
+        public IHttpActionResult ConceptoNuevo([FromBody] ConceptoNuevoRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Nombre))
+                return BadRequest("Falta el nombre del concepto.");
+            if (req.Partidas == null || req.Partidas.Count == 0)
+                return BadRequest("El concepto no tiene partidas.");
+
+            using (var conn = Db.Abrir())
+            {
+                bool tieneCodigoEstimacion = ColumnasDe(conn, "Estimacion(Concepto)").Contains("Codigo");
+                bool tieneCodigoPresupuesto = ColumnasDe(conn, "PresupuestoObra").Contains("Codigo");
+
+                using (var tx = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        if (req.Renumerar && tieneCodigoEstimacion)
+                        {
+                            using (var cmd = new SqlCommand(@"
+UPDATE [dbo].[Estimacion(Concepto)]
+SET Codigo = CAST((TRY_CAST(Codigo AS INT) + 1) AS NVARCHAR(10))
+WHERE TRY_CAST(Codigo AS INT) >= @codigoDesde AND TRY_CAST(Codigo AS INT) IS NOT NULL", conn, tx))
+                            {
+                                cmd.Parameters.AddWithValue("@codigoDesde", req.Codigo);
+                                cmd.ExecuteNonQuery();
+                            }
+                            if (tieneCodigoPresupuesto)
+                            {
+                                using (var cmd = new SqlCommand(@"
+UPDATE PresupuestoObra
+SET Codigo = CAST((TRY_CAST(Codigo AS INT) + 1) AS NVARCHAR(10))
+WHERE TRY_CAST(Codigo AS INT) >= @codigoDesde AND TRY_CAST(Codigo AS INT) IS NOT NULL", conn, tx))
+                                {
+                                    cmd.Parameters.AddWithValue("@codigoDesde", req.Codigo);
+                                    cmd.ExecuteNonQuery();
+                                }
+                            }
+                        }
+
+                        string sqlEstimacion = tieneCodigoEstimacion
+                            ? @"INSERT INTO [dbo].[Estimacion(Concepto)] (Codigo, Concepto, Padre, Etapa, Partida, TOTAL, CostoTunera, CostoCalandra)
+                                VALUES (@codigo, @concepto, @padre, @etapa, @partida, @total, @costoTunera, @costoCalandra)"
+                            : @"INSERT INTO [dbo].[Estimacion(Concepto)] (Concepto, Padre, Etapa, Partida, TOTAL, CostoTunera, CostoCalandra)
+                                VALUES (@concepto, @padre, @etapa, @partida, @total, @costoTunera, @costoCalandra)";
+
+                        string sqlPresupuesto = tieneCodigoPresupuesto
+                            ? @"INSERT INTO PresupuestoObra (Codigo, Padre, Etapa, Partida, CostoTunera, CostoCalandra)
+                                VALUES (@codigo, @padre, @etapa, @partida, @costoTunera, @costoCalandra)"
+                            : @"INSERT INTO PresupuestoObra (Padre, Etapa, Partida, CostoTunera, CostoCalandra)
+                                VALUES (@padre, @etapa, @partida, @costoTunera, @costoCalandra)";
+
+                        foreach (var p in req.Partidas)
+                        {
+                            using (var cmd = new SqlCommand(sqlEstimacion, conn, tx))
+                            {
+                                if (tieneCodigoEstimacion) cmd.Parameters.AddWithValue("@codigo", req.Codigo.ToString());
+                                cmd.Parameters.AddWithValue("@concepto", req.Nombre);
+                                cmd.Parameters.AddWithValue("@padre", req.Nombre);
+                                cmd.Parameters.AddWithValue("@etapa", (object)p.Etapa ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@partida", (object)p.Partida ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@total", p.CostoTunera); // Usar Tunera como TOTAL (igual que el cliente)
+                                cmd.Parameters.AddWithValue("@costoTunera", p.CostoTunera);
+                                cmd.Parameters.AddWithValue("@costoCalandra", p.CostoCalandra);
+                                cmd.ExecuteNonQuery();
+                            }
+                            using (var cmd = new SqlCommand(sqlPresupuesto, conn, tx))
+                            {
+                                if (tieneCodigoPresupuesto) cmd.Parameters.AddWithValue("@codigo", req.Codigo.ToString());
+                                cmd.Parameters.AddWithValue("@padre", req.Nombre);
+                                cmd.Parameters.AddWithValue("@etapa", (object)p.Etapa ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@partida", (object)p.Partida ?? DBNull.Value);
+                                cmd.Parameters.AddWithValue("@costoTunera", p.CostoTunera);
+                                cmd.Parameters.AddWithValue("@costoCalandra", p.CostoCalandra);
+                                cmd.ExecuteNonQuery();
+                            }
+                        }
+
+                        tx.Commit();
+                    }
+                    catch
+                    {
+                        tx.Rollback();
+                        throw;
+                    }
+                }
+            }
+            return Ok();
+        }
+
+        /// <summary>
+        /// POST /api/avances/partida-estimacion · upsert del avance de una partida en
+        /// AvanceManualObra incluyendo MetrosCuadrados y FechaFinalizacion (sondea ambas
+        /// columnas). Equivale a GuardarAvancePartidaEnBD del form de estimación.
+        /// </summary>
+        [HttpPost, Route("partida-estimacion")]
+        public IHttpActionResult GuardarPartidaEstimacion([FromBody] GuardarAvancePartidaEstimacionRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Manzana) || string.IsNullOrWhiteSpace(req.Lote))
+                return BadRequest("Faltan manzana y/o lote.");
+
+            using (var conn = Db.Abrir())
+            {
+                EnsureTablaAvanceManualObra(conn);
+                var cols = ColumnasDe(conn, "AvanceManualObra");
+
+                UpsertAvance(conn, null, cols.Contains("MetrosCuadrados"), cols.Contains("FechaFinalizacion"),
+                    req.Manzana, req.Lote, req.Prototipo, req.Wbs.ToString(),
+                    req.AvancePorcentaje, req.MontoEjecutado, req.MetrosCuadrados, req.FechaFinalizacion, null);
+            }
+            return Ok();
+        }
+
+        /// <summary>
+        /// POST /api/avances/resetear-partida · pone a 0 el avance/monto/m² de una partida
+        /// o concepto (FechaFinalizacion a NULL). Equivale a "Resetear Progreso".
+        /// </summary>
+        [HttpPost, Route("resetear-partida")]
+        public IHttpActionResult ResetearPartida([FromBody] ResetearPartidaRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Manzana) || string.IsNullOrWhiteSpace(req.Lote))
+                return BadRequest("Faltan manzana y/o lote.");
+
+            using (var conn = Db.Abrir())
+            {
+                EnsureTablaAvanceManualObra(conn);
+                var cols = ColumnasDe(conn, "AvanceManualObra");
+
+                var sets = new List<string> { "AvancePorcentaje = 0", "MontoEjecutado = 0" };
+                if (cols.Contains("MetrosCuadrados")) sets.Add("MetrosCuadrados = 0");
+                if (cols.Contains("FechaFinalizacion")) sets.Add("FechaFinalizacion = NULL");
+
+                using (var cmd = new SqlCommand(
+                    $"UPDATE AvanceManualObra SET {string.Join(", ", sets)} WHERE Manzana = @m AND Lote = @l AND WBS = @wbs", conn))
+                {
+                    cmd.Parameters.AddWithValue("@m", req.Manzana);
+                    cmd.Parameters.AddWithValue("@l", req.Lote);
+                    cmd.Parameters.AddWithValue("@wbs", req.Wbs ?? "");
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            return Ok();
+        }
+
+        /// <summary>
+        /// POST /api/avances/marcar-completadas · marca partidas y/o conceptos al 100% en
+        /// AvanceManualObra, en una transacción. Sirve para "Guardar y exportar"
+        /// (ActualizarAvancesA100PorCiento) y para "Terminar sin estimación" (admin). Los
+        /// montos y m² vienen ya calculados por el cliente.
+        /// </summary>
+        [HttpPost, Route("marcar-completadas")]
+        public IHttpActionResult MarcarCompletadas([FromBody] MarcarCompletadasRequest req)
+        {
+            if (req == null || string.IsNullOrWhiteSpace(req.Manzana) || string.IsNullOrWhiteSpace(req.Lote))
+                return BadRequest("Faltan manzana y/o lote.");
+
+            DateTime fecha = req.FechaFinalizacion ?? DateTime.Now;
+
+            using (var conn = Db.Abrir())
+            {
+                EnsureTablaAvanceManualObra(conn);
+                var cols = ColumnasDe(conn, "AvanceManualObra");
+                bool tieneM2 = cols.Contains("MetrosCuadrados");
+                bool tieneFecha = cols.Contains("FechaFinalizacion");
+
+                using (var tx = conn.BeginTransaction())
+                {
+                    try
+                    {
+                        if (req.Partidas != null)
+                            foreach (var p in req.Partidas)
+                                UpsertAvance(conn, tx, tieneM2, tieneFecha, req.Manzana, req.Lote, req.Prototipo,
+                                    p.Wbs.ToString(), 100.0, p.Monto, p.MetrosCuadrados, fecha, null);
+
+                        if (req.Conceptos != null)
+                            foreach (var c in req.Conceptos)
+                                UpsertAvance(conn, tx, tieneM2, tieneFecha, req.Manzana, req.Lote, req.Prototipo,
+                                    c.Wbs.ToString(), 100.0, c.Monto, null, fecha, c.Nombre ?? "");
+
+                        tx.Commit();
+                    }
+                    catch
+                    {
+                        tx.Rollback();
+                        throw;
+                    }
+                }
+            }
+            return Ok();
+        }
+
         // ---- helpers ----
+
+        /// <summary>
+        /// Upsert genérico en AvanceManualObra. Sondea qué columnas opcionales escribir:
+        /// MetrosCuadrados (solo si tieneM2 y metros != null), FechaFinalizacion (si tieneFecha)
+        /// y Concepto (si concepto != null, para registrar conceptos con WBS negativo).
+        /// </summary>
+        private static void UpsertAvance(SqlConnection conn, SqlTransaction tx, bool tieneM2, bool tieneFecha,
+            string manzana, string lote, string prototipo, string wbs, double avance, double monto,
+            double? metros, DateTime? fechaFin, string concepto)
+        {
+            bool escribirM2 = tieneM2 && metros.HasValue;
+
+            var setList = new List<string> { "AvancePorcentaje=@avance", "MontoEjecutado=@monto", "FechaActualizacion=GETDATE()" };
+            var insCols = new List<string> { "Manzana", "Lote", "Prototipo", "WBS", "AvancePorcentaje", "MontoEjecutado" };
+            var insVals = new List<string> { "@m", "@l", "@proto", "@wbs", "@avance", "@monto" };
+
+            if (concepto != null) { setList.Add("Concepto=@concepto"); insCols.Add("Concepto"); insVals.Add("@concepto"); }
+            if (escribirM2) { setList.Add("MetrosCuadrados=@metros"); insCols.Add("MetrosCuadrados"); insVals.Add("@metros"); }
+            if (tieneFecha) { setList.Add("FechaFinalizacion=@fechaFin"); insCols.Add("FechaFinalizacion"); insVals.Add("@fechaFin"); }
+
+            string sql = $@"
+IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
+    UPDATE AvanceManualObra SET {string.Join(", ", setList)} WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
+ELSE
+    INSERT INTO AvanceManualObra ({string.Join(", ", insCols)}) VALUES ({string.Join(", ", insVals)})";
+
+            using (var cmd = tx == null ? new SqlCommand(sql, conn) : new SqlCommand(sql, conn, tx))
+            {
+                cmd.Parameters.AddWithValue("@m", manzana);
+                cmd.Parameters.AddWithValue("@l", lote);
+                cmd.Parameters.AddWithValue("@proto", string.IsNullOrEmpty(prototipo) ? (object)DBNull.Value : prototipo);
+                cmd.Parameters.AddWithValue("@wbs", wbs);
+                cmd.Parameters.AddWithValue("@avance", avance);
+                cmd.Parameters.AddWithValue("@monto", monto);
+                if (concepto != null) cmd.Parameters.AddWithValue("@concepto", (object)concepto ?? DBNull.Value);
+                if (escribirM2) cmd.Parameters.AddWithValue("@metros", metros.Value);
+                if (tieneFecha) cmd.Parameters.AddWithValue("@fechaFin", fechaFin.HasValue ? (object)fechaFin.Value : DBNull.Value);
+                cmd.ExecuteNonQuery();
+            }
+        }
 
         /// <summary>Porta CargarTodasLasPartidas: lee PresupuestoObra con sondeo de columnas.</summary>
         private static List<PartidaDinamicaDto> PartidasDinamicas(SqlConnection conn, string prototipo)

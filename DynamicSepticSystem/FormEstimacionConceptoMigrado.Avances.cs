@@ -1,5 +1,4 @@
-using System;
-using System.Data.SqlClient;
+ï»¿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
@@ -27,7 +26,7 @@ namespace DynamicSepticSystem
             if (!concepto.EsConcepto || concepto.Partidas.Count == 0)
                 return;
 
-            // Recalcular totales considerando partidas dinámicas
+            // Recalcular totales considerando partidas dinÃ¡micas
             double totalPartidas = concepto.Partidas.Sum(p => ObtenerTotalPartida(p));
             double ejecutadoPartidas = concepto.Partidas.Sum(p => p.MontoEjecutado);
 
@@ -95,120 +94,26 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                double montoEjecutado = partida.MontoEjecutado;
+                if (partida.EsDinamica && partida.MetrosCuadrados > 0)
                 {
-                    conn.Open();
-
-                    bool tieneMetrosCuadrados = false;
-                    using (SqlCommand cmdCheck = new SqlCommand(@"
-                        SELECT COUNT(*) 
-                        FROM INFORMATION_SCHEMA.COLUMNS 
-                        WHERE TABLE_NAME = 'AvanceManualObra' 
-                        AND COLUMN_NAME = 'MetrosCuadrados'", conn))
-                    {
-                        tieneMetrosCuadrados = (int)cmdCheck.ExecuteScalar() > 0;
-                    }
-
-                    string sql;
-                    if (tieneMetrosCuadrados)
-                    {
-                        sql = @"
-                            IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                                UPDATE AvanceManualObra 
-                                SET AvancePorcentaje=@avance, 
-                                    MontoEjecutado=@monto, 
-                                    MetrosCuadrados=@metrosC,
-                                    FechaActualizacion=GETDATE(),
-                                    FechaFinalizacion=@fechaFin
-                                WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                            ELSE
-                                INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, AvancePorcentaje, MontoEjecutado, MetrosCuadrados, FechaFinalizacion)
-                                VALUES (@m, @l, @proto, @wbs, @avance, @monto, @metrosC, @fechaFin)";
-                    }
-                    else
-                    {
-                        sql = @"
-                            IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                                UPDATE AvanceManualObra 
-                                SET AvancePorcentaje=@avance, 
-                                    MontoEjecutado=@monto, 
-                                    FechaActualizacion=GETDATE(),
-                                    FechaFinalizacion=@fechaFin
-                                WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                            ELSE
-                                INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, AvancePorcentaje, MontoEjecutado, FechaFinalizacion)
-                                VALUES (@m, @l, @proto, @wbs, @avance, @monto, @fechaFin)";
-                    }
-
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
-                        cmd.Parameters.AddWithValue("@l", cmbLote.SelectedItem.ToString());
-                        cmd.Parameters.AddWithValue("@proto", string.IsNullOrEmpty(prototipoActual) ? (object)DBNull.Value : prototipoActual);
-                        cmd.Parameters.AddWithValue("@wbs", partida.WBS.ToString());
-                        cmd.Parameters.AddWithValue("@avance", partida.AvancePorcentaje);
-                        
-                        double montoEjecutado = partida.MontoEjecutado;
-                        if (partida.EsDinamica && partida.MetrosCuadrados > 0)
-                        {
-                            double valorM2 = ObtenerValorM2(partida);
-                            montoEjecutado = partida.MetrosCuadrados * valorM2;
-                        }
-                        cmd.Parameters.AddWithValue("@monto", montoEjecutado);
-                        
-                        if (tieneMetrosCuadrados)
-                        {
-                            cmd.Parameters.AddWithValue("@metrosC", partida.MetrosCuadrados);
-                        }
-                        
-                        cmd.Parameters.AddWithValue("@fechaFin", 
-                            partida.FechaFinalizacion.HasValue ? (object)partida.FechaFinalizacion.Value : DBNull.Value);
-                        
-                        try
-                        {
-                            cmd.ExecuteNonQuery();
-                        }
-                        catch (SqlException)
-                        {
-                            // Fallback sin FechaFinalizacion
-                            string fallback = tieneMetrosCuadrados
-                                ? @"
-                                    IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                                        UPDATE AvanceManualObra 
-                                        SET AvancePorcentaje=@avance, 
-                                            MontoEjecutado=@monto, 
-                                            MetrosCuadrados=@metrosC,
-                                            FechaActualizacion=GETDATE()
-                                        WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                                    ELSE
-                                        INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, AvancePorcentaje, MontoEjecutado, MetrosCuadrados)
-                                        VALUES (@m, @l, @proto, @wbs, @avance, @monto, @metrosC)"
-                                : @"
-                                    IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                                        UPDATE AvanceManualObra 
-                                        SET AvancePorcentaje=@avance, MontoEjecutado=@monto, FechaActualizacion=GETDATE()
-                                        WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                                    ELSE
-                                        INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, AvancePorcentaje, MontoEjecutado)
-                                        VALUES (@m, @l, @proto, @wbs, @avance, @monto)";
-
-                            using (SqlCommand cmd2 = new SqlCommand(fallback, conn))
-                            {
-                                cmd2.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
-                                cmd2.Parameters.AddWithValue("@l", cmbLote.SelectedItem.ToString());
-                                cmd2.Parameters.AddWithValue("@proto", string.IsNullOrEmpty(prototipoActual) ? (object)DBNull.Value : prototipoActual);
-                                cmd2.Parameters.AddWithValue("@wbs", partida.WBS.ToString());
-                                cmd2.Parameters.AddWithValue("@avance", partida.AvancePorcentaje);
-                                cmd2.Parameters.AddWithValue("@monto", montoEjecutado);
-                                if (tieneMetrosCuadrados)
-                                {
-                                    cmd2.Parameters.AddWithValue("@metrosC", partida.MetrosCuadrados);
-                                }
-                                cmd2.ExecuteNonQuery();
-                            }
-                        }
-                    }
+                    double valorM2 = ObtenerValorM2(partida);
+                    montoEjecutado = partida.MetrosCuadrados * valorM2;
                 }
+
+                var req = new GuardarAvancePartidaEstimacionApi
+                {
+                    Manzana = cmbManzana.SelectedItem.ToString(),
+                    Lote = cmbLote.SelectedItem.ToString(),
+                    Prototipo = string.IsNullOrEmpty(prototipoActual) ? null : prototipoActual,
+                    Wbs = partida.WBS,
+                    AvancePorcentaje = partida.AvancePorcentaje,
+                    MontoEjecutado = montoEjecutado,
+                    MetrosCuadrados = partida.MetrosCuadrados,
+                    FechaFinalizacion = partida.FechaFinalizacion
+                };
+
+                ApiClient.Post("/api/avances/partida-estimacion", req);
             }
             catch (Exception ex)
             {
@@ -221,7 +126,7 @@ namespace DynamicSepticSystem
         {
             if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null)
             {
-                MessageBox.Show("Selecciona Manzana y Lote primero", "Atención", 
+                MessageBox.Show("Selecciona Manzana y Lote primero", "AtenciÃ³n", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -231,37 +136,28 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                var proto = ApiClient.Get<string>(
+                    $"/api/avances/prototipo?manzana={Uri.EscapeDataString(manzana)}&lote={Uri.EscapeDataString(lote)}");
+                prototipoActual = proto?.Trim() ?? "";
+
+                // Si no hay prototipo, asignar uno por defecto
+                if (string.IsNullOrEmpty(prototipoActual))
                 {
-                    conn.Open();
-                    string sql = "SELECT Prototipo FROM InventarioCasas WHERE Manzana = @m AND Lote = @l";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        cmd.Parameters.AddWithValue("@l", lote);
-                        var result = cmd.ExecuteScalar();
-                        prototipoActual = result?.ToString()?.Trim() ?? "";
-                        
-                        // Si no hay prototipo, asignar uno por defecto
-                        if (string.IsNullOrEmpty(prototipoActual))
-                        {
-                            prototipoActual = "TUNERA";
-                            System.Diagnostics.Debug.WriteLine($"?? No se encontró prototipo para M{manzana}-L{lote}, usando '{prototipoActual}' por defecto");
-                        }
-                    }
+                    prototipoActual = "TUNERA";
+                    System.Diagnostics.Debug.WriteLine($"No se encontrÃ³ prototipo para M{manzana}-L{lote}, usando '{prototipoActual}' por defecto");
                 }
-                
-                System.Diagnostics.Debug.WriteLine($"?? Cargando avance para M{manzana}-L{lote}, Prototipo: {prototipoActual}");
+
+                System.Diagnostics.Debug.WriteLine($"Cargando avance para M{manzana}-L{lote}, Prototipo: {prototipoActual}");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"? Error al obtener prototipo: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error al obtener prototipo: {ex.Message}");
                 prototipoActual = "TUNERA";
             }
             
             CargarEstimacionJerarquica(manzana, lote);
             
-            // Mostrar información del resultado
+            // Mostrar informaciÃ³n del resultado
             int totalConceptos = nodosRaiz.Count;
             int totalPartidas = nodosRaiz.Sum(c => c.Partidas.Count);
             
@@ -270,14 +166,14 @@ namespace DynamicSepticSystem
                 $"Prototipo: {prototipoActual}\n" +
                 $"Conceptos: {totalConceptos}\n" +
                 $"Partidas: {totalPartidas}", 
-                "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "Ã‰xito", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void btnGuardarYExportar_Click(object sender, EventArgs e)
         {
             if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null)
             {
-                MessageBox.Show("Selecciona Manzana y Lote primero", "Atención", 
+                MessageBox.Show("Selecciona Manzana y Lote primero", "AtenciÃ³n", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -285,7 +181,7 @@ namespace DynamicSepticSystem
             int partidasSeleccionadas = nodosRaiz.Sum(c => c.Partidas.Count(p => p.Incluir));
             if (partidasSeleccionadas == 0)
             {
-                MessageBox.Show("Marca al menos una partida para generar la estimación", "Atención", 
+                MessageBox.Show("Marca al menos una partida para generar la estimaciÃ³n", "AtenciÃ³n", 
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
@@ -308,25 +204,23 @@ namespace DynamicSepticSystem
                 double amortizacion = totalEjecutado * porcentajeAmortizacion;
                 double totalEstimacion = totalEjecutado - amortizacion;
 
-                int folioId = GuardarFolioEstimacion(folio, manzana, lote, prototipoActual, numEstimacion,
+                // El PDF se genera antes del POST: la estimaciÃ³n (cabecera + detalle + PDF)
+                // se guarda en una sola transacciÃ³n en el servidor.
+                string rutaPdf = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"{folio}.pdf");
+                GenerarPDFAvance(rutaPdf);
+
+                int folioId = GuardarEstimacionViaApi(folio, manzana, lote, prototipoActual, numEstimacion,
                     txtProveedor.Text, txtDescripcion.Text, nodosRaiz.Sum(i => i.Total),
-                    totalEjecutado, amortizacion, porcentajeAmortizacion, totalEstimacion);
+                    totalEjecutado, amortizacion, porcentajeAmortizacion, totalEstimacion, rutaPdf);
 
                 if (folioId > 0)
                 {
-                    GuardarDetalleFolio(folioId);
-
-                    string rutaPdf = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"{folio}.pdf");
-                    GenerarPDFAvance(rutaPdf);
-
-                    GuardarPDFEnBD(folioId, folio, manzana, lote, rutaPdf);
-
-                    MessageBox.Show($"Estimación generada exitosamente\n\nFolio: {folio}\n\nLas partidas se han marcado como completadas.", 
-                        "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show($"EstimaciÃ³n generada exitosamente\n\nFolio: {folio}\n\nLas partidas se han marcado como completadas.",
+                        "Ã‰xito", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                     // NUEVO: Preguntar si desea abrir el PDF
                     var resultadoAbrir = MessageBox.Show(
-                        "¿Deseas abrir el PDF generado?", 
+                        "Â¿Deseas abrir el PDF generado?", 
                         "Abrir PDF", 
                         MessageBoxButtons.YesNo, 
                         MessageBoxIcon.Question);
@@ -349,7 +243,7 @@ namespace DynamicSepticSystem
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al guardar estimación: {ex.Message}", "Error", 
+                MessageBox.Show($"Error al guardar estimaciÃ³n: {ex.Message}", "Error", 
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

@@ -109,4 +109,92 @@ namespace Calandria.Api.Models
         public List<PartidaDinamicaDto> Partidas { get; set; } = new List<PartidaDinamicaDto>();
         public List<AvancePartidaDto> Avances { get; set; } = new List<AvancePartidaDto>();
     }
+
+    // ---- Agregar/gestionar conceptos (FormEstimacionConceptoMigrado.AgregarConcepto) ----
+
+    /// <summary>Un concepto existente para el selector de posición (Codigo numérico + Nombre).</summary>
+    public sealed class ConceptoExistenteDto
+    {
+        public int Codigo { get; set; }
+        public string Nombre { get; set; }
+    }
+
+    /// <summary>Una partida nueva a insertar al crear un concepto (solo los campos persistidos).</summary>
+    public sealed class PartidaNuevaDto
+    {
+        public string Etapa { get; set; }
+        public string Partida { get; set; }
+        public double CostoTunera { get; set; }
+        public double CostoCalandra { get; set; }
+    }
+
+    /// <summary>
+    /// Alta de un concepto nuevo: opcionalmente renumera los conceptos posteriores
+    /// (>= Codigo) e inserta las partidas en Estimacion(Concepto) y PresupuestoObra,
+    /// todo en una transacción.
+    /// </summary>
+    public sealed class ConceptoNuevoRequest
+    {
+        public int Codigo { get; set; }
+        public string Nombre { get; set; }
+        public bool Renumerar { get; set; }
+        public List<PartidaNuevaDto> Partidas { get; set; } = new List<PartidaNuevaDto>();
+    }
+
+    // ---- Guardado de avance de partida con m²/fecha (FormEstimacionConceptoMigrado) ----
+
+    /// <summary>Upsert de una partida en AvanceManualObra con MetrosCuadrados y FechaFinalizacion.</summary>
+    public sealed class GuardarAvancePartidaEstimacionRequest
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public int Wbs { get; set; }
+        public double AvancePorcentaje { get; set; }
+        public double MontoEjecutado { get; set; }
+        public double MetrosCuadrados { get; set; }
+        public DateTime? FechaFinalizacion { get; set; }
+    }
+
+    /// <summary>Resetea el avance de una partida/concepto (avance, monto, m² a 0; fecha a null).</summary>
+    public sealed class ResetearPartidaRequest
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Wbs { get; set; }
+    }
+
+    // ---- Marcar partidas/conceptos como completados al 100% ----
+    // Sirve para "Guardar y exportar" (ActualizarAvancesA100PorCiento) y para
+    // "Terminar sin estimación" (admin). El cliente ya calculó montos y m².
+
+    /// <summary>Una partida a marcar al 100% (monto y m² ya calculados por el cliente).</summary>
+    public sealed class PartidaCompletadaDto
+    {
+        public int Wbs { get; set; }
+        public double Monto { get; set; }
+        public double MetrosCuadrados { get; set; }
+    }
+
+    /// <summary>Un concepto a registrar como completado (WBS negativo, con su nombre y monto).</summary>
+    public sealed class ConceptoCompletadoDto
+    {
+        public int Wbs { get; set; }
+        public string Nombre { get; set; }
+        public double Monto { get; set; }
+    }
+
+    /// <summary>
+    /// Marca partidas y/o conceptos al 100% en AvanceManualObra, en una transacción.
+    /// Si FechaFinalizacion es null el servidor usa la fecha actual.
+    /// </summary>
+    public sealed class MarcarCompletadasRequest
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public DateTime? FechaFinalizacion { get; set; }
+        public List<PartidaCompletadaDto> Partidas { get; set; } = new List<PartidaCompletadaDto>();
+        public List<ConceptoCompletadoDto> Conceptos { get; set; } = new List<ConceptoCompletadoDto>();
+    }
 }

@@ -1,5 +1,4 @@
 using System;
-using System.Data.SqlClient;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -402,65 +401,54 @@ namespace DynamicSepticSystem
             
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                var partidasCompletadas = new System.Collections.Generic.List<PartidaCompletadaApi>();
+                var conceptosCompletados = new System.Collections.Generic.List<ConceptoCompletadoApi>();
+                int partidasTerminadas = 0;
+
+                if (nodoSeleccionado.EsConcepto)
                 {
-                    conn.Open();
-                    
-                    // Verificar si existe columna MetrosCuadrados
-                    bool tieneMetrosCuadrados = false;
-                    using (SqlCommand cmdCheck = new SqlCommand(@"
-                        SELECT COUNT(*) 
-                        FROM INFORMATION_SCHEMA.COLUMNS 
-                        WHERE TABLE_NAME = 'AvanceManualObra' 
-                        AND COLUMN_NAME = 'MetrosCuadrados'", conn))
+                    foreach (var partida in nodoSeleccionado.Partidas.Where(p => !p.Completado))
                     {
-                        tieneMetrosCuadrados = (int)cmdCheck.ExecuteScalar() > 0;
+                        partidasCompletadas.Add(TerminarPartidaSinEstimacion(partida, fechaFinalizacion.Value));
+                        partidasTerminadas++;
                     }
-                    
-                    int partidasTerminadas = 0;
-                    
-                    if (nodoSeleccionado.EsConcepto)
-                    {
-                        // Terminar todas las partidas del concepto
-                        foreach (var partida in nodoSeleccionado.Partidas.Where(p => !p.Completado))
-                        {
-                            TerminarPartidaSinEstimacion(conn, manzana, lote, partida, tieneMetrosCuadrados, fechaFinalizacion.Value);
-                            partidasTerminadas++;
-                        }
-                        
-                        // Tambi�n registrar el concepto como completado (WBS negativo)
-                        RegistrarConceptoCompletado(conn, manzana, lote, nodoSeleccionado, fechaFinalizacion.Value);
-                    }
-                    else
-                    {
-                        // Terminar solo la partida seleccionada
-                        TerminarPartidaSinEstimacion(conn, manzana, lote, nodoSeleccionado, tieneMetrosCuadrados, fechaFinalizacion.Value);
-                        partidasTerminadas = 1;
-                        
-                        // Verificar si el concepto padre qued� completo
-                        var padre = EncontrarPadre(nodoSeleccionado);
-                        if (padre != null)
-                        {
-                            bool todasCompletadas = padre.Partidas.All(p => p.Completado);
-                            if (todasCompletadas)
-                            {
-                                RegistrarConceptoCompletado(conn, manzana, lote, padre, fechaFinalizacion.Value);
-                            }
-                        }
-                    }
-                    
-                    // Recargar datos
-                    CargarEstimacionJerarquica(manzana, lote);
-                    
-                    MessageBox.Show(
-                        $"? {partidasTerminadas} partida(s) marcada(s) como TERMINADA(s).\n\n" +
-                        $"?? Fecha de finalizaci�n: {fechaFinalizacion.Value:dd/MM/yyyy}\n\n" +
-                        $"Los cambios se han guardado directamente en la base de datos.\n" +
-                        $"No se gener� ninguna estimaci�n.",
-                        "Operaci�n Completada",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
+
+                    var dtoConcepto = RegistrarConceptoCompletado(nodoSeleccionado, fechaFinalizacion.Value);
+                    if (dtoConcepto != null) conceptosCompletados.Add(dtoConcepto);
                 }
+                else
+                {
+                    partidasCompletadas.Add(TerminarPartidaSinEstimacion(nodoSeleccionado, fechaFinalizacion.Value));
+                    partidasTerminadas = 1;
+
+                    var padre = EncontrarPadre(nodoSeleccionado);
+                    if (padre != null && padre.Partidas.All(p => p.Completado))
+                    {
+                        var dtoConcepto = RegistrarConceptoCompletado(padre, fechaFinalizacion.Value);
+                        if (dtoConcepto != null) conceptosCompletados.Add(dtoConcepto);
+                    }
+                }
+
+                ApiClient.Post("/api/avances/marcar-completadas", new MarcarCompletadasApi
+                {
+                    Manzana = manzana,
+                    Lote = lote,
+                    Prototipo = string.IsNullOrEmpty(prototipoActual) ? null : prototipoActual,
+                    FechaFinalizacion = fechaFinalizacion.Value,
+                    Partidas = partidasCompletadas,
+                    Conceptos = conceptosCompletados
+                });
+
+                CargarEstimacionJerarquica(manzana, lote);
+
+                MessageBox.Show(
+                    $"{partidasTerminadas} partida(s) marcada(s) como TERMINADA(s).\n\n" +
+                    $"Fecha de finalizacion: {fechaFinalizacion.Value:dd/MM/yyyy}\n\n" +
+                    $"Los cambios se guardaron directamente en la base de datos.\n" +
+                    $"No se genero ninguna estimacion.",
+                    "Operacion Completada",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
             }
             catch (OperationCanceledException)
             {
@@ -480,13 +468,12 @@ namespace DynamicSepticSystem
         /// <summary>
         /// Termina una partida individual sin generar estimaci�n
         /// </summary>
-        private void TerminarPartidaSinEstimacion(SqlConnection conn, string manzana, string lote, 
-            NodoConcepto partida, bool tieneMetrosCuadrados, DateTime fechaFinalizacion)
+        private PartidaCompletadaApi TerminarPartidaSinEstimacion(NodoConcepto partida, DateTime fechaFinalizacion)
         {
             // Calcular monto ejecutado
             double montoEjecutado = ObtenerTotalPartida(partida);
-            
-            // Si es din�mica y no tiene m�, usar el l�mite o un valor predeterminado
+
+            // Si es dinamica y no tiene m2, usar el limite o pedirlo al admin
             if (partida.EsDinamica && partida.MetrosCuadrados <= 0)
             {
                 double limite = partida.ObtenerLimiteEfectivo(prototipoActual);
@@ -496,10 +483,9 @@ namespace DynamicSepticSystem
                 }
                 else
                 {
-                    // Si no hay l�mite, pedir al admin que ingrese los m�
                     using (var inputForm = new Form
                     {
-                        Text = "Ingresar m� para partida din�mica",
+                        Text = "Ingresar m2 para partida dinamica",
                         Size = new Size(350, 180),
                         StartPosition = FormStartPosition.CenterParent,
                         FormBorderStyle = FormBorderStyle.FixedDialog,
@@ -509,21 +495,21 @@ namespace DynamicSepticSystem
                     {
                         var lbl = new Label
                         {
-                            Text = $"La partida '{partida.Nombre}' es din�mica.\nIngresa los m� ejecutados:",
+                            Text = $"La partida '{partida.Nombre}' es dinamica.\nIngresa los m2 ejecutados:",
                             Location = new Point(20, 20),
                             AutoSize = true
                         };
-                        
+
                         var numM2 = new NumericUpDown
                         {
                             Location = new Point(20, 60),
                             Width = 150,
                             DecimalPlaces = 2,
-                            Minimum = 0M,  // ? CAMBIADO: Permite 0
+                            Minimum = 0M,
                             Maximum = 99999M,
                             Value = 1M
                         };
-                        
+
                         var btnOk = new Button
                         {
                             Text = "Aceptar",
@@ -531,7 +517,7 @@ namespace DynamicSepticSystem
                             Location = new Point(100, 100),
                             Width = 80
                         };
-                        
+
                         var btnCancel = new Button
                         {
                             Text = "Cancelar",
@@ -539,198 +525,64 @@ namespace DynamicSepticSystem
                             Location = new Point(190, 100),
                             Width = 80
                         };
-                        
+
                         inputForm.Controls.AddRange(new Control[] { lbl, numM2, btnOk, btnCancel });
                         inputForm.AcceptButton = btnOk;
                         inputForm.CancelButton = btnCancel;
-                        
+
                         if (inputForm.ShowDialog() == DialogResult.OK)
                         {
                             partida.MetrosCuadrados = (double)numM2.Value;
                         }
                         else
                         {
-                            throw new OperationCanceledException("Operaci�n cancelada por el usuario.");
+                            throw new OperationCanceledException("Operacion cancelada por el usuario.");
                         }
                     }
                 }
-                
-                // Recalcular monto con los m� actualizados
+
                 double valorM2 = ObtenerValorM2(partida);
                 montoEjecutado = partida.MetrosCuadrados * valorM2;
             }
-            
-            string sql;
-            if (tieneMetrosCuadrados)
-            {
-                sql = @"
-                    IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                        UPDATE AvanceManualObra 
-                        SET AvancePorcentaje = 100.0, 
-                            MontoEjecutado = @monto, 
-                            MetrosCuadrados = @metrosC,
-                            FechaActualizacion = GETDATE(),
-                            FechaFinalizacion = @fechaFin
-                        WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                    ELSE
-                        INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, AvancePorcentaje, MontoEjecutado, MetrosCuadrados, FechaFinalizacion)
-                        VALUES (@m, @l, @proto, @wbs, 100.0, @monto, @metrosC, @fechaFin)";
-            }
-            else
-            {
-                sql = @"
-                    IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                        UPDATE AvanceManualObra 
-                        SET AvancePorcentaje = 100.0, 
-                            MontoEjecutado = @monto, 
-                            FechaActualizacion = GETDATE(),
-                            FechaFinalizacion = @fechaFin
-                        WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                    ELSE
-                        INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, AvancePorcentaje, MontoEjecutado, FechaFinalizacion)
-                        VALUES (@m, @l, @proto, @wbs, 100.0, @monto, @fechaFin)";
-            }
-            
-            using (SqlCommand cmd = new SqlCommand(sql, conn))
-            {
-                cmd.Parameters.AddWithValue("@m", manzana);
-                cmd.Parameters.AddWithValue("@l", lote);
-                cmd.Parameters.AddWithValue("@proto", string.IsNullOrEmpty(prototipoActual) ? (object)DBNull.Value : prototipoActual);
-                cmd.Parameters.AddWithValue("@wbs", partida.WBS.ToString());
-                cmd.Parameters.AddWithValue("@monto", montoEjecutado);
-                cmd.Parameters.AddWithValue("@fechaFin", fechaFinalizacion);
-                
-                if (tieneMetrosCuadrados)
-                {
-                    cmd.Parameters.AddWithValue("@metrosC", partida.MetrosCuadrados);
-                }
-                
-                try
-                {
-                    cmd.ExecuteNonQuery();
-                }
-                catch (SqlException)
-                {
-                    // Fallback sin FechaFinalizacion si la columna no existe
-                    string fallback = tieneMetrosCuadrados
-                        ? @"
-                            IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                                UPDATE AvanceManualObra 
-                                SET AvancePorcentaje = 100.0, MontoEjecutado = @monto, MetrosCuadrados = @metrosC, FechaActualizacion = GETDATE()
-                                WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                            ELSE
-                                INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, AvancePorcentaje, MontoEjecutado, MetrosCuadrados)
-                                VALUES (@m, @l, @proto, @wbs, 100.0, @monto, @metrosC)"
-                        : @"
-                            IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                                UPDATE AvanceManualObra 
-                                SET AvancePorcentaje = 100.0, MontoEjecutado = @monto, FechaActualizacion = GETDATE()
-                                WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                            ELSE
-                                INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, AvancePorcentaje, MontoEjecutado)
-                                VALUES (@m, @l, @proto, @wbs, 100.0, @monto)";
-                    
-                    using (SqlCommand cmd2 = new SqlCommand(fallback, conn))
-                    {
-                        cmd2.Parameters.AddWithValue("@m", manzana);
-                        cmd2.Parameters.AddWithValue("@l", lote);
-                        cmd2.Parameters.AddWithValue("@proto", string.IsNullOrEmpty(prototipoActual) ? (object)DBNull.Value : prototipoActual);
-                        cmd2.Parameters.AddWithValue("@wbs", partida.WBS.ToString());
-                        cmd2.Parameters.AddWithValue("@monto", montoEjecutado);
-                        if (tieneMetrosCuadrados)
-                        {
-                            cmd2.Parameters.AddWithValue("@metrosC", partida.MetrosCuadrados);
-                        }
-                        cmd2.ExecuteNonQuery();
-                    }
-                }
-            }
-            
+
             // Actualizar el objeto en memoria
             partida.Completado = true;
             partida.AvancePorcentaje = 100;
             partida.MontoEjecutado = montoEjecutado;
             partida.FechaFinalizacion = fechaFinalizacion;
-            
-            System.Diagnostics.Debug.WriteLine(
-                $"[ADMIN] Partida terminada sin estimaci�n: WBS={partida.WBS}, " +
-                $"Monto={montoEjecutado:C2}, m�={partida.MetrosCuadrados:F2}, " +
-                $"Fecha={fechaFinalizacion:dd/MM/yyyy}");
+
+            return new PartidaCompletadaApi
+            {
+                Wbs = partida.WBS,
+                Monto = montoEjecutado,
+                MetrosCuadrados = partida.MetrosCuadrados
+            };
         }
-        
+
         /// <summary>
-        /// Registra un concepto como completado (con WBS negativo)
+        /// Construye el DTO de un concepto completado (WBS negativo). Devuelve null si el
+        /// codigo del concepto no es numerico.
         /// </summary>
-        private void RegistrarConceptoCompletado(SqlConnection conn, string manzana, string lote, NodoConcepto concepto, DateTime fechaFinalizacion)
+        private ConceptoCompletadoApi RegistrarConceptoCompletado(NodoConcepto concepto, DateTime fechaFinalizacion)
         {
             if (!int.TryParse(concepto.Codigo, out int codigoNumerico))
             {
-                return;
+                return null;
             }
-            
+
             int wbsConcepto = -codigoNumerico; // WBS negativo para conceptos
             double totalConcepto = concepto.Partidas.Sum(p => p.MontoEjecutado);
-            
-            string sql = @"
-                IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                    UPDATE AvanceManualObra 
-                    SET AvancePorcentaje = 100.0, 
-                        MontoEjecutado = @monto, 
-                        Concepto = @concepto,
-                        FechaActualizacion = GETDATE(),
-                        FechaFinalizacion = @fechaFin
-                    WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                ELSE
-                    INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, Concepto, AvancePorcentaje, MontoEjecutado, FechaFinalizacion)
-                    VALUES (@m, @l, @proto, @wbs, @concepto, 100.0, @monto, @fechaFin)";
-            
-            using (SqlCommand cmd = new SqlCommand(sql, conn))
+
+            return new ConceptoCompletadoApi
             {
-                cmd.Parameters.AddWithValue("@m", manzana);
-                cmd.Parameters.AddWithValue("@l", lote);
-                cmd.Parameters.AddWithValue("@proto", string.IsNullOrEmpty(prototipoActual) ? (object)DBNull.Value : prototipoActual);
-                cmd.Parameters.AddWithValue("@wbs", wbsConcepto.ToString());
-                cmd.Parameters.AddWithValue("@concepto", concepto.Nombre);
-                cmd.Parameters.AddWithValue("@monto", totalConcepto);
-                cmd.Parameters.AddWithValue("@fechaFin", fechaFinalizacion);
-                
-                try
-                {
-                    cmd.ExecuteNonQuery();
-                }
-                catch (SqlException)
-                {
-                    // Fallback sin FechaFinalizacion
-                    string fallback = @"
-                        IF EXISTS (SELECT 1 FROM AvanceManualObra WHERE Manzana=@m AND Lote=@l AND WBS=@wbs)
-                            UPDATE AvanceManualObra 
-                            SET AvancePorcentaje = 100.0, MontoEjecutado = @monto, Concepto = @concepto, FechaActualizacion = GETDATE()
-                            WHERE Manzana=@m AND Lote=@l AND WBS=@wbs
-                        ELSE
-                            INSERT INTO AvanceManualObra (Manzana, Lote, Prototipo, WBS, Concepto, AvancePorcentaje, MontoEjecutado)
-                            VALUES (@m, @l, @proto, @wbs, @concepto, 100.0, @monto)";
-                    
-                    using (SqlCommand cmd2 = new SqlCommand(fallback, conn))
-                    {
-                        cmd2.Parameters.AddWithValue("@m", manzana);
-                        cmd2.Parameters.AddWithValue("@l", lote);
-                        cmd2.Parameters.AddWithValue("@proto", string.IsNullOrEmpty(prototipoActual) ? (object)DBNull.Value : prototipoActual);
-                        cmd2.Parameters.AddWithValue("@wbs", wbsConcepto.ToString());
-                        cmd2.Parameters.AddWithValue("@concepto", concepto.Nombre);
-                        cmd2.Parameters.AddWithValue("@monto", totalConcepto);
-                        cmd2.ExecuteNonQuery();
-                    }
-                }
-            }
-            
-            System.Diagnostics.Debug.WriteLine(
-                $"[ADMIN] Concepto registrado como completado: WBS={wbsConcepto}, " +
-                $"Concepto={concepto.Nombre}, Total={totalConcepto:C2}, " +
-                $"Fecha={fechaFinalizacion:dd/MM/yyyy}");
+                Wbs = wbsConcepto,
+                Nombre = concepto.Nombre,
+                Monto = totalConcepto
+            };
         }
-        
+
         /// <summary>
-        /// Manejador para la opci�n de capturar m�
+        /// Manejador para la opcion de capturar m2
         /// </summary>
         private void MenuCapturarM2_Click(object sender, EventArgs e)
         {
@@ -1090,24 +942,12 @@ namespace DynamicSepticSystem
             
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                ApiClient.Post("/api/avances/resetear-partida", new ResetearPartidaApi
                 {
-                    conn.Open();
-                    
-                    string sql = @"
-                        UPDATE AvanceManualObra
-                        SET AvancePorcentaje = 0, MontoEjecutado = 0, MetrosCuadrados = 0, FechaFinalizacion = NULL
-                        WHERE Manzana = @m AND Lote = @l AND WBS = @wbs";
-                    
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
-                        cmd.Parameters.AddWithValue("@l", cmbLote.SelectedItem.ToString());
-                        cmd.Parameters.AddWithValue("@wbs", nodoSeleccionado.WBS);
-                        
-                        cmd.ExecuteNonQuery();
-                    }
-                }
+                    Manzana = cmbManzana.SelectedItem.ToString(),
+                    Lote = cmbLote.SelectedItem.ToString(),
+                    Wbs = nodoSeleccionado.WBS.ToString()
+                });
                 
                 if (nodoSeleccionado.EsConcepto)
                 {

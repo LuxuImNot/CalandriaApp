@@ -450,4 +450,120 @@ namespace DynamicSepticSystem
         public List<PartidaDinamicaApi> Partidas { get; set; } = new List<PartidaDinamicaApi>();
         public List<AvancePartidaApi> Avances { get; set; } = new List<AvancePartidaApi>();
     }
+
+    // ---- Estimaciones · agregar/gestionar conceptos (api/avances) ----
+
+    /// <summary>Concepto existente para el selector de posición (api/avances/conceptos-selector).</summary>
+    public sealed class ConceptoExistenteApi
+    {
+        public int Codigo { get; set; }
+        public string Nombre { get; set; }
+    }
+
+    /// <summary>Partida nueva a insertar al crear un concepto (api/avances/concepto-nuevo).</summary>
+    public sealed class PartidaNuevaApi
+    {
+        public string Etapa { get; set; }
+        public string Partida { get; set; }
+        public double CostoTunera { get; set; }
+        public double CostoCalandra { get; set; }
+    }
+
+    /// <summary>Alta de un concepto nuevo con renumeración opcional (api/avances/concepto-nuevo).</summary>
+    public sealed class ConceptoNuevoApi
+    {
+        public int Codigo { get; set; }
+        public string Nombre { get; set; }
+        public bool Renumerar { get; set; }
+        public List<PartidaNuevaApi> Partidas { get; set; } = new List<PartidaNuevaApi>();
+    }
+
+    /// <summary>Upsert de avance de partida con m²/fecha (api/avances/partida-estimacion).</summary>
+    public sealed class GuardarAvancePartidaEstimacionApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public int Wbs { get; set; }
+        public double AvancePorcentaje { get; set; }
+        public double MontoEjecutado { get; set; }
+        public double MetrosCuadrados { get; set; }
+        public DateTime? FechaFinalizacion { get; set; }
+    }
+
+    /// <summary>Reset de avance de una partida/concepto (api/avances/resetear-partida).</summary>
+    public sealed class ResetearPartidaApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Wbs { get; set; }
+    }
+
+    /// <summary>Partida a marcar al 100% (api/avances/marcar-completadas).</summary>
+    public sealed class PartidaCompletadaApi
+    {
+        public int Wbs { get; set; }
+        public double Monto { get; set; }
+        public double MetrosCuadrados { get; set; }
+    }
+
+    /// <summary>Concepto a registrar como completado, WBS negativo (api/avances/marcar-completadas).</summary>
+    public sealed class ConceptoCompletadoApi
+    {
+        public int Wbs { get; set; }
+        public string Nombre { get; set; }
+        public double Monto { get; set; }
+    }
+
+    /// <summary>Marca partidas/conceptos al 100% en una transacción (api/avances/marcar-completadas).</summary>
+    public sealed class MarcarCompletadasApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public DateTime? FechaFinalizacion { get; set; }
+        public List<PartidaCompletadaApi> Partidas { get; set; } = new List<PartidaCompletadaApi>();
+        public List<ConceptoCompletadoApi> Conceptos { get; set; } = new List<ConceptoCompletadoApi>();
+    }
+
+    // ---- Estimaciones · folios y PDFs (api/folios-estimacion) ----
+
+    /// <summary>Una línea del detalle del folio de estimación (api/folios-estimacion).</summary>
+    public sealed class DetalleFolioApi
+    {
+        public string CodigoConcepto { get; set; }
+        public string NombreConcepto { get; set; }
+        public int Wbs { get; set; }
+        public string NombrePartida { get; set; }
+        public double MontoPresupuestado { get; set; }
+        public double MontoEjecutado { get; set; }
+        public double AvancePorcentaje { get; set; }
+    }
+
+    /// <summary>Estimación completa a guardar: cabecera + detalle + PDF base64 (api/folios-estimacion).</summary>
+    public sealed class GuardarFolioEstimacionApi
+    {
+        public string Folio { get; set; }
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public int NumeroEstimacion { get; set; }
+        public string Proveedor { get; set; }
+        public string Descripcion { get; set; }
+        public double ImporteContrato { get; set; }
+        public double TotalRequisicion { get; set; }
+        public double Amortizacion { get; set; }
+        public double PorcentajeAmortizacion { get; set; }
+        public double TotalEstimacion { get; set; }
+        public string Usuario { get; set; }
+        public List<DetalleFolioApi> Detalle { get; set; } = new List<DetalleFolioApi>();
+        public string NombreArchivoPdf { get; set; }
+        public string PdfBase64 { get; set; }
+    }
+
+    /// <summary>Respuesta al guardar una estimación: Id del folio (api/folios-estimacion).</summary>
+    public sealed class GuardarFolioEstimacionRespApi
+    {
+        public int FolioId { get; set; }
+    }
 }
