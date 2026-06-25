@@ -128,17 +128,18 @@ namespace DynamicSepticSystem
             panelFiltros.Controls.Add(this.txtBuscar);
             panelFiltros.Controls.Add(this.lblContextoCasa);
 
-            // ===== Panel central (TreeListView) =====
-            var panelCentral = new Panel();
-            panelCentral.Dock = DockStyle.Fill;
-            panelCentral.Padding = new Padding(20, 14, 20, 14);
-            panelCentral.BackColor = Color.White;
+            // ===== Panel central (TreeListView) — oculto; se muestra en ventana aparte =====
+            this.panelCentralOculto = new Panel();
+            this.panelCentralOculto.Dock = DockStyle.Fill;
+            this.panelCentralOculto.Padding = new Padding(20, 14, 20, 14);
+            this.panelCentralOculto.BackColor = Color.White;
+            this.panelCentralOculto.Visible = false;
 
-            var marco = new Panel();
-            marco.Dock = DockStyle.Fill;
-            marco.BorderStyle = BorderStyle.FixedSingle;
-            marco.BackColor = colorBorde;
-            marco.Padding = new Padding(1);
+            this.marcoArbol = new Panel();
+            this.marcoArbol.Dock = DockStyle.Fill;
+            this.marcoArbol.BorderStyle = BorderStyle.FixedSingle;
+            this.marcoArbol.BackColor = colorBorde;
+            this.marcoArbol.Padding = new Padding(1);
 
             this.olvTareas = new DynamicSepticSystem.SafeTreeListView();
             this.olvTareas.Dock = DockStyle.Fill;
@@ -149,8 +150,8 @@ namespace DynamicSepticSystem
             this.olvTareas.BorderStyle = BorderStyle.None;
             this.olvTareas.Font = new Font("Segoe UI", 9.25F);
 
-            marco.Controls.Add(this.olvTareas);
-            panelCentral.Controls.Add(marco);
+            this.marcoArbol.Controls.Add(this.olvTareas);
+            this.panelCentralOculto.Controls.Add(this.marcoArbol);
 
             // ===== Panel inferior =====
             var panelBotones = new Panel();
@@ -165,54 +166,18 @@ namespace DynamicSepticSystem
             separadorTop.BackColor = colorBorde;
             panelBotones.Controls.Add(separadorTop);
 
-            // --- Fila 1: acciones masivas ---
-            this.btnMarcarTodos = new Button();
-            this.btnMarcarTodos.Text = "Marcar Todo";
-            this.btnMarcarTodos.Location = new Point(22, 16);
-            this.btnMarcarTodos.Size = new Size(120, 32);
-            this.btnMarcarTodos.BackColor = colorExito;
-            this.btnMarcarTodos.ForeColor = Color.White;
-            this.btnMarcarTodos.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this.btnMarcarTodos.FlatStyle = FlatStyle.Flat;
-            this.btnMarcarTodos.FlatAppearance.BorderSize = 0;
-            this.btnMarcarTodos.Cursor = Cursors.Hand;
-            this.btnMarcarTodos.Click += new System.EventHandler(this.btnMarcarTodos_Click);
-
-            this.btnDesmarcarTodos = new Button();
-            this.btnDesmarcarTodos.Text = "Desmarcar Todo";
-            this.btnDesmarcarTodos.Location = new Point(148, 16);
-            this.btnDesmarcarTodos.Size = new Size(140, 32);
-            this.btnDesmarcarTodos.BackColor = colorPeligro;
-            this.btnDesmarcarTodos.ForeColor = Color.White;
-            this.btnDesmarcarTodos.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this.btnDesmarcarTodos.FlatStyle = FlatStyle.Flat;
-            this.btnDesmarcarTodos.FlatAppearance.BorderSize = 0;
-            this.btnDesmarcarTodos.Cursor = Cursors.Hand;
-            this.btnDesmarcarTodos.Click += new System.EventHandler(this.btnDesmarcarTodos_Click);
-
-            this.btnMarcarPorNivel = new Button();
-            this.btnMarcarPorNivel.Text = "+ Por Nivel";
-            this.btnMarcarPorNivel.Location = new Point(294, 16);
-            this.btnMarcarPorNivel.Size = new Size(110, 32);
-            this.btnMarcarPorNivel.BackColor = colorAcento;
-            this.btnMarcarPorNivel.ForeColor = Color.White;
-            this.btnMarcarPorNivel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this.btnMarcarPorNivel.FlatStyle = FlatStyle.Flat;
-            this.btnMarcarPorNivel.FlatAppearance.BorderSize = 0;
-            this.btnMarcarPorNivel.Cursor = Cursors.Hand;
-            this.btnMarcarPorNivel.Click += new System.EventHandler(this.btnMarcarPorNivel_Click);
-
-            this.btnDesmarcarPorNivel = new Button();
-            this.btnDesmarcarPorNivel.Text = "− Por Nivel";
-            this.btnDesmarcarPorNivel.Location = new Point(410, 16);
-            this.btnDesmarcarPorNivel.Size = new Size(110, 32);
-            this.btnDesmarcarPorNivel.BackColor = colorNeutro;
-            this.btnDesmarcarPorNivel.ForeColor = Color.White;
-            this.btnDesmarcarPorNivel.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            this.btnDesmarcarPorNivel.FlatStyle = FlatStyle.Flat;
-            this.btnDesmarcarPorNivel.FlatAppearance.BorderSize = 0;
-            this.btnDesmarcarPorNivel.Cursor = Cursors.Hand;
-            this.btnDesmarcarPorNivel.Click += new System.EventHandler(this.btnDesmarcarPorNivel_Click);
+            // --- Fila 1: ver árbol completo (ventana aparte) ---
+            this.btnArbol = new Button();
+            this.btnArbol.Text = "Ver árbol completo";
+            this.btnArbol.Location = new Point(22, 16);
+            this.btnArbol.Size = new Size(200, 32);
+            this.btnArbol.BackColor = colorPrimario;
+            this.btnArbol.ForeColor = Color.White;
+            this.btnArbol.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            this.btnArbol.FlatStyle = FlatStyle.Flat;
+            this.btnArbol.FlatAppearance.BorderSize = 0;
+            this.btnArbol.Cursor = Cursors.Hand;
+            this.btnArbol.Click += new System.EventHandler(this.btnArbol_Click);
 
             // --- Fila 2: estadísticas ---
             this.lblEstadisticas = new Label();
@@ -284,10 +249,7 @@ namespace DynamicSepticSystem
             this.btnCerrar.Cursor = Cursors.Hand;
             this.btnCerrar.Click += new System.EventHandler(this.btnCerrar_Click);
 
-            panelBotones.Controls.Add(this.btnMarcarTodos);
-            panelBotones.Controls.Add(this.btnDesmarcarTodos);
-            panelBotones.Controls.Add(this.btnMarcarPorNivel);
-            panelBotones.Controls.Add(this.btnDesmarcarPorNivel);
+            panelBotones.Controls.Add(this.btnArbol);
             panelBotones.Controls.Add(this.btnDestajosPorCuadrilla);
             panelBotones.Controls.Add(this.btnRepositorio);
             panelBotones.Controls.Add(this.btnGuardar);
@@ -302,7 +264,8 @@ namespace DynamicSepticSystem
             this.ClientSize = new Size(1460, 820);
             this.MinimumSize = new Size(1180, 700);
             this.BackColor = Color.White;
-            this.Controls.Add(panelCentral);
+            this.Controls.Add(ConstruirPanelPasos());
+            this.Controls.Add(this.panelCentralOculto);
             this.Controls.Add(ConstruirPanelGuia());
             this.Controls.Add(panelBotones);
             this.Controls.Add(panelFiltros);
@@ -320,10 +283,9 @@ namespace DynamicSepticSystem
         private TextBox txtBuscar;
         private Label lblContextoCasa;
         private DynamicSepticSystem.SafeTreeListView olvTareas;
-        private Button btnMarcarTodos;
-        private Button btnDesmarcarTodos;
-        private Button btnMarcarPorNivel;
-        private Button btnDesmarcarPorNivel;
+        private Panel panelCentralOculto;
+        private Panel marcoArbol;
+        private Button btnArbol;
         private Label lblEstadisticas;
         private ProgressBar progressBarActivacion;
         private Label lblPorcentaje;

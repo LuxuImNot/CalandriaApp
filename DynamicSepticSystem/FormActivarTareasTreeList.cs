@@ -1086,6 +1086,9 @@ namespace DynamicSepticSystem
             lblPorcentaje.Text = totalDestajos > 0
                 ? $"{(completameteActivados * 100 / totalDestajos):F0}% completamente activados"
                 : "—";
+
+            // Reconstruir el control paso-a-paso con los estados actuales.
+            RefrescarPasos();
         }
 
         #endregion

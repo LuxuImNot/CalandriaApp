@@ -265,6 +265,10 @@
       <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="FormActivarTareasTreeList.PanelPasos.cs">
+      <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="FormDestajosPorCuadrilla.cs">
       <SubType>Form</SubType>
     </Compile>
