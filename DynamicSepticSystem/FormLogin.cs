@@ -1,279 +1,257 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data.SqlClient;
-using System.Linq;
-using System.Windows.Forms;
-using System.Configuration;
+// Login migrado a WebView2: hospeda Calandria.Api/ui/login.html, igual patrón
+// que FormTrabajadoresWeb.cs / FormComprasWeb.cs / FormPerfilesWeb.cs. La
+// autenticación ya no toca SQL directo desde el cliente: todo pasa por
+// ApiClient.Login (api/auth/login), que ya hace la verificación PBKDF2 y la
+// migración perezosa del hash en el servidor.
+//
+// A diferencia de un login clásico, este formulario NO se abre con
+// ShowDialog() (ver reference_webview2_multi_instance: un WebView2 dentro de
+// un bucle modal puede colgar el proceso). En su lugar expone el evento
+// LoginExitoso; quien lo use debe llamar Show()/Show(this) y suscribirse.
+using System;
+using System.Diagnostics;
 using System.Drawing;
+using System.IO;
+using System.Security.Cryptography;
 using System.Text;
-using DynamicSepticSystem;
-using MaterialSkin;
-using MaterialSkin.Controls;
-using static DynamicSepticSystem.PanelPrincipal;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace DynamicSepticSystem
 {
-    public partial class FormLogin : MaterialForm
+    public class FormLogin : Form
     {
-        public static string UsuarioActivo = "";
-        public static string RolActivo = "";
+        /// <summary>Se dispara tras un login exitoso (Global.UsuarioActual ya está listo).</summary>
+        public event EventHandler LoginExitoso;
+
+        private WebView2 webLogin;
+
+        private static readonly JsonSerializerSettings CamelCaseSettings =
+            new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
+
+        private static string CacheDir => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Calandria", "ui");
+
+        private static string CacheHtml => Path.Combine(CacheDir, "login.html");
 
         public FormLogin()
         {
-            InitializeComponent();
-            
-            // Aplicar tema MaterialSkin personalizado con colores corporativos
-            ThemeManager.AplicarTemaMaterial(this);
-        }
+            Text = "Iniciar sesión - Sistema Calandria";
+            StartPosition = FormStartPosition.CenterScreen;
+            Size = new Size(1100, 720);
+            MinimumSize = new Size(900, 600);
+            BackColor = Color.White;
 
-        private void btnLogin_Click(object sender, EventArgs e)
-        {
-            string usuarioIngresado = txtUsuario.Text.Trim();
-            // No se recorta la contraseña: los espacios al inicio/fin son válidos.
-            string claveIngresada = txtClave.Text;
+            webLogin = new WebView2 { Dock = DockStyle.Fill, BackColor = Color.White };
+            Controls.Add(webLogin);
 
-            if (string.IsNullOrWhiteSpace(usuarioIngresado) || string.IsNullOrWhiteSpace(claveIngresada))
-            {
-                MessageBox.Show("Ingresa usuario y contraseña.");
-                return;
-            }
-
-            string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
-            
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (SqlCommand cmd = new SqlCommand("SELECT ClaveHash, Rol FROM Usuarios WHERE Nombre = @usuario", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@usuario", usuarioIngresado);
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            if (reader.Read())
-                            {
-                                string hashAlmacenado = reader["ClaveHash"].ToString();
-                                string rol = reader["Rol"].ToString();
-
-                                bool claveValida = PasswordHasher.Verificar(
-                                    claveIngresada, hashAlmacenado, out bool necesitaRehash);
-
-                                if (claveValida)
-                                {
-                                    // El lector debe cerrarse antes de reutilizar la conexión.
-                                    reader.Close();
-
-                                    // Migración perezosa: si el hash estaba en el formato
-                                    // heredado (SHA-256 sin sal), se re-guarda con PBKDF2.
-                                    if (necesitaRehash)
-                                    {
-                                        try
-                                        {
-                                            ActualizarHashClave(conn, usuarioIngresado,
-                                                PasswordHasher.Hash(claveIngresada));
-                                        }
-                                        catch (Exception exRehash)
-                                        {
-                                            // No impide el login; solo se registra.
-                                            ErrorLogger.Registrar(exRehash, "FormLogin.ActualizarHashClave");
-                                        }
-                                    }
-
-                                    Global.UsuarioActual = new Usuario
-                                    {
-                                        Nombre = usuarioIngresado,
-                                        Clave = hashAlmacenado,
-                                        Permisos = rol == "Admin"
-                                            ? new List<string> { "Agregar", "Guardar", "Eliminar", "Ver" }
-                                            : new List<string> { "Ver" }
-                                    };
-
-                                    // Obtener token JWT del API (best-effort): habilita las
-                                    // pantallas ya migradas. Si el API no responde, el login
-                                    // local sigue siendo válido (modo híbrido).
-                                    try
-                                    {
-                                        ApiClient.Login(usuarioIngresado, claveIngresada);
-                                    }
-                                    catch (Exception exApi)
-                                    {
-                                        ErrorLogger.Registrar(exApi, "FormLogin.ApiClient.Login");
-                                    }
-
-                                    MessageBox.Show("Logueado como: " + Global.UsuarioActual.Nombre);
-                                    this.Hide();
-                                    this.DialogResult = DialogResult.OK;
-                                    this.Close();
-                                }
-                                else
-                                {
-                                    // Mensaje genérico: no revela si el usuario existe.
-                                    MessageBox.Show("Usuario o contraseña incorrectos.");
-                                }
-                            }
-                            else
-                            {
-                                // Mismo mensaje que clave incorrecta para no filtrar
-                                // qué usuarios existen (enumeración de cuentas).
-                                MessageBox.Show("Usuario o contraseña incorrectos.");
-                            }
-                        }
-                    }
-                }
-            }
-            catch (SqlException sqlEx)
-            {
-                // El detalle técnico va solo al log; al usuario un mensaje genérico.
-                ErrorLogger.Registrar(sqlEx, "FormLogin.btnLogin");
-                MessageBox.Show(
-                    "No se pudo conectar a la base de datos.\n\n" +
-                    "Verifica tu conexión e inténtalo de nuevo.",
-                    "Error de Conexión",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error
-                );
-            }
-            catch (Exception ex)
-            {
-                ErrorLogger.Registrar(ex, "FormLogin.btnLogin");
-                MessageBox.Show(
-                    "Ocurrió un error inesperado al iniciar sesión. Inténtalo de nuevo.",
-                    "Error",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error
-                );
-            }
+            webLogin.CoreWebView2InitializationCompleted += WebLogin_Init;
+            _ = IniciarWebView2Async();
         }
 
         /// <summary>
-        /// Re-guarda el hash de la contraseña de un usuario (migración perezosa
-        /// del formato heredado a PBKDF2). Reutiliza la conexión ya abierta.
+        /// Entorno y carpeta de datos propios: varias ventanas WebView2 del mismo
+        /// proceso no deben compartir el entorno implícito (ver
+        /// reference_webview2_multi_instance / FormAlmacen.Web.cs).
         /// </summary>
-        private void ActualizarHashClave(SqlConnection conn, string usuario, string nuevoHash)
+        private async Task IniciarWebView2Async()
         {
-            using (var cmd = new SqlCommand(
-                "UPDATE Usuarios SET ClaveHash = @h WHERE Nombre = @u", conn))
+            try
             {
-                cmd.Parameters.AddWithValue("@h", nuevoHash);
-                cmd.Parameters.AddWithValue("@u", usuario);
-                cmd.ExecuteNonQuery();
+                string userDataFolder = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Calandria", "WebView2Login");
+                var entorno = await CoreWebView2Environment.CreateAsync(null, userDataFolder, null);
+                await webLogin.EnsureCoreWebView2Async(entorno);
+            }
+            catch (Exception ex)
+            {
+                ErrorLogger.RegistrarMensaje("Login", "WebView2 no pudo iniciar: " + ex.Message);
+                MessageBox.Show("No se pudo iniciar la pantalla de inicio de sesión:\n\n" + ex.Message,
+                    "Calandria", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void txtClave_KeyPress(object sender, KeyPressEventArgs e)
+        private void WebLogin_Init(object sender, CoreWebView2InitializationCompletedEventArgs e)
         {
-            if (e.KeyChar == (char)Keys.Enter)
+            if (!e.IsSuccess)
             {
-                btnLogin.PerformClick();
+                ErrorLogger.RegistrarMensaje("Login", "WebView2 no inicializó: " + e.InitializationException);
+                MessageBox.Show("No se pudo iniciar la pantalla de inicio de sesión.", "Calandria",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            var core = webLogin.CoreWebView2;
+            core.Settings.AreDefaultContextMenusEnabled = Debugger.IsAttached;
+            core.Settings.AreDevToolsEnabled = Debugger.IsAttached;
+            core.Settings.IsStatusBarEnabled = false;
+
+            core.WebMessageReceived += WebLogin_Mensaje;
+
+            _ = CargarHtmlAsync();
+        }
+
+        private async Task CargarHtmlAsync()
+        {
+            string html = null;
+            try { html = await Task.Run(() => ObtenerHtml()); }
+            catch (Exception ex) { ErrorLogger.RegistrarMensaje("Login", "Fallo cargando la página: " + ex.Message); }
+
+            if (IsDisposed || webLogin?.CoreWebView2 == null) return;
+            if (html == null)
+            {
+                MessageBox.Show(
+                    "No se pudo descargar la interfaz de inicio de sesión.\n\nVerifica la conexión con el servidor.",
+                    "Calandria", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            webLogin.CoreWebView2.NavigateToString(html);
+        }
+
+        private static string Sha256(byte[] d)
+        {
+            using (var sha = SHA256.Create())
+                return BitConverter.ToString(sha.ComputeHash(d)).Replace("-", "").ToLowerInvariant();
+        }
+
+        private class VersionUi { public string hash; public int bytes; }
+
+        private static string ObtenerHtml()
+        {
+            string cache = File.Exists(CacheHtml) ? File.ReadAllText(CacheHtml, Encoding.UTF8) : null;
+            try
+            {
+                var ver = ApiClient.Get<VersionUi>("/api/ui/login/version");
+                if (cache != null && ver != null && ver.hash == Sha256(Encoding.UTF8.GetBytes(cache)))
+                    return cache;
+
+                var datos = ApiClient.GetBytes("/api/ui/login");
+                if (datos != null && datos.Length > 0)
+                {
+                    string html = Encoding.UTF8.GetString(datos);
+                    try { Directory.CreateDirectory(CacheDir); File.WriteAllText(CacheHtml, html, new UTF8Encoding(false)); }
+                    catch { /* la caché es un extra; si falla, seguimos */ }
+                    return html;
+                }
+            }
+            catch (Exception ex)
+            {
+                ErrorLogger.RegistrarMensaje("Login", "No se pudo traer la UI del API: " + ex.Message);
+            }
+            return cache;
+        }
+
+        // ------------------------------------------------------------------
+        // Puente C# -> JS
+        // ------------------------------------------------------------------
+
+        private void Push(object payload)
+        {
+            if (webLogin?.CoreWebView2 == null) return;
+            try { webLogin.CoreWebView2.PostWebMessageAsJson(JsonConvert.SerializeObject(payload, CamelCaseSettings)); }
+            catch (Exception ex) { ErrorLogger.RegistrarMensaje("Login", "Fallo al enviar datos a la página: " + ex.Message); }
+        }
+
+        // ------------------------------------------------------------------
+        // Puente JS -> C#
+        // ------------------------------------------------------------------
+
+        private class MsgAccion { public string accion; }
+        private class MsgLogin { public string usuario, clave; }
+
+        private void WebLogin_Mensaje(object sender, CoreWebView2WebMessageReceivedEventArgs e)
+        {
+            string json = e.WebMessageAsJson;
+            MsgAccion m;
+            try { m = JsonConvert.DeserializeObject<MsgAccion>(json); }
+            catch { return; }
+            if (m?.accion == null) return;
+
+            // BeginInvoke: no despachar dentro del propio callback COM de WebView2.
+            BeginInvoke((Action)(() => DespacharMensaje(m.accion, json)));
+        }
+
+        private void DespacharMensaje(string accion, string json)
+        {
+            switch (accion)
+            {
+                case "login":
+                    { var d = JsonConvert.DeserializeObject<MsgLogin>(json); IntentarLogin(d.usuario, d.clave); }
+                    break;
+                case "cargar-version":
+                    _ = EnviarVersionAppAsync();
+                    break;
+                default:
+                    ErrorLogger.RegistrarMensaje("Login", "Acción desconocida desde la página: " + accion);
+                    break;
             }
         }
 
-        private void FormLogin_Load(object sender, EventArgs e)
+        private void IntentarLogin(string usuario, string clave)
         {
-            // Obtener versión local
-            string versionLocal = Actualizador.VersionLocal;
-            string versionServidor = "Obteniendo...";
+            usuario = (usuario ?? "").Trim();
+            // No se recorta la contraseña: los espacios al inicio/fin son válidos.
 
-            // Mostrar versión local inmediatamente
-            lblVersion.Text = $"Versión local: {versionLocal} | Servidor: {versionServidor}";
-            lblVersion.ForeColor = ThemeManager.ColorTextoSecundario;
-            lblVersion.Refresh();
-
-            // Obtener versión del servidor en segundo plano (async)
-            System.Threading.Tasks.Task.Run(async () =>
+            if (string.IsNullOrWhiteSpace(usuario) || string.IsNullOrEmpty(clave))
             {
-                try
+                Push(new { tipo = "loginResultado", ok = false, mensaje = "Ingresa usuario y contraseña." });
+                return;
+            }
+
+            try
+            {
+                var resp = ApiClient.Login(usuario, clave);
+                Global.UsuarioActual = new PanelPrincipal.Usuario
                 {
-                    // Obtener versión desde GitHub
-                    string githubOwner = ConfigurationManager.AppSettings["GitHubOwner"] ?? "LuxuImNot";
-                    string githubRepo = ConfigurationManager.AppSettings["GitHubRepo"] ?? "CalandriaApp";
-                    string githubToken = ConfigurationManager.AppSettings["GitHubToken"];
+                    Nombre = resp.Usuario ?? usuario,
+                    Perfil = resp.Rol,
+                    Permisos = resp.Permisos ?? new System.Collections.Generic.List<string>()
+                };
 
-                    using (var httpClient = new System.Net.Http.HttpClient())
-                    {
-                        httpClient.DefaultRequestHeaders.Add("User-Agent", "CalandriaResidencial");
-                        httpClient.Timeout = TimeSpan.FromSeconds(5);
-
-                        if (!string.IsNullOrEmpty(githubToken))
-                        {
-                            httpClient.DefaultRequestHeaders.Add("Authorization", $"token {githubToken}");
-                        }
-
-                        string releasesUrl = $"https://api.github.com/repos/{githubOwner}/{githubRepo}/releases/latest";
-                        var response = await httpClient.GetAsync(releasesUrl);
-
-                        if (response.IsSuccessStatusCode)
-                        {
-                            string releasesJson = await response.Content.ReadAsStringAsync();
-
-                            // Parsear tag_name manualmente
-                            int tagIndex = releasesJson.IndexOf("\"tag_name\":");
-                            if (tagIndex >= 0)
-                            {
-                                int startQuote = releasesJson.IndexOf("\"", tagIndex + 11);
-                                int endQuote = releasesJson.IndexOf("\"", startQuote + 1);
-                                versionServidor = releasesJson.Substring(startQuote + 1, endQuote - startQuote - 1);
-                            }
-                            else
-                            {
-                                versionServidor = "Sin releases";
-                            }
-                        }
-                        else
-                        {
-                            versionServidor = "No disponible";
-                        }
-                    }
-                }
-                catch
-                {
-                    // Si GitHub falla, mostrar no disponible
-                    versionServidor = "No disponible";
-                }
-
-                // Actualizar UI en el thread principal
-                if (lblVersion.InvokeRequired)
-                {
-                    lblVersion.Invoke(new Action(() =>
-                    {
-                        lblVersion.Text = $"Versión local: {versionLocal} | Servidor: {versionServidor}";
-                        
-                        // Cambiar color según resultado
-                        if (versionServidor == "N/D" || versionServidor == "No disponible" || versionServidor == "Sin releases")
-                        {
-                            lblVersion.ForeColor = ThemeManager.ColorError;
-                        }
-                        else if (versionServidor != versionLocal)
-                        {
-                            lblVersion.ForeColor = Color.Orange; // Hay actualización disponible
-                        }
-                        else
-                        {
-                            lblVersion.ForeColor = ThemeManager.ColorTextoSecundario;
-                        }
-                        
-                        lblVersion.Refresh();
-                    }));
-                }
-            });
+                Push(new { tipo = "loginResultado", ok = true });
+                LoginExitoso?.Invoke(this, EventArgs.Empty);
+            }
+            catch (ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                Push(new { tipo = "loginResultado", ok = false, mensaje = "Usuario o contraseña incorrectos." });
+            }
+            catch (ApiException ex) when ((int)ex.StatusCode == 429)
+            {
+                Push(new { tipo = "loginResultado", ok = false, mensaje = "Demasiados intentos. Espera un momento e inténtalo de nuevo." });
+            }
+            catch (Exception ex)
+            {
+                ErrorLogger.Registrar(ex, "FormLogin.IntentarLogin");
+                Push(new { tipo = "loginResultado", ok = false, mensaje = "No se pudo conectar con el servidor. Verifica tu conexión." });
+            }
         }
 
-        private void chkVerClave_CheckedChanged(object sender, EventArgs e)
+        private async Task EnviarVersionAppAsync()
         {
-            if (chkVerClave.Checked)
+            string local = Actualizador.VersionLocal;
+            Push(new { tipo = "version", local, servidor = (string)null, actualizacion = false });
+
+            string servidor;
+            bool hayActualizacion;
+            try
             {
-                // Mostrar contraseña
-                txtClave.UseSystemPasswordChar = false;
-                txtClave.PasswordChar = '\0';
-                txtClave.Font = new Font("Segoe UI", 10F, FontStyle.Regular);
+                var (_, versionText, _) = await Actualizador.GetLatestReleaseInfoAsync();
+                servidor = string.IsNullOrEmpty(versionText) ? "No disponible" : versionText;
+                hayActualizacion = !string.IsNullOrEmpty(versionText) && versionText != local;
             }
-            else
+            catch
             {
-                // Ocultar contraseña
-                txtClave.UseSystemPasswordChar = true;
-                txtClave.PasswordChar = '●';
-                txtClave.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+                servidor = "No disponible";
+                hayActualizacion = false;
             }
+
+            Push(new { tipo = "version", local, servidor, actualizacion = hayActualizacion });
         }
     }
 }

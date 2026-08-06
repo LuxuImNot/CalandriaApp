@@ -83,7 +83,7 @@ namespace DynamicSepticSystem
         private void FormMapearCoordenadas_Load(object sender, EventArgs e)
         {
             // Verificar permisos de admin
-            if (Global.UsuarioActual == null || Global.UsuarioActual.Nombre != "admin")
+            if (!Global.EsAdmin)
             {
                 MessageBox.Show(
                     "Esta funci�n solo est� disponible para el usuario administrador.",

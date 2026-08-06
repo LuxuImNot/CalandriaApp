@@ -14,7 +14,7 @@ namespace DynamicSepticSystem
 {
     public partial class FormAlmacen : Form
     {
-        // Clase auxiliar para almacenar datos de órdenes en el ComboBox
+        // Clase auxiliar para almacenar datos de ï¿½rdenes en el ComboBox
         private class OrdenComboItem
         {
             public string Folio { get; set; }
@@ -30,12 +30,8 @@ namespace DynamicSepticSystem
 
         private void TxtBuscarEntrada_TextChanged(object sender, EventArgs e)
         {
-            if (dgvEntrada.DataSource is DataTable dt)
-            {
-                string filtro = txtBuscarEntrada.Text.Trim().Replace("'", "''");
-                dt.DefaultView.RowFilter =
-                    $"Clave LIKE '%{filtro}%' OR Descripcion LIKE '%{filtro}%'";
-            }
+            // Filtra las TARJETAS (no la grilla) por clave / descripcion.
+            RenderTarjetasEntrada(txtBuscarEntrada?.Text);
         }
 
         private void CargarOrdenesDeCompra()
@@ -131,14 +127,15 @@ ORDER BY d.FolioOC DESC";
                     if (capturada != cantidadComprada && string.IsNullOrWhiteSpace(row["Justificacion"]?.ToString()))
                     {
                         string clave = row["Clave"].ToString();
-                        string justificacion = Microsoft.VisualBasic.Interaction.InputBox(
-                            $"?? Cantidad diferente en {clave}.\n\nIngresa justificación:",
-                            "Justificación requerida", "");
+                        string justificacion = PromptJustificacion.Pedir(this,
+                            "JustificaciÃ³n requerida",
+                            $"La cantidad capturada de {clave} no coincide con la comprada.",
+                            "Explica por quÃ© la entrada difiere de la orden de compra.");
 
                         if (string.IsNullOrWhiteSpace(justificacion))
                         {
-                            MessageBox.Show("? Justificación obligatoria cancelada.", 
-                                "Operación cancelada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            MessageBox.Show("La justificaciÃ³n es obligatoria; no se registrÃ³ nada.", 
+                                "OperaciÃ³n cancelada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             return;
                         }
 
@@ -149,12 +146,12 @@ ORDER BY d.FolioOC DESC";
 
             if (!hayAlgoParaRegistrar)
             {
-                MessageBox.Show("?? No hay cantidades válidas capturadas para registrar.", 
+                MessageBox.Show("?? No hay cantidades vï¿½lidas capturadas para registrar.", 
                     "Sin cantidades", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
-            if (MessageBox.Show("¿Deseas confirmar la captura de esta entrada?", 
+            if (MessageBox.Show("ï¿½Deseas confirmar la captura de esta entrada?", 
                 "Confirmar entrada", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
                 return;
 
@@ -288,7 +285,7 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
             }
 
             MessageBox.Show("? Entrada capturada correctamente.", 
-                "Operación exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "OperaciÃ³n exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
             // GENERAR PDF
             GenerarPDFEntrada(folioOC, usuario, casaActual.Manzana, casaActual.Lote, casaInventario.Prototipo, DateTime.Now, insumosParaPdf);
@@ -301,6 +298,11 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
                 cmbOrdenesCompra.SelectedIndex = -1;
                 dgvEntrada.DataSource = null;
             }
+
+            // Limpia las tarjetas tras capturar.
+            _conciliacionPorId = null;
+            _resumenEntrada = "";
+            RenderTarjetasEntrada();
 
             CargarOrdenesDeCompra();
             CargarHistorial();
@@ -335,12 +337,12 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
 
             // Encabezado
             gfx.DrawString("Desarrolladora de Casas Camaney", bold, XBrushes.Black, new XPoint(x, y)); y += 15;
-            gfx.DrawString("Blvd. Periférico sur y Carretera a la Colorada", font, XBrushes.Black, new XPoint(x, y)); y += 15;
+            gfx.DrawString("Blvd. Perifï¿½rico sur y Carretera a la Colorada", font, XBrushes.Black, new XPoint(x, y)); y += 15;
             gfx.DrawString("Tel. 662-XXX-XXXX | Email: constcas@empresa.com", font, XBrushes.Black, new XPoint(x, y)); y += 25;
             gfx.DrawLine(XPens.Gray, x, y, page.Width - x, y); y += 25;
 
-            // Título centrado
-            gfx.DrawString("ENTRADA DE ALMACÉN", titleFont, XBrushes.Black, new XRect(0, y, page.Width, 30), XStringFormats.TopCenter); y += 40;
+            // Tï¿½tulo centrado
+            gfx.DrawString("ENTRADA DE ALMACï¿½N", titleFont, XBrushes.Black, new XRect(0, y, page.Width, 30), XStringFormats.TopCenter); y += 40;
 
             // Datos generales
             gfx.DrawString($"Folio: {folio}", bold, XBrushes.Black, new XPoint(x, y));
@@ -419,9 +421,9 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
 
             // Firma
             gfx.DrawString("__________________________________________", font, XBrushes.Black, x, y); y += 15;
-            gfx.DrawString("Encargado de Almacén - Nombre y Firma", font, XBrushes.Black, x, y); y += 30;
+            gfx.DrawString("Encargado de Almacï¿½n - Nombre y Firma", font, XBrushes.Black, x, y); y += 30;
 
-            // Pie de página
+            // Pie de pï¿½gina
             gfx.DrawLine(XPens.LightGray, x, page.Height - 40, page.Width - x, page.Height - 40);
             gfx.DrawString($"CALANDRIA RESIDENCIAL - Control Interno | Generado: {DateTime.Now:dd/MM/yyyy HH:mm}", font, XBrushes.Gray, new XPoint(x, page.Height - 25));
 
@@ -434,12 +436,10 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
         {
             string folio = GetFolioFromCombo();
             if (string.IsNullOrWhiteSpace(folio)) return;
-            if (dgvEntrada.Columns["Estado"] != null)
-                dgvEntrada.Columns["Estado"].Visible = true;
 
             string sql = @"
-    SELECT Id, Clave, Descripcion, Unidad, Cantidad AS CantidadComprada, Estado, Justificacion 
-    FROM OrdenesCompraDetalle 
+    SELECT Id, Clave, Descripcion, Unidad, Cantidad AS CantidadComprada, Estado, Justificacion
+    FROM OrdenesCompraDetalle
     WHERE FolioOC = @folio AND Estado = 'PENDIENTE'";
 
             DataTable dt = new DataTable();
@@ -453,8 +453,16 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
             if (!dt.Columns.Contains("CantidadRecibida"))
                 dt.Columns.Add("CantidadRecibida", typeof(double));
 
-            dgvEntrada.DataSource = dt;
-            dgvEntrada.Columns["CantidadRecibida"].ReadOnly = false;
+            dgvEntrada.DataSource = dt; // grilla OCULTA = modelo
+
+            // Nueva orden cargada: limpia la conciliacion previa y refresca tarjetas.
+            _conciliacionPorId = null;
+            string nombre = (cmbOrdenesCompra.SelectedItem as OrdenComboItem)?.NombreOrden;
+            _resumenEntrada = $"Orden {folio}" +
+                (string.IsNullOrWhiteSpace(nombre) ? "" : $" Â· {nombre}") +
+                $" Â· {dt.Rows.Count} partida(s) pendientes. Captura lo recibido y pulsa \"Capturar entrada\".";
+            RenderTarjetasEntrada(txtBuscarEntrada?.Text);
+
             MostrarLotesDeOrden(folio);
         }
 
@@ -469,8 +477,117 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
             }
             else
             {
-                MessageBox.Show("No hay órdenes de compra pendientes.");
+                MessageBox.Show("No hay ï¿½rdenes de compra pendientes.");
             }
+        }
+
+        /// <summary>
+        /// Conciliar con factura: sube el CFDI (XML) de la OC seleccionada, el servidor lo
+        /// compara contra el detalle PENDIENTE y devuelve cuÃ¡nto se facturÃ³ por partida.
+        /// AquÃ­ se PRECARGA CantidadRecibida y se resaltan las diferencias; el usuario
+        /// revisa y confirma con "Capturar entrada" (la diferencia deja la orden parcial).
+        /// </summary>
+        private void BtnConciliarFactura_Click(object sender, EventArgs e)
+        {
+            string folio = GetFolioFromCombo();
+            if (string.IsNullOrWhiteSpace(folio))
+            {
+                MessageBox.Show("Selecciona y carga una orden de compra primero.", "Conciliar factura",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            // Asegura que el detalle de la orden estÃ© cargado en la grilla.
+            var dt = dgvEntrada.DataSource as DataTable;
+            if (dt == null || !dt.Columns.Contains("CantidadRecibida"))
+            {
+                CargarInsumosDesdeOrdenSeleccionada();
+                dt = dgvEntrada.DataSource as DataTable;
+            }
+            if (dt == null)
+            {
+                MessageBox.Show("No hay partidas cargadas para esta orden.", "Conciliar factura",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            string xmlBase64;
+            using (var ofd = new OpenFileDialog
+            {
+                Title = "Selecciona el CFDI (XML) de la factura",
+                Filter = "Factura CFDI (*.xml)|*.xml|Todos los archivos|*.*"
+            })
+            {
+                if (ofd.ShowDialog() != DialogResult.OK) return;
+                try { xmlBase64 = Convert.ToBase64String(File.ReadAllBytes(ofd.FileName)); }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("No se pudo leer el archivo: " + ex.Message, "Conciliar factura",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+            }
+
+            ConciliarFacturaResponseApi resp;
+            try
+            {
+                Cursor.Current = Cursors.WaitCursor;
+                resp = ApiClient.Post<ConciliarFacturaResponseApi>(
+                    "/api/ordenescompra/conciliar-factura",
+                    new { FolioOC = folio, XmlBase64 = xmlBase64 });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al conciliar: " + ex.Message, "Conciliar factura",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            finally { Cursor.Current = Cursors.Default; }
+
+            if (resp == null)
+            {
+                MessageBox.Show("El servidor no devolviÃ³ conciliaciÃ³n.", "Conciliar factura",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            // Precargar CantidadRecibida con lo facturado emparejado y guardar la
+            // conciliacion por Id para etiquetar/colorear las tarjetas.
+            _conciliacionPorId = new Dictionary<int, LineaConciliacionApi>();
+            foreach (var l in resp.Lineas) _conciliacionPorId[l.IdDetalle] = l;
+
+            int emparejadas = 0, conDiferencia = 0;
+            foreach (DataRow row in dt.Rows)
+            {
+                if (row["Id"] == DBNull.Value) continue;
+                int id = Convert.ToInt32(row["Id"]);
+                if (!_conciliacionPorId.TryGetValue(id, out var linea) || linea.Origen == "SinMatch") continue;
+                row["CantidadRecibida"] = (double)linea.CantidadFacturada;
+                emparejadas++;
+                if (linea.Diferencia != 0m) conDiferencia++;
+            }
+
+            string sinAsignar = resp.SinAsignar != null && resp.SinAsignar.Count > 0
+                ? $" Â· {resp.SinAsignar.Count} concepto(s) sin asignar"
+                : "";
+            _resumenEntrada = $"Factura {resp.Emisor} Â· Total {resp.TotalFactura:C2} Â· " +
+                $"{emparejadas} emparejada(s), {conDiferencia} con diferencia{sinAsignar}";
+            RenderTarjetasEntrada(txtBuscarEntrada?.Text);
+
+            string sinAsignarMsg = resp.SinAsignar != null && resp.SinAsignar.Count > 0
+                ? $"\n\nâš  {resp.SinAsignar.Count} concepto(s) de la factura no se asignaron a la orden."
+                : "";
+            string ia = resp.UsoIA
+                ? "\n\nSe emparejaron automaticamente los conceptos de la factura cuya redaccion " +
+                  "no coincidia exactamente con las partidas de la orden, y se precargaron las " +
+                  "cantidades recibidas para tu revision."
+                : "";
+            string aviso = string.IsNullOrEmpty(resp.Aviso) ? "" : "\n" + resp.Aviso;
+            MessageBox.Show(
+                $"Factura de: {resp.Emisor} ({resp.Rfc})\nUUID: {resp.Uuid}\nTotal factura: {resp.TotalFactura:C2}\n\n" +
+                $"Partidas emparejadas: {emparejadas}\nCon diferencia (parcial): {conDiferencia}{sinAsignarMsg}{ia}{aviso}\n\n" +
+                "Revisa las cantidades precargadas en las tarjetas y confirma con \"Capturar entrada\".",
+                "ConciliaciÃ³n de factura", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void MostrarLotesDeOrden(string folioOC)
@@ -523,7 +640,7 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
 
                         if (string.IsNullOrEmpty(prototipo))
                         {
-                            MessageBox.Show("No se encontró la casa en InventarioCasas.");
+                            MessageBox.Show("No se encontrï¿½ la casa en InventarioCasas.");
                             return;
                         }
 
@@ -538,30 +655,16 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
 
         private void cmbOrdenesCompra_SelectedIndexChanged(object sender, EventArgs e)
         {
-            string folio = GetFolioFromCombo();
-            if (string.IsNullOrWhiteSpace(folio)) return;
-
-            string sql = "SELECT Clave, Descripcion, Unidad, Cantidad FROM OrdenesCompraDetalle WHERE FolioOC = @folio";
-            DataTable dt = new DataTable();
-            using (var conn = new SqlConnection(connectionString))
-            using (var da = new SqlDataAdapter(sql, conn))
-            {
-                da.SelectCommand.Parameters.AddWithValue("@folio", folio);
-                da.Fill(dt);
-            }
-
-            // Agrega columna editable para cantidad recibida
-            dt.Columns.Add("CantidadRecibida", typeof(double));
-            dgvEntrada.DataSource = dt;
-            dgvEntrada.Columns["CantidadRecibida"].ReadOnly = false;
+            // Carga unificada (con Id/Estado/CantidadComprada) para las tarjetas.
+            CargarInsumosDesdeOrdenSeleccionada();
         }
 
         private void btnEliminardeOrden_Click(object sender, EventArgs e)
         {
             if (dgvEntrada.SelectedRows.Count == 0)
             {
-                MessageBox.Show("?? Selecciona al menos un insumo.", 
-                    "Selección requerida", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show("Selecciona al menos un insumo.", 
+                    "SelecciÃ³n requerida", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -570,15 +673,15 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
                 int id = Convert.ToInt32(row.Cells["Id"].Value);
                 string clave = row.Cells["Clave"].Value.ToString();
 
-                string justificacion = Microsoft.VisualBasic.Interaction.InputBox(
-                    $"?? ¿Por qué eliminas el insumo {clave}?\n\nIngresa la justificación:",
-                    "Justificación requerida",
-                    "");
+                string justificacion = PromptJustificacion.Pedir(this,
+                    "Eliminar insumo de la orden",
+                    $"Vas a eliminar el insumo {clave} de la orden de compra.",
+                    "Indica el motivo de la eliminaciÃ³n.", peligro: true);
 
                 if (string.IsNullOrWhiteSpace(justificacion))
                 {
-                    MessageBox.Show("? Justificación obligatoria.", 
-                        "Operación cancelada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("La justificaciÃ³n es obligatoria.", 
+                        "OperaciÃ³n cancelada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
@@ -593,11 +696,11 @@ WHERE FolioOC = @FolioOC AND Clave = @Clave", conn))
             }
 
             MessageBox.Show("? Insumo(s) eliminados correctamente.", 
-                "Operación exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "OperaciÃ³n exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
             CargarInsumosDesdeOrdenSeleccionada(); // Refresca la tabla
         }
 
-        // Método auxiliar para obtener el folio desde el ComboBox
+        // Mï¿½todo auxiliar para obtener el folio desde el ComboBox
         private string GetFolioFromCombo()
         {
             var selectedItem = cmbOrdenesCompra.SelectedItem;

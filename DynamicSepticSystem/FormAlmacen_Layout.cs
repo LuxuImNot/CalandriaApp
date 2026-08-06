@@ -287,14 +287,57 @@ namespace DynamicSepticSystem
                 BackColor = ThemeManager.ColorFondoApp
             };
 
-            // Reparentar grid
+            // Vista de ENTRADAS en TARJETAS (no grilla). dgvEntrada se conserva OCULTO
+            // como modelo (DataSource) que leen BtnCapturarEntrada_Click y la conciliacion.
             if (dgvEntrada != null)
             {
                 if (dgvEntrada.Parent != null) dgvEntrada.Parent.Controls.Remove(dgvEntrada);
-                dgvEntrada.Dock = DockStyle.Fill;
-                dgvEntrada.Margin = new Padding(0);
-                pnlGridEntradas.Controls.Add(dgvEntrada);
+                dgvEntrada.Visible = false;
             }
+
+            pnlHeaderEntradas = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 54,
+                BackColor = Color.White,
+                Padding = new Padding(16, 8, 16, 8)
+            };
+            pnlHeaderEntradas.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = ThemeManager.ColorBorde });
+            lblHeaderEntradas = new Label
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI", 9.5F),
+                ForeColor = ThemeManager.ColorPrincipalMenuBar,
+                Text = "Selecciona una orden de compra y captura las cantidades recibidas."
+            };
+            pnlHeaderEntradas.Controls.Add(lblHeaderEntradas);
+
+            flpEntradas = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,
+                AutoScroll = true,
+                BackColor = ThemeManager.ColorFondoApp,
+                Padding = new Padding(10)
+            };
+
+            pnlGridEntradas.Controls.Add(flpEntradas);
+            pnlGridEntradas.Controls.Add(pnlHeaderEntradas);
+
+            // Re-render al cambiar el ancho (solo si cambio de verdad; lo capturado vive
+            // en el DataTable, asi que no se pierde).
+            flpEntradas.SizeChanged += (s, e) =>
+            {
+                var dt = dgvEntrada.DataSource as System.Data.DataTable;
+                if (dt == null || dt.Rows.Count == 0) return;
+                if (Math.Abs(flpEntradas.ClientSize.Width - _anchoUltimoRenderEntrada) > 4)
+                    RenderTarjetasEntrada(txtBuscarEntrada?.Text);
+            };
+
+            RenderTarjetasEntrada();
 
             // Llenar sidebar con secciones ordenadas
             int y = 0;
@@ -307,6 +350,27 @@ namespace DynamicSepticSystem
             AgregarSidebar(pnlSidebarEntradas, cmbOrdenesCompra, ref y, FieldSpacing);
             ConfigurarTamanoBoton(btnBuscarOrden, 36);
             AgregarSidebar(pnlSidebarEntradas, btnBuscarOrden, ref y, SectionSpacing);
+
+            // Conciliar la entrada contra el CFDI de la factura: precarga lo recibido.
+            AgregarSidebar(pnlSidebarEntradas, CrearTituloSeccion("CONCILIAR FACTURA"), ref y);
+            var btnConciliarFactura = new Button
+            {
+                Text = "\U0001F9FE  Conciliar con factura (XML)",
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnConciliarFactura.FlatAppearance.BorderSize = 0;
+            btnConciliarFactura.BackColor = ThemeManager.ColorInfo;
+            btnConciliarFactura.ForeColor = ThemeManager.ColorTextoClaro;
+            btnConciliarFactura.Click += BtnConciliarFactura_Click;
+            ConfigurarTamanoBoton(btnConciliarFactura, 38);
+            AgregarSidebar(pnlSidebarEntradas, btnConciliarFactura, ref y, SectionSpacing);
+
+            // Insignia "NUEVO": conciliacion de la entrada con el CFDI de la factura.
+            NewFeatureBadge.Adjuntar(btnConciliarFactura, "entradas-conciliar-factura-v1",
+                "Conciliar con factura (XML)",
+                "Sube el CFDI (XML) de la factura y el sistema precarga lo recibido comparando contra la OC. Las diferencias dejan la orden como parcial.");
 
             if (flwCasasAsociadas != null)
             {
@@ -321,8 +385,9 @@ namespace DynamicSepticSystem
             ConfigurarTamanoCampo(txtBuscarEntrada);
             AgregarSidebar(pnlSidebarEntradas, txtBuscarEntrada, ref y, SectionSpacing);
 
-            ConfigurarTamanoBoton(btnEliminardeOrden, 36);
-            AgregarSidebar(pnlSidebarEntradas, btnEliminardeOrden, ref y, SectionSpacing);
+            // La eliminacion de partidas ahora es POR TARJETA (boton ✕). Se oculta el
+            // boton de borrado masivo del sidebar (ya no hay seleccion de filas en grilla).
+            OcultarSiNoUsado(btnEliminardeOrden);
 
             // Action bar inferior con botón principal
             pnlActionsEntradas = CrearActionBar("pnlActionsEntradas");
@@ -376,13 +441,57 @@ namespace DynamicSepticSystem
                 BackColor = ThemeManager.ColorFondoApp
             };
 
+            // Vista de SALIDAS en TARJETAS (no grilla). dgvInsumos se conserva OCULTO
+            // como modelo de datos (DataSource) para RegistrarSalida y el vale PDF.
             if (dgvInsumos != null)
             {
                 if (dgvInsumos.Parent != null) dgvInsumos.Parent.Controls.Remove(dgvInsumos);
-                dgvInsumos.Dock = DockStyle.Fill;
-                dgvInsumos.Margin = new Padding(0);
-                pnlGridSalidas.Controls.Add(dgvInsumos);
+                dgvInsumos.Visible = false;
             }
+
+            pnlHeaderSalidas = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 54,
+                BackColor = Color.White,
+                Padding = new Padding(16, 8, 16, 8)
+            };
+            pnlHeaderSalidas.Controls.Add(new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = ThemeManager.ColorBorde });
+            lblHeaderSalidas = new Label
+            {
+                Dock = DockStyle.Fill,
+                AutoSize = false,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI", 9.5F),
+                ForeColor = ThemeManager.ColorPrincipalMenuBar,
+                Text = "Selecciona una casa destino para ver los insumos por surtir."
+            };
+            pnlHeaderSalidas.Controls.Add(lblHeaderSalidas);
+
+            flpSalidas = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,
+                AutoScroll = true,
+                BackColor = ThemeManager.ColorFondoApp,
+                Padding = new Padding(10)
+            };
+
+            pnlGridSalidas.Controls.Add(flpSalidas);
+            pnlGridSalidas.Controls.Add(pnlHeaderSalidas);
+
+            // Al cambiar el ancho del panel, re-pinta para que las bandas de grupo sigan
+            // a lo ancho (solo si cambió de verdad; los valores capturados viven en el
+            // DataTable, así que re-renderizar no pierde lo escrito).
+            flpSalidas.SizeChanged += (s, e) =>
+            {
+                if (_dtSalida == null || _dtSalida.Rows.Count == 0) return;
+                if (Math.Abs(flpSalidas.ClientSize.Width - _anchoUltimoRenderSalida) > 4)
+                    RenderTarjetasSalida(txtBuscarSalida?.Text);
+            };
+
+            RenderTarjetasSalida();
 
             int y = 0;
 
@@ -402,6 +511,26 @@ namespace DynamicSepticSystem
             AgregarSidebar(pnlSidebarSalidas, CrearTituloSeccion("BUSCAR INSUMO"), ref y);
             ConfigurarTamanoCampo(txtBuscarSalida);
             AgregarSidebar(pnlSidebarSalidas, txtBuscarSalida, ref y, SectionSpacing);
+
+            // Surtido rápido: pone todas las cantidades al máximo pendiente de un golpe.
+            AgregarSidebar(pnlSidebarSalidas, CrearTituloSeccion("SURTIDO RÁPIDO"), ref y);
+            var btnSurtirTodo = new Button
+            {
+                Text = "⬆  Surtir Todo (máximo)",
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnSurtirTodo.FlatAppearance.BorderSize = 0;
+            try { ThemeManager.EstilizarBotonExito(btnSurtirTodo); } catch { }
+            btnSurtirTodo.Click += BtnSurtirTodo_Click;
+            ConfigurarTamanoBoton(btnSurtirTodo, 38);
+            AgregarSidebar(pnlSidebarSalidas, btnSurtirTodo, ref y, SectionSpacing);
+
+            // Insignia "NUEVO": agrupacion por destajo + surtido al maximo de un golpe.
+            NewFeatureBadge.Adjuntar(btnSurtirTodo, "salidas-surtido-rapido-v1",
+                "Surtido rapido y agrupado",
+                "Los insumos por surtir se agrupan por destajo. El boton 'Surtir Todo' carga el maximo pendiente de cada insumo de una sola vez; tu revisas y registras.");
 
             if (lblSummary != null)
             {

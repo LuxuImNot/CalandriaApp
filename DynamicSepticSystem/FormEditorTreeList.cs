@@ -62,6 +62,7 @@ namespace DynamicSepticSystem
             CargarDatosIniciales();
             ActualizarTitulo();
             ActualizarEstadoBotones();
+            InicializarPanelWeb();
         }
 
         // ThemeManager.AplicarTema sobreescribe BackColor/ForeColor/Font de todos los Button.
@@ -461,7 +462,7 @@ namespace DynamicSepticSystem
                         e.Effect = DragDropEffects.Move;
 
                         // Resaltar el item de destino solo cuando cambia, para no
-                        // re-seleccionar ni repintar el �rbol virtual en cada DragOver.
+                        // re-seleccionar ni repintar el árbol virtual en cada DragOver.
                         if (!ReferenceEquals(nodoDestinoResaltado, nodoDestino))
                         {
                             nodoDestinoResaltado = nodoDestino;
@@ -503,13 +504,13 @@ namespace DynamicSepticSystem
             if (!TodosDropPermitidos(nodosArrastrados, nodoDestino))
             {
                 MessageBox.Show(
-                    "No se puede realizar esta operaci�n.\n\n" +
+                    "No se puede realizar esta operación.\n\n" +
                     "Reglas:\n" +
-                    "� Un Padre puede convertirse en Sub-Padre de otro Padre\n" +
-                    "� Un Sub-Padre puede convertirse en Hijo de otro Sub-Padre\n" +
-                    "� No puedes arrastrar un nodo sobre s� mismo o sobre sus descendientes\n" +
-                    "� Todos los nodos deben cumplir las mismas reglas",
-                    "Operaci�n no permitida",
+                    "• Un Padre puede convertirse en Sub-Padre de otro Padre\n" +
+                    "• Un Sub-Padre puede convertirse en Hijo de otro Sub-Padre\n" +
+                    "• No puedes arrastrar un nodo sobre sí mismo o sobre sus descendientes\n" +
+                    "• Todos los nodos deben cumplir las mismas reglas",
+                    "Operación no permitida",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
                 return;
@@ -737,7 +738,7 @@ namespace DynamicSepticSystem
         }
 
         #endregion
-
+        
         #region Carga de datos
 
         private void CargarDatosIniciales()
@@ -747,6 +748,7 @@ namespace DynamicSepticSystem
                 CargarColumnasPersonalizadas();
                 CargarNodos();
                 ActualizarTreeListView();
+                ActualizarEstadoBotones();
             }
             catch (Exception ex)
             {
@@ -939,30 +941,34 @@ namespace DynamicSepticSystem
         }
 
         /// <summary>
-        /// Refresca todas las columnas calculadas que dependen de una columna espec�fica
+        /// Refresca todas las columnas calculadas que dependen de una columna específica.
+        /// Esta es la versión correcta que funciona con ObjectListView + NodoTree.
         /// </summary>
         private void RefrescarColumnasCalculadasDependientes(string nombreColumna)
         {
+            if (string.IsNullOrWhiteSpace(nombreColumna))
+                return;
+
             // Buscar columnas calculadas que usen esta columna como origen
-            bool hayDependientes = false;
-            
-            foreach (var col in columnasPersonalizadas)
-            {
-                if (col.EsCalculada && 
+            var columnasQueDependenDe = columnasPersonalizadas
+                .Where(col => col.EsCalculada && 
                     (col.ColumnaOrigen1 == nombreColumna || col.ColumnaOrigen2 == nombreColumna))
-                {
-                    hayDependientes = true;
-                    break;
-                }
-            }
-            
-            // Si hay dependientes, refrescar todo el TreeView
-            if (hayDependientes)
+                .ToList();
+
+            // Si hay columnas calculadas dependientes, refrescar todo el árbol
+            if (columnasQueDependenDe.Count > 0)
             {
-                treeListView.RefreshObjects(treeListView.Objects.Cast<object>().ToList());
+                // RefreshObjects recalcula los AspectGetter de TODAS las columnas
+                // (tanto calculadas como normales), lo que dispara CalcularValorColumna()
+                var todosLosObjetos = treeListView.Objects.Cast<object>().ToList();
+                treeListView.RefreshObjects(todosLosObjetos);
             }
         }
 
+        /// <summary>
+        /// Carga los nodos de la base de datos a la lista de nodos en memoria.
+        /// Se llama al iniciar y al cambiar de tabla.
+        /// </summary>
         private void CargarNodos()
         {
             nodosRaiz.Clear();
@@ -1843,6 +1849,8 @@ namespace DynamicSepticSystem
         /// por nodo de la tabla principal para preservar el progreso por casa
         /// (ActivacionTareasRuta), pero sincroniza las columnas en BLOQUE en vez de
         /// un DELETE+INSERT por cada nodo, que era la mayor fuente de round-trips.
+        /// _Columnas no tiene FK saliente hacia ActivacionTareasRuta, así que el
+        /// borrado total es seguro (se reinsertan las columnas vigentes en memoria).
         /// </summary>
         private void GuardarArbolEnDb(List<NodoTree> nodosMemoria)
         {
@@ -1911,7 +1919,7 @@ namespace DynamicSepticSystem
                         transaction.Commit();
 
                         // Ya persistidos: dejan de ser "nuevos" para que un segundo
-                        // guardado los trate como existentes (UPDATE) y no se re-keyeen.
+                        // guardado los trate como existentes (UPDATE) y no se re-keyen.
                         foreach (var nodo in nodosMemoria)
                             nodo.EsNuevo = false;
                     }
@@ -2338,6 +2346,21 @@ namespace DynamicSepticSystem
             {
                 e.Cancel = true;
                 return;
+            }
+
+            // El editor web (FormEditorTreeList.Web.cs) mantiene su propio estado de
+            // cambios sin guardar, separado de cambiosPendientes (que sólo aplica al
+            // árbol clásico en memoria, intacto mientras se usa el panel web).
+            if (_webDirty)
+            {
+                var resultadoWeb = MessageBox.Show(
+                    "Hay cambios sin guardar en el editor web.\n\n¿Salir de todas formas? Los cambios no guardados se perderán.",
+                    "Cambios sin guardar", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                if (resultadoWeb != DialogResult.Yes)
+                {
+                    e.Cancel = true;
+                    return;
+                }
             }
 
             if (cambiosPendientes)

@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using BrightIdeasSoftware;
 using PdfSharp.Drawing;
@@ -15,7 +16,6 @@ namespace DynamicSepticSystem
 {
     /// <summary>
     /// Formulario para activar/desactivar tareas del TreeList seg�n Manzana/Lote
-    /// Similar a FormEstimacionConcepto pero para gestionar tareas de Calandria o Tunera
     /// </summary>
     public partial class FormActivarTareasTreeList : Form
     {
@@ -26,6 +26,14 @@ namespace DynamicSepticSystem
         private string prototipoActual = "";
         private string rutaActual = ""; // "RutaTuneraDestajo" o "RutaCalandraDestajo"
 
+        // Cantidad ya SURTIDA (salidas de almacen) por clave y por nombre para la casa
+        // actual. Sirve para colorear los insumos (verde = surtido, rojo = pendiente).
+        // Por nombre cubre los insumos del destajo que no tienen clave de almacen.
+        private Dictionary<string, decimal> _surtidoPorClave =
+            new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, decimal> _surtidoPorNombre =
+            new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+
         private ContextMenuStrip menuContextualManoObra;
         private ToolStripMenuItem menuItemAsignarNomina;
         private ContextMenuStrip menuContextualDestajo;
@@ -34,6 +42,7 @@ namespace DynamicSepticSystem
         private ToolStripMenuItem menuItemPropiedades;
         private ToolStripMenuItem menuItemDesactivar;
         private ToolStripMenuItem menuItemFinalizar;
+        private ToolStripMenuItem menuItemReabrir;
 
         // Suprime el flujo de activación al refrescar el listado o al hacer rollback.
         private bool _suprimirFlujoActivacion = false;
@@ -56,8 +65,14 @@ namespace DynamicSepticSystem
 
         private void FormActivarTareasTreeList_Load(object sender, EventArgs e)
         {
-            this.Text = "Gestión de Destajos por Casa";
+            this.Text = "Activación de Destajos";
+            panelStages.Paint += PanelStages_Paint;
             CargarManzanas();
+
+            // Destajos híbrido: sustituye el panel paso-a-paso por la UI web servida
+            // por el API. Si falla o WebView2 no está, deja el formulario clásico.
+            // Se apaga con DestajosWeb=false en App.config.
+            InicializarPanelWeb();
         }
 
         private void txtBuscar_TextChanged(object sender, EventArgs e)
@@ -165,7 +180,7 @@ namespace DynamicSepticSystem
             // Determinar qu� ruta usar seg�n el prototipo
             rutaActual = prototipoActual.ToUpper().Contains("CALANDRA") ? "RutaCalandraDestajo" : "RutaTuneraDestajo";
 
-            this.Text = $"Activar/Desactivar Tareas - M{manzanaActual} L{loteActual} ({prototipoActual})";
+            this.Text = $"Activación de Destajos — M{manzanaActual} L{loteActual} ({prototipoActual})";
 
             CargarTareas();
         }
@@ -401,6 +416,31 @@ namespace DynamicSepticSystem
             }
             else if (!e.Item.Checked && item.Nivel == 1)
             {
+                // El check de admin ya se hizo arriba (líneas previas de este método)
+                // antes de llegar aquí, así que no hace falta repetirlo como en los
+                // Menu*_Click. DesactivarWeb hace su propio flujo de justificación
+                // (vía el 400 del API) si el destajo ya liberó insumos.
+                if (DestajosWebActivo)
+                {
+                    BeginInvoke((Action)(() => { _ = DesactivarWeb(item.ID); }));
+                    ActualizarEstadisticas();
+                    return;
+                }
+
+                // Si ya libero insumos, exige justificacion y registra excepcion.
+                if (destajoEstabaActivado && !RegistrarExcepcionDesactivacionSiLiberado(item))
+                {
+                    _suprimirFlujoActivacion = true;
+                    try
+                    {
+                        item.Activa = true;
+                        e.Item.Checked = true;
+                        olvTareas.RefreshObject(item);
+                    }
+                    finally { _suprimirFlujoActivacion = false; }
+                    return;
+                }
+
                 // Al desactivar, limpia la cuadrilla asignada, finalización y el estado de activación
                 item.CuadrillaAsignada = "";
                 item.DesatajoActivado = false;
@@ -428,9 +468,7 @@ namespace DynamicSepticSystem
 
         private static bool EsUsuarioAdmin()
         {
-            return Global.UsuarioActual != null
-                && !string.IsNullOrEmpty(Global.UsuarioActual.Nombre)
-                && string.Equals(Global.UsuarioActual.Nombre, "admin", StringComparison.OrdinalIgnoreCase);
+            return Global.EsAdmin;
         }
 
         private void ConfigurarMenusContextuales()
@@ -461,9 +499,14 @@ namespace DynamicSepticSystem
             menuItemFinalizar.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             menuItemFinalizar.ForeColor = Color.FromArgb(13, 71, 161);
             menuItemFinalizar.Click += MenuItemFinalizar_Click;
+            menuItemReabrir = new ToolStripMenuItem("Reabrir destajo (volver a activado)");
+            menuItemReabrir.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
+            menuItemReabrir.ForeColor = Color.FromArgb(243, 156, 18);
+            menuItemReabrir.Click += MenuItemReabrir_Click;
             menuContextualDestajo.Items.Add(menuItemCambiarCuadrilla);
             menuContextualDestajo.Items.Add(new ToolStripSeparator());
             menuContextualDestajo.Items.Add(menuItemFinalizar);
+            menuContextualDestajo.Items.Add(menuItemReabrir);
             menuContextualDestajo.Items.Add(menuItemRegenerarPdf);
             menuContextualDestajo.Items.Add(new ToolStripSeparator());
             menuContextualDestajo.Items.Add(menuItemPropiedades);
@@ -500,6 +543,10 @@ namespace DynamicSepticSystem
                 else
                     menuItemFinalizar.Text = "Finalizar destajo";
 
+                // Reabrir: sólo para destajos finalizados (lo restringe a admin el handler).
+                menuItemReabrir.Visible = finalizado;
+                menuItemReabrir.Enabled = finalizado;
+
                 e.MenuStrip = menuContextualDestajo;
             }
             else if (item.TipoTareaEnum == TipoTarea.ManoDeObra)
@@ -511,7 +558,7 @@ namespace DynamicSepticSystem
 
         private void MenuItemCambiarCuadrilla_Click(object sender, EventArgs e)
         {
-            var item = olvTareas.SelectedObject as ItemTareaActivacion;
+            var item = ItemSeleccionado();
             if (item == null || item.Nivel != 1) return;
 
             if (string.IsNullOrEmpty(manzanaActual) || string.IsNullOrEmpty(loteActual))
@@ -534,8 +581,11 @@ namespace DynamicSepticSystem
 
         private void MenuItemRegenerarPdf_Click(object sender, EventArgs e)
         {
-            var item = olvTareas.SelectedObject as ItemTareaActivacion;
+            var item = ItemSeleccionado();
             if (item == null || item.Nivel != 1) return;
+
+            // RegenerarPdfWeb (Web.cs) repite las mismas validaciones de abajo.
+            if (DestajosWebActivo) { _ = RegenerarPdfWeb(item.ID); return; }
 
             if (!item.DesatajoActivado)
             {
@@ -556,8 +606,12 @@ namespace DynamicSepticSystem
 
         private void MenuItemFinalizar_Click(object sender, EventArgs e)
         {
-            var item = olvTareas.SelectedObject as ItemTareaActivacion;
+            var item = ItemSeleccionado();
             if (item == null || item.Nivel != 1) return;
+
+            // FinalizarWeb (Web.cs) repite las mismas validaciones + confirmación de
+            // abajo, así que se redirige antes de duplicar el diálogo de confirmación.
+            if (DestajosWebActivo) { _ = FinalizarWeb(item.ID); return; }
 
             if (!item.DesatajoActivado)
             {
@@ -634,8 +688,24 @@ namespace DynamicSepticSystem
 
         private void MenuItemDesactivar_Click(object sender, EventArgs e)
         {
-            var item = olvTareas.SelectedObject as ItemTareaActivacion;
+            var item = ItemSeleccionado();
             if (item == null || item.Nivel != 1) return;
+
+            // Se replica aquí el check de admin porque DesactivarWeb (llamado
+            // directo, no vía DespacharMensaje) no lo hace por su cuenta — ese
+            // chequeo normalmente lo pone DespacharMensaje antes de despachar.
+            if (DestajosWebActivo)
+            {
+                if (!EsUsuarioAdmin())
+                {
+                    MessageBox.Show(
+                        "Solo el administrador puede desactivar un destajo ya activado.",
+                        "Permiso denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                _ = DesactivarWeb(item.ID);
+                return;
+            }
 
             if (!item.DesatajoActivado)
             {
@@ -657,6 +727,11 @@ namespace DynamicSepticSystem
                 "Se eliminará la cuadrilla asignada y se marcará como desactivado.",
                 "Desactivar destajo", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (rsp != DialogResult.Yes) return;
+
+            // Si el destajo ya libero insumos al almacen, exige justificacion y
+            // registra la excepcion (el stock NO se devuelve).
+            if (!RegistrarExcepcionDesactivacionSiLiberado(item))
+                return;
 
             _suprimirFlujoActivacion = true;
             try
@@ -681,9 +756,143 @@ namespace DynamicSepticSystem
             ActualizarEstadisticas();
         }
 
+        /// <summary>
+        /// Deshace el progreso de un destajo finalizado, devolviéndolo al estado
+        /// ACTIVADO (conserva su cuadrilla y fecha de activación). Sólo admin.
+        /// Si el destajo tiene nómina asignada a su mano de obra, pregunta si
+        /// borrarla o conservarla (los recibos ya emitidos nunca se eliminan).
+        /// </summary>
+        private void MenuItemReabrir_Click(object sender, EventArgs e)
+        {
+            var item = ItemSeleccionado();
+            if (item == null || item.Nivel != 1) return;
+
+            // Mismo motivo que en MenuItemDesactivar_Click: ReabrirWeb (llamado
+            // directo) no valida admin por su cuenta, así que se replica aquí.
+            if (DestajosWebActivo)
+            {
+                if (!EsUsuarioAdmin())
+                {
+                    MessageBox.Show(
+                        "Sólo el administrador puede reabrir un destajo finalizado.",
+                        "Permiso denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                _ = ReabrirWeb(item.ID);
+                return;
+            }
+
+            if (!item.Finalizado)
+            {
+                MessageBox.Show("Sólo se puede reabrir un destajo que ya está finalizado.",
+                    "Reabrir destajo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (!EsUsuarioAdmin())
+            {
+                MessageBox.Show(
+                    "Sólo el administrador puede reabrir un destajo finalizado.",
+                    "Permiso denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var rsp = MessageBox.Show(
+                $"¿Reabrir el destajo \"{item.Nombre}\"?\n\n" +
+                "Volverá al estado ACTIVADO (conserva su cuadrilla) y podrás finalizarlo de nuevo.",
+                "Reabrir destajo", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (rsp != DialogResult.Yes) return;
+
+            // Detectar nómina asignada a los nodos de mano de obra de este destajo.
+            var nodosConNomina = DetectarNodosConNominaAsignada(item);
+            if (nodosConNomina.Count > 0)
+            {
+                var rspNom = MessageBox.Show(
+                    "Este destajo tiene nómina asignada a su mano de obra.\n\n" +
+                    "• Sí  → borrar la asignación de nómina al reabrir.\n" +
+                    "• No  → conservar la asignación tal cual.\n\n" +
+                    "(Los recibos ya emitidos no se eliminan en ningún caso.)",
+                    "Nómina asignada", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
+                if (rspNom == DialogResult.Cancel) return;
+                if (rspNom == DialogResult.Yes)
+                {
+                    // Si falla el borrado, abortamos para no dejar estado inconsistente.
+                    if (!EliminarNominaAsignada(nodosConNomina))
+                        return;
+                }
+            }
+
+            item.Finalizado = false;
+            item.FechaFinalizacion = null;
+            // Permanece activado y con su cuadrilla asignada.
+
+            PersistirActivacionDestajo(item);
+            olvTareas.RefreshObject(item);
+            ActualizarEstadisticas();
+            ActualizarPanelGuia();
+        }
+
+        /// <summary>
+        /// Devuelve los IDs de los nodos de mano de obra (hijos) del destajo que
+        /// tienen una asignación de nómina guardada (NominaTareasAsignada).
+        /// </summary>
+        private List<int> DetectarNodosConNominaAsignada(ItemTareaActivacion destajo)
+        {
+            var resultado = new List<int>();
+            if (destajo == null) return resultado;
+            if (string.IsNullOrEmpty(manzanaActual) || string.IsNullOrEmpty(loteActual)) return resultado;
+
+            var hijosMano = itemsTareas
+                .Where(i => i.ParentId == destajo.ID && i.TipoTareaEnum == TipoTarea.ManoDeObra)
+                .ToList();
+
+            foreach (var hijo in hijosMano)
+            {
+                try
+                {
+                    var asignacion = ApiClient.Get<AsignacionNominaApi>(
+                        "/api/nomina/asignacion"
+                        + "?manzana=" + Uri.EscapeDataString(manzanaActual)
+                        + "&lote=" + Uri.EscapeDataString(loteActual)
+                        + "&ruta=" + Uri.EscapeDataString(rutaActual ?? "")
+                        + "&nodoId=" + hijo.ID);
+                    if (asignacion != null && asignacion.Montos != null && asignacion.Montos.Count > 0)
+                        resultado.Add(hijo.ID);
+                }
+                catch
+                {
+                    // Sin asignación o sin conexión: lo tratamos como "sin nómina".
+                }
+            }
+            return resultado;
+        }
+
+        /// <summary>Borra vía API la asignación de nómina de los nodos indicados.</summary>
+        private bool EliminarNominaAsignada(List<int> nodoIds)
+        {
+            if (nodoIds == null || nodoIds.Count == 0) return true;
+            try
+            {
+                ApiClient.Post("/api/nomina/asignacion/eliminar", new EliminarAsignacionRequestApi
+                {
+                    Manzana = manzanaActual,
+                    Lote = loteActual,
+                    Ruta = rutaActual ?? "",
+                    NodoIds = nodoIds
+                });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("No se pudo borrar la nómina asignada:\n" + ex.Message,
+                    "Reabrir destajo", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
         private void MenuItemPropiedades_Click(object sender, EventArgs e)
         {
-            var item = olvTareas.SelectedObject as ItemTareaActivacion;
+            var item = ItemSeleccionado();
             if (item == null || item.Nivel != 1) return;
 
             if (!item.DesatajoActivado)
@@ -704,7 +913,7 @@ namespace DynamicSepticSystem
 
         private void MenuItemAsignarNomina_Click(object sender, EventArgs e)
         {
-            var item = olvTareas.SelectedObject as ItemTareaActivacion;
+            var item = ItemSeleccionado();
             if (item == null) return;
             if (item.TipoTareaEnum != TipoTarea.ManoDeObra) return;
 
@@ -796,9 +1005,13 @@ namespace DynamicSepticSystem
 
         private void CargarTareas()
         {
+            _destajoGuia = null;
+            _itemAccionOverride = null;
+            _indiceVista = -1;
             itemsTareas.Clear();
             CargarTareasDesdeRuta();
             CargarActivacionesGuardadas();
+            CargarSurtidoPorClave();
 
             // Obtener solo los nodos raíz (nivel 0) para mostrar el árbol
             var nodosRaiz = itemsTareas.Where(i => i.Nivel == 0).ToList();
@@ -819,6 +1032,10 @@ namespace DynamicSepticSystem
                 manzanaActual, loteActual, prototipoActual, rutaActual);
 
             ActualizarEstadisticas();
+
+            // Modo paso-a-paso (sin árbol): enfoca de una vez el destajo actual
+            // para que el asistente muestre sus opciones sin tener que seleccionarlo.
+            SeleccionarDestajoActual();
         }
 
         private void CargarTareasDesdeRuta()
@@ -842,7 +1059,8 @@ namespace DynamicSepticSystem
                             r.ParentId,
                             ISNULL(MAX(CASE WHEN c.NombreColumna = 'Cantidad' THEN c.Valor END), '0') AS Cantidad,
                             ISNULL(MAX(CASE WHEN c.NombreColumna = 'Unidad' THEN c.Valor END), '') AS Unidad,
-                            ISNULL(MAX(CASE WHEN c.NombreColumna = 'Precio' THEN c.Valor END), '0') AS PrecioUnitario
+                            ISNULL(MAX(CASE WHEN c.NombreColumna = 'Precio' THEN c.Valor END), '0') AS PrecioUnitario,
+                            ISNULL(MAX(CASE WHEN c.NombreColumna = 'Clave' THEN c.Valor END), '') AS Clave
                         FROM {rutaActual} r
                         LEFT JOIN {rutaActual}_Columnas c ON r.ID = c.NodoID
                         GROUP BY r.ID, r.Nombre, r.Descripcion, r.Nivel, r.Orden, r.TipoTarea, r.ParentId
@@ -892,6 +1110,7 @@ namespace DynamicSepticSystem
                                     ParentId = parentId,
                                     Nombre = reader["Nombre"].ToString(),
                                     Descripcion = reader["Descripcion"] != System.DBNull.Value ? reader["Descripcion"].ToString() : "",
+                                    Clave = reader["Clave"] != System.DBNull.Value ? reader["Clave"].ToString().Trim() : "",
                                     Nivel = nivel,
                                     Contador = nivel == 1 ? contador : 0,
                                     Tipo = ObtenerTipoNodo(nivel),
@@ -1038,6 +1257,72 @@ namespace DynamicSepticSystem
             }
         }
 
+        /// <summary>
+        /// Carga, por clave, la cantidad ya surtida (salidas de almacen) a la casa
+        /// actual. Se usa para colorear los insumos (verde = surtido, rojo = pendiente).
+        /// </summary>
+        private void CargarSurtidoPorClave()
+        {
+            _surtidoPorClave = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            _surtidoPorNombre = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrEmpty(manzanaActual) || string.IsNullOrEmpty(loteActual)) return;
+
+            try
+            {
+                using (var conn = new SqlConnection(connectionString))
+                {
+                    conn.Open();
+                    using (var cmd = new SqlCommand(@"
+                        SELECT ISNULL(Clave,'') AS Clave, ISNULL(Descripcion,'') AS Descripcion, SUM(Cantidad) AS Surtido
+                        FROM dbo.SalidasAlmacen
+                        WHERE LTRIM(RTRIM(Manzana)) = @m AND LTRIM(RTRIM(Lote)) = @l
+                        GROUP BY ISNULL(Clave,''), ISNULL(Descripcion,'')", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@m", (manzanaActual ?? "").Trim());
+                        cmd.Parameters.AddWithValue("@l", (loteActual ?? "").Trim());
+                        using (var rd = cmd.ExecuteReader())
+                        {
+                            while (rd.Read())
+                            {
+                                string clave = (rd["Clave"]?.ToString() ?? "").Trim();
+                                string nombre = (rd["Descripcion"]?.ToString() ?? "").Trim();
+                                decimal s = rd["Surtido"] != DBNull.Value ? Convert.ToDecimal(rd["Surtido"]) : 0m;
+                                if (clave.Length > 0)
+                                {
+                                    _surtidoPorClave.TryGetValue(clave, out var a);
+                                    _surtidoPorClave[clave] = a + s;
+                                }
+                                if (nombre.Length > 0)
+                                {
+                                    _surtidoPorNombre.TryGetValue(nombre, out var b);
+                                    _surtidoPorNombre[nombre] = b + s;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Sin datos de surtido: se tratara todo como pendiente.
+            }
+        }
+
+        /// <summary>
+        /// Cantidad surtida (a la casa actual) para un insumo. Cuando el insumo del
+        /// destajo no tiene clave de almacen, se coteja por nombre (Descripcion).
+        /// </summary>
+        private decimal SurtidoDeInsumo(string clave, string nombre)
+        {
+            if (!string.IsNullOrWhiteSpace(clave) && _surtidoPorClave != null
+                && _surtidoPorClave.TryGetValue(clave.Trim(), out var v))
+                return v;
+            if (!string.IsNullOrWhiteSpace(nombre) && _surtidoPorNombre != null
+                && _surtidoPorNombre.TryGetValue(nombre.Trim(), out var w))
+                return w;
+            return 0m;
+        }
+
         private string ObtenerTipoNodo(int nivel)
         {
             switch (nivel)
@@ -1063,32 +1348,99 @@ namespace DynamicSepticSystem
 
         #region Actualizaci�n de estad�sticas
 
+        // Nombres de las 4 etapas (cada una representa un 25% del avance económico).
+        private static readonly string[] StagesNombres =
+            { "Obra Negra", "Albañilería", "Acabados", "Acabados Finales" };
+
+        // Estado actual de la barra de etapas (lo consume PanelStages_Paint).
+        private int _stageIdx = 0;
+        private double _stagePct = 0d;
+
         private void ActualizarEstadisticas()
         {
+            // Avance ECONÓMICO por destajos finalizados: lo "ganado" es el importe
+            // (Insumos + Mano de Obra) de los Nivel 2 cuyo destajo padre ya está finalizado.
+            var finIds = new HashSet<int>(
+                itemsTareas.Where(i => i.Nivel == 1 && i.Finalizado).Select(i => i.ID));
+
+            decimal totalEco = itemsTareas.Where(i => i.Nivel == 2).Sum(i => i.Total);
+            var hijosFin = itemsTareas.Where(i => i.Nivel == 2 && finIds.Contains(i.ParentId)).ToList();
+            decimal insumosFin = hijosFin.Where(i => i.TipoTareaEnum == TipoTarea.Material).Sum(i => i.Total);
+            decimal manoFin = hijosFin.Where(i => i.TipoTareaEnum == TipoTarea.ManoDeObra).Sum(i => i.Total);
+            decimal ganado = insumosFin + manoFin;
+
+            double pct = totalEco > 0m ? (double)(ganado / totalEco) : 0d;
+            if (pct < 0d) pct = 0d; else if (pct > 1d) pct = 1d;
+            int stageIdx = Math.Min(3, (int)(pct * 4));
+
             int totalDestajos = itemsTareas.Count(i => i.Nivel == 1);
-            int destajosActivos = itemsTareas.Count(i => i.Nivel == 1 && i.Activa);
-            int conCuadrilla = itemsTareas.Count(i => i.Nivel == 1 && i.Activa && !string.IsNullOrEmpty(i.CuadrillaAsignada));
-            int completameteActivados = itemsTareas.Count(i => i.Nivel == 1 && i.DesatajoActivado);
-            decimal montoActivo = itemsTareas.Where(i => i.Nivel == 2 && i.Activa).Sum(i => i.Total);
+            int finalizados = finIds.Count;
 
             lblEstadisticas.Text = string.Format(
-                "Destajos activos: {0} de {1}   ·   Con cuadrilla: {2}   ·   Completamente activados: {3}   ·   Importe: {4}",
-                destajosActivos,
-                totalDestajos,
-                conCuadrilla,
-                completameteActivados,
-                montoActivo.ToString("C2", CultureInfo.CurrentCulture));
+                "Avance económico: Insumos {0} + M.O. {1} = {2} de {3}   ·   Destajos terminados: {4} de {5}",
+                insumosFin.ToString("C2", CultureInfo.CurrentCulture),
+                manoFin.ToString("C2", CultureInfo.CurrentCulture),
+                ganado.ToString("C2", CultureInfo.CurrentCulture),
+                totalEco.ToString("C2", CultureInfo.CurrentCulture),
+                finalizados,
+                totalDestajos);
 
-            int max = totalDestajos > 0 ? totalDestajos : 1;
-            progressBarActivacion.Maximum = max;
-            progressBarActivacion.Value = Math.Min(completameteActivados, max);
+            progressBarActivacion.Maximum = 100;
+            progressBarActivacion.Value = Math.Max(0, Math.Min(100, (int)Math.Round(pct * 100)));
 
-            lblPorcentaje.Text = totalDestajos > 0
-                ? $"{(completameteActivados * 100 / totalDestajos):F0}% completamente activados"
+            lblPorcentaje.Text = totalEco > 0m
+                ? $"{pct:P0}  ·  Etapa: {StagesNombres[stageIdx]}"
                 : "—";
+
+            _stageIdx = stageIdx;
+            _stagePct = pct;
+            panelStages.Invalidate();
 
             // Reconstruir el control paso-a-paso con los estados actuales.
             RefrescarPasos();
+        }
+
+        /// <summary>
+        /// Dibuja la barra de 4 etapas (Obra Negra / Albañilería / Acabados / Acabados
+        /// Finales). Las etapas ya superadas se pintan en verde, la actual resaltada en
+        /// azul acento y las futuras en gris. Cada etapa equivale a un 25% del avance.
+        /// </summary>
+        private void PanelStages_Paint(object sender, PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            Color exito = Color.FromArgb(39, 174, 96);
+            Color acento = Color.FromArgb(52, 152, 219);
+            Color gris = Color.FromArgb(214, 221, 230);
+            Color textoFuturo = Color.FromArgb(127, 140, 141);
+
+            int n = StagesNombres.Length;
+            int gap = 6;
+            int w = panelStages.Width;
+            int h = panelStages.Height;
+            int segW = (w - gap * (n - 1)) / n;
+
+            using (var fuente = new Font("Segoe UI Semibold", 8.25F, FontStyle.Bold))
+            using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            {
+                for (int i = 0; i < n; i++)
+                {
+                    int x = i * (segW + gap);
+                    var rect = new Rectangle(x, 1, segW, h - 2);
+
+                    Color fondo = i < _stageIdx ? exito : (i == _stageIdx ? acento : gris);
+                    bool actualOSuperado = i <= _stageIdx;
+                    Color colorTexto = actualOSuperado ? Color.White : textoFuturo;
+
+                    using (var b = new SolidBrush(fondo))
+                        g.FillRectangle(b, rect);
+
+                    string etiqueta = (i + 1) + ". " + StagesNombres[i];
+                    using (var bt = new SolidBrush(colorTexto))
+                        g.DrawString(etiqueta, fuente, bt, rect, sf);
+                }
+            }
         }
 
         #endregion
@@ -1182,6 +1534,11 @@ namespace DynamicSepticSystem
                 return;
             }
 
+            // POST /api/destajos/guardar es el mismo reemplazo en bloque que el
+            // codigo de abajo, pero con ValidarRuta, permiso destajos.editar y
+            // transaccion — lo que faltaba al escribir directo desde este boton.
+            if (DestajosWebActivo) { _ = GuardarWeb(); return; }
+
             try
             {
                 using (SqlConnection conn = new SqlConnection(connectionString))
@@ -1256,6 +1613,47 @@ namespace DynamicSepticSystem
             }
         }
 
+        /// <summary>Rama web de btnGuardar_Click: mismo reemplazo en bloque, vía
+        /// POST /api/destajos/guardar (DestajosController.cs, "reemplazo en bloque
+        /// (btnGuardar de hoy)").</summary>
+        private async Task GuardarWeb()
+        {
+            if (string.IsNullOrEmpty(manzanaActual) || string.IsNullOrEmpty(loteActual))
+            {
+                MessageBox.Show("Por favor selecciona una casa primero", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                var nodos = itemsTareas.Select(item => new
+                {
+                    NodoId = item.ID,
+                    Nombre = item.Nombre ?? "",
+                    Activa = item.Activa,
+                    CuadrillaAsignada = item.CuadrillaAsignada,
+                    DesatajoActivado = item.DesatajoActivado,
+                    Finalizado = item.Finalizado,
+                    FechaActivacion = item.FechaActivacion,
+                    FechaFinalizacion = item.FechaFinalizacion
+                }).ToList();
+
+                await Task.Run(() => ApiClient.Post("/api/destajos/guardar", new
+                {
+                    Manzana = manzanaActual,
+                    Lote = loteActual,
+                    Ruta = rutaActual,
+                    Prototipo = prototipoActual,
+                    Nodos = nodos
+                }));
+                await RefrescarArbol();
+
+                MessageBox.Show($"Configuración guardada para M{manzanaActual}-L{loteActual}",
+                    "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex) { ManejarErrorApi(ex, "No se pudo guardar la configuración"); }
+        }
+
         private void btnCerrar_Click(object sender, EventArgs e)
         {
             this.Close();
@@ -1268,6 +1666,18 @@ namespace DynamicSepticSystem
         private void EjecutarFlujoActivacionDestajo(ItemTareaActivacion destajo, bool esActivacion = true)
         {
             if (destajo == null) return;
+
+            // Con DestajosWeb activo, "Ver árbol completo" reutiliza este mismo
+            // control (marcoArbol/olvTareas) re-parentado a un diálogo — sin este
+            // gate, activar/cambiar cuadrilla desde ahí escribía por SQL directo en
+            // paralelo al panel web, saltándose ValidarRuta/RequierePermiso/transacción.
+            // ActivarWeb (FormActivarTareasTreeList.Web.cs) ya cubre activar y
+            // cambiar-cuadrilla con el mismo diálogo de cuadrilla + PDF.
+            if (DestajosWebActivo)
+            {
+                EjecutarFlujoActivacionDestajoWeb(destajo);
+                return;
+            }
 
             using (var formCuadrilla = new FormAsignarCuadrilla())
             {
@@ -1302,11 +1712,27 @@ namespace DynamicSepticSystem
                     destajo.FechaActivacion = DateTime.Now;
             }
 
+            // Activar SOLO asigna cuadrilla + PDF + marca el destajo como activado.
+            // El surtido de materiales se hace por separado en Almacén → Salidas
+            // (allí aparecen únicamente los insumos de destajos ya activados con
+            // pendiente). Activar ya NO libera insumos ni toca el stock.
             PersistirActivacionDestajo(destajo);
             olvTareas.RefreshObject(destajo);
             ActualizarEstadisticas();
 
             GenerarPdfDestajo(destajo);
+        }
+
+        /// <summary>Rama web de EjecutarFlujoActivacionDestajo: activar y cambiar-cuadrilla
+        /// son el mismo endpoint (ActivarWeb ya maneja ambos casos, ver el "case" de
+        /// DespacharMensaje en FormActivarTareasTreeList.Web.cs). RefrescarArbol se llama
+        /// dos veces a propósito: ActivarWeb ya la llama si tuvo éxito, pero si el usuario
+        /// cancela el diálogo de cuadrilla, ActivarWeb vuelve sin refrescar y el checkbox
+        /// se queda visualmente desincronizado — esta segunda llamada resincroniza siempre.</summary>
+        private async void EjecutarFlujoActivacionDestajoWeb(ItemTareaActivacion destajo)
+        {
+            await ActivarWeb(destajo.ID);
+            await RefrescarArbol();
         }
 
         private void PersistirActivacionDestajo(ItemTareaActivacion destajo)
@@ -1965,6 +2391,7 @@ namespace DynamicSepticSystem
             public int ParentId { get; set; }
             public string Nombre { get; set; }
             public string Descripcion { get; set; }
+            public string Clave { get; set; }
             public int Nivel { get; set; }
             public int Contador { get; set; }
             public string Tipo { get; set; }
@@ -1979,6 +2406,12 @@ namespace DynamicSepticSystem
             public string Unidad { get; set; }
             public decimal PrecioUnitario { get; set; }
             public string CuadrillaAsignada { get; set; } = "";
+
+            /// <summary>
+            /// Cantidad ya surtida (sólo la llena el flujo web, desde el Surtido que
+            /// ya trae api/destajos/arbol; el flujo clásico usa SurtidoDeInsumo()).
+            /// </summary>
+            public decimal Surtido { get; set; }
 
             public decimal Total
             {

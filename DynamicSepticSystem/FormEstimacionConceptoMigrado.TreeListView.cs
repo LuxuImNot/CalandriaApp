@@ -8,7 +8,7 @@ using System.Windows.Forms;
 namespace DynamicSepticSystem
 {
     /// <summary>
-    /// Clase parcial que contiene la configuración del TreeListView y sus columnas
+    /// Clase parcial que contiene la configuraciï¿½n del TreeListView y sus columnas
     /// </summary>
     public partial class FormEstimacionConceptoMigrado
     {
@@ -20,9 +20,7 @@ namespace DynamicSepticSystem
         /// </summary>
         private bool EsUsuarioAdmin()
         {
-            return Global.UsuarioActual != null && 
-                   Global.UsuarioActual.Nombre != null &&
-                   Global.UsuarioActual.Nombre.Equals("admin", StringComparison.OrdinalIgnoreCase);
+            return Global.EsAdmin;
         }
 
         private void ConfigurarTreeListView()
@@ -57,7 +55,7 @@ namespace DynamicSepticSystem
                 if (nodo.Completado && newValue)
                     return false;
                 
-                // Si es una partida dinámica y se está marcando, solicitar m²
+                // Si es una partida dinï¿½mica y se estï¿½ marcando, solicitar mï¿½
                 if (!nodo.EsConcepto && nodo.EsDinamica && newValue && nodo.MetrosCuadrados == 0)
                 {
                     if (!MostrarDialogoM2EnCheck(nodo))
@@ -94,7 +92,7 @@ namespace DynamicSepticSystem
                     }
                 }
                 
-                // Reconstruir árbol
+                // Reconstruir ï¿½rbol
                 this.BeginInvoke(new Action(() => {
                     try
                     {
@@ -181,8 +179,8 @@ namespace DynamicSepticSystem
                 return "";
             };
 
-            // COLUMNA: m² (solo para partidas dinámicas)
-            var colM2 = new OLVColumn("m²", "MetrosCuadrados")
+            // COLUMNA: mï¿½ (solo para partidas dinï¿½micas)
+            var colM2 = new OLVColumn("mï¿½", "MetrosCuadrados")
             {
                 Width = 70,
                 IsEditable = true,
@@ -208,21 +206,21 @@ namespace DynamicSepticSystem
                     {
                         if (m2 < 0)
                         {
-                            MessageBox.Show("Los metros cuadrados no pueden ser negativos", "Validación", 
+                            MessageBox.Show("Los metros cuadrados no pueden ser negativos", "Validaciï¿½n", 
                                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             return;
                         }
 
-                        // Validar límite de m²
+                        // Validar lï¿½mite de mï¿½
                         double limite = nodo.ObtenerLimiteEfectivo(prototipoActual);
                         if (limite > 0 && m2 > limite)
                         {
                             MessageBox.Show(
-                                $"? No se puede exceder el límite de m²\n\n" +
-                                $"Valor ingresado: {m2:F2} m²\n" +
-                                $"Límite máximo: {limite:F2} m²\n\n" +
-                                $"El valor se ajustará al límite máximo permitido.",
-                                "Límite de m² excedido", 
+                                $"? No se puede exceder el lï¿½mite de mï¿½\n\n" +
+                                $"Valor ingresado: {m2:F2} mï¿½\n" +
+                                $"Lï¿½mite mï¿½ximo: {limite:F2} mï¿½\n\n" +
+                                $"El valor se ajustarï¿½ al lï¿½mite mï¿½ximo permitido.",
+                                "Lï¿½mite de mï¿½ excedido", 
                                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             m2 = limite;
                         }
@@ -233,9 +231,9 @@ namespace DynamicSepticSystem
                         nodo.Total = nodo.MetrosCuadrados * valorM2;
                         
                         System.Diagnostics.Debug.WriteLine(
-                            $"m² editados: WBS={nodo.WBS}, m²={m2:F2}, " +
-                            $"Valor/m²={valorM2:C2}, Total={nodo.Total:C2}" +
-                            (limite > 0 ? $", Límite={limite:F2}" : ""));
+                            $"mï¿½ editados: WBS={nodo.WBS}, mï¿½={m2:F2}, " +
+                            $"Valor/mï¿½={valorM2:C2}, Total={nodo.Total:C2}" +
+                            (limite > 0 ? $", Lï¿½mite={limite:F2}" : ""));
                         
                         var padre = EncontrarPadre(nodo);
                         if (padre != null)
@@ -255,7 +253,7 @@ namespace DynamicSepticSystem
                 }
             };
 
-            // COLUMNA: Avance % (basado en m² / límite m²)
+            // COLUMNA: Avance % (basado en mï¿½ / lï¿½mite mï¿½)
             var colAvance = new OLVColumn("Avance", "AvanceDinamico")
             {
                 Width = 80,
@@ -269,7 +267,7 @@ namespace DynamicSepticSystem
                 
                 if (nodo.EsConcepto)
                 {
-                    // Para conceptos, mostrar el avance promedio de las partidas dinámicas con límite
+                    // Para conceptos, mostrar el avance promedio de las partidas dinï¿½micas con lï¿½mite
                     var partidasConAvance = nodo.Partidas
                         .Where(p => p.EsDinamica && p.ObtenerLimiteEfectivo(prototipoActual) > 0)
                         .ToList();
@@ -300,7 +298,7 @@ namespace DynamicSepticSystem
                     double limite = nodo.ObtenerLimiteEfectivo(prototipoActual);
                     
                     if (limite <= 0)
-                        return "?"; // Sin límite
+                        return "?"; // Sin lï¿½mite
                     
                     double avance = nodo.CalcularAvancePorLimite(prototipoActual);
                     
@@ -313,8 +311,8 @@ namespace DynamicSepticSystem
                 return "";
             };
 
-            // COLUMNA: Límite m² (solo para partidas dinámicas)
-            var colLimite = new OLVColumn("Límite m²", "LimiteM2")
+            // COLUMNA: Lï¿½mite mï¿½ (solo para partidas dinï¿½micas)
+            var colLimite = new OLVColumn("Lï¿½mite mï¿½", "LimiteM2")
             {
                 Width = 80,
                 IsEditable = false,
@@ -440,7 +438,7 @@ namespace DynamicSepticSystem
         }
 
         /// <summary>
-        /// Obtiene el valor por m² según el prototipo actual
+        /// Obtiene el valor por mï¿½ segï¿½n el prototipo actual
         /// </summary>
         private double ObtenerValorM2(NodoConcepto nodo)
         {
@@ -453,7 +451,7 @@ namespace DynamicSepticSystem
         }
 
         /// <summary>
-        /// Obtiene el total de una partida considerando si es dinámica
+        /// Obtiene el total de una partida considerando si es dinï¿½mica
         /// </summary>
         private double ObtenerTotalPartida(NodoConcepto partida)
         {
@@ -491,7 +489,7 @@ namespace DynamicSepticSystem
                     {
                         if (!nodo.Completado)
                         {
-                            // Colorear según el avance
+                            // Colorear segï¿½n el avance
                             double avance = nodo.CalcularAvancePorLimite(prototipoActual);
                             if (avance >= 100)
                             {
@@ -554,7 +552,7 @@ namespace DynamicSepticSystem
                         int totalPartidas = nodo.Partidas.Count;
                         int partidasDinamicas = nodo.Partidas.Count(p => p.EsDinamica);
                         
-                        string tooltip = $"Código: {nodo.Codigo}\n" +
+                        string tooltip = $"Cï¿½digo: {nodo.Codigo}\n" +
                                $"Total Presupuestado: {totalPresupuestado:C2}\n" +
                                $"Total Ejecutado: {totalEjecutado:C2}\n" +
                                $"Avance: {porcentaje:F1}%\n" +
@@ -562,7 +560,7 @@ namespace DynamicSepticSystem
                         
                         if (partidasDinamicas > 0)
                         {
-                            tooltip += $"\nPartidas dinámicas: {partidasDinamicas}";
+                            tooltip += $"\nPartidas dinï¿½micas: {partidasDinamicas}";
                         }
                         
                         return tooltip;
@@ -576,23 +574,23 @@ namespace DynamicSepticSystem
                             double valorM2 = ObtenerValorM2(nodo);
                             double limite = nodo.ObtenerLimiteEfectivo(prototipoActual);
                             
-                            tooltip += $"PARTIDA DINÁMICA\n\n" +
-                                      $"Valor/m²: {valorM2:C2}\n";
+                            tooltip += $"PARTIDA DINï¿½MICA\n\n" +
+                                      $"Valor/mï¿½: {valorM2:C2}\n";
                             
 
                             if (limite > 0)
                             {
-                                tooltip += $"Límite m²: {limite:F2}\n";
+                                tooltip += $"Lï¿½mite mï¿½: {limite:F2}\n";
                             }
                             else
                             {
-                                tooltip += $"Límite m²: Sin límite\n";
+                                tooltip += $"Lï¿½mite mï¿½: Sin lï¿½mite\n";
                             }
                             
 
                             if (nodo.MetrosCuadrados > 0)
                             {
-                                tooltip += $"\nMetros cuadrados: {nodo.MetrosCuadrados:F2} m²\n" +
+                                tooltip += $"\nMetros cuadrados: {nodo.MetrosCuadrados:F2} mï¿½\n" +
                                           $"Costo calculado: {(nodo.MetrosCuadrados * valorM2):C2}";
 
                                 if (limite > 0)
@@ -605,10 +603,10 @@ namespace DynamicSepticSystem
                             }
                             else
                             {
-                                tooltip += $"\nMarque para ingresar m²";
+                                tooltip += $"\nMarque para ingresar mï¿½";
                             }
                             
-                            tooltip += $"\n\nPresione Enter después de editar\npara guardar automáticamente";
+                            tooltip += $"\n\nPresione Enter despuï¿½s de editar\npara guardar automï¿½ticamente";
                         }
                         else
                         {
@@ -634,7 +632,7 @@ namespace DynamicSepticSystem
                 
                 // Obtener el objeto seleccionado
                 var nodo = olvEstimacionConceptos.SelectedObject as NodoConcepto;
-                // ? CAMBIADO: Ahora guarda incluso con 0 m² (>= 0 en lugar de > 0)
+                // ? CAMBIADO: Ahora guarda incluso con 0 mï¿½ (>= 0 en lugar de > 0)
                 if (nodo != null && !nodo.EsConcepto && nodo.EsDinamica && nodo.MetrosCuadrados >= 0)
                 {
                     GuardarAvancePartidaDinamica(nodo);
@@ -643,7 +641,7 @@ namespace DynamicSepticSystem
         }
 
         /// <summary>
-        /// Guarda el avance de una partida dinámica en la base de datos
+        /// Guarda el avance de una partida dinï¿½mica en la base de datos
         /// </summary>
         private void GuardarAvancePartidaDinamica(NodoConcepto partida)
         {
@@ -655,12 +653,12 @@ namespace DynamicSepticSystem
             
             try
             {
-                // Validar límite de m² antes de guardar
+                // Validar lï¿½mite de mï¿½ antes de guardar
                 double limite = partida.ObtenerLimiteEfectivo(prototipoActual);
                 if (limite > 0 && partida.MetrosCuadrados > limite)
                 {
                     System.Diagnostics.Debug.WriteLine(
-                        $"?? Ajustando m² de {partida.MetrosCuadrados:F2} a límite {limite:F2}");
+                        $"?? Ajustando mï¿½ de {partida.MetrosCuadrados:F2} a lï¿½mite {limite:F2}");
                     partida.MetrosCuadrados = limite;
                 }
                 
@@ -672,7 +670,7 @@ namespace DynamicSepticSystem
                 partida.MontoEjecutado = montoCalculado;
                 partida.Total = montoCalculado;
                 
-                // Calcular el avance por límite
+                // Calcular el avance por lï¿½mite
                 double avance = partida.CalcularAvancePorLimite(prototipoActual);
                 if (avance >= 0)
                 {
@@ -694,9 +692,9 @@ namespace DynamicSepticSystem
                 olvEstimacionConceptos.RefreshObject(partida);
                 ActualizarTotales();
                 
-                // Mostrar confirmación visual sutil
+                // Mostrar confirmaciï¿½n visual sutil
                 System.Diagnostics.Debug.WriteLine(
-                    $"Guardado: WBS={partida.WBS}, m²={partida.MetrosCuadrados:F2}, " +
+                    $"Guardado: WBS={partida.WBS}, mï¿½={partida.MetrosCuadrados:F2}, " +
                     $"Monto={montoCalculado:C2}, Avance={avance:F1}%");
                 
                 // Mostrar mensaje breve
@@ -711,7 +709,7 @@ namespace DynamicSepticSystem
         }
 
         /// <summary>
-        /// Muestra un mensaje temporal de confirmación de guardado
+        /// Muestra un mensaje temporal de confirmaciï¿½n de guardado
         /// </summary>
         private void MostrarMensajeGuardado(NodoConcepto partida)
         {
@@ -719,17 +717,17 @@ namespace DynamicSepticSystem
             {
                 string mensaje;
                 
-                // ? CAMBIADO: Mensaje diferente para 0 m²
+                // ? CAMBIADO: Mensaje diferente para 0 mï¿½
                 if (partida.MetrosCuadrados == 0)
                 {
-                    mensaje = "? Guardado: 0 m² (reseteado)";
+                    mensaje = "? Guardado: 0 mï¿½ (reseteado)";
                 }
                 else
                 {
                     double avance = partida.CalcularAvancePorLimite(prototipoActual);
                     mensaje = avance >= 0 
-                        ? $"? Guardado: {partida.MetrosCuadrados:F2} m² ({avance:F1}%)"
-                        : $"? Guardado: {partida.MetrosCuadrados:F2} m²";
+                        ? $"? Guardado: {partida.MetrosCuadrados:F2} mï¿½ ({avance:F1}%)"
+                        : $"? Guardado: {partida.MetrosCuadrados:F2} mï¿½";
                 }
                 
                 // Crear un tooltip temporal
@@ -744,7 +742,7 @@ namespace DynamicSepticSystem
                 tooltipGuardado.Show(mensaje, olvEstimacionConceptos, 
                     olvEstimacionConceptos.Width / 2, 20, 2000);
                 
-                // Limpiar después de mostrar
+                // Limpiar despuï¿½s de mostrar
                 var timer = new System.Windows.Forms.Timer { Interval = 2500 };
                 timer.Tick += (s, ev) =>
                 {
@@ -756,12 +754,12 @@ namespace DynamicSepticSystem
             }
             catch
             {
-                // Ignorar errores en la visualización del mensaje
+                // Ignorar errores en la visualizaciï¿½n del mensaje
             }
         }
 
         /// <summary>
-        /// Muestra el diálogo de m² cuando se marca el checkbox de una partida dinámica
+        /// Muestra el diï¿½logo de mï¿½ cuando se marca el checkbox de una partida dinï¿½mica
         /// </summary>
         private bool MostrarDialogoM2EnCheck(NodoConcepto nodo)
         {
@@ -770,7 +768,7 @@ namespace DynamicSepticSystem
             
             using (var formM2 = new Form
             {
-                Text = "Partida Dinámica - Ingresar m²",
+                Text = "Partida Dinï¿½mica - Ingresar mï¿½",
                 Size = new Size(450, 280),
                 StartPosition = FormStartPosition.CenterParent,
                 FormBorderStyle = FormBorderStyle.FixedDialog,
@@ -780,7 +778,7 @@ namespace DynamicSepticSystem
             {
                 var lblTitulo = new Label
                 {
-                    Text = "Esta es una partida con costo dinámico",
+                    Text = "Esta es una partida con costo dinï¿½mico",
                     Location = new Point(20, 20),
                     AutoSize = false,
                     Width = 400,
@@ -799,7 +797,7 @@ namespace DynamicSepticSystem
 
                 var lblInfo = new Label
                 {
-                    Text = $"Valor/m²: {valorM2:C2}" + (limite > 0 ? $"  |  Límite: {limite:F2} m²" : ""),
+                    Text = $"Valor/mï¿½: {valorM2:C2}" + (limite > 0 ? $"  |  Lï¿½mite: {limite:F2} mï¿½" : ""),
                     Location = new Point(20, 75),
                     AutoSize = false,
                     Width = 400,
@@ -809,7 +807,7 @@ namespace DynamicSepticSystem
 
                 var lblM2 = new Label
                 {
-                    Text = "Ingrese los metros cuadrados (m²):",
+                    Text = "Ingrese los metros cuadrados (mï¿½):",
                     Location = new Point(20, 110),
                     AutoSize = true,
                     Font = new Font("Segoe UI", 9F, FontStyle.Bold)
@@ -919,12 +917,12 @@ namespace DynamicSepticSystem
                     nodo.Total = nodo.MetrosCuadrados * valorM2;
 
                     System.Diagnostics.Debug.WriteLine(
-                        $"Partida dinámica: {nodo.Nombre}\n" +
-                        $"   m²: {nodo.MetrosCuadrados:F2}\n" +
-                        $"   Valor/m²: {valorM2:C2}\n" +
+                        $"Partida dinï¿½mica: {nodo.Nombre}\n" +
+                        $"   mï¿½: {nodo.MetrosCuadrados:F2}\n" +
+                        $"   Valor/mï¿½: {valorM2:C2}\n" +
                         $"   Total: {nodo.Total:C2}");
                     
-                    // Guardar automáticamente al aceptar el diálogo
+                    // Guardar automï¿½ticamente al aceptar el diï¿½logo
                     GuardarAvancePartidaDinamica(nodo);
                     
                     return true;

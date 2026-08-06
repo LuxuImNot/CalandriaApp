@@ -36,7 +36,7 @@ namespace DynamicSepticSystem
             panelBanner.BackColor = colorPrimario;
 
             var lblTitulo = new Label();
-            lblTitulo.Text = "GESTIÓN DE DESTAJOS";
+            lblTitulo.Text = "ACTIVACIÓN DE DESTAJOS";
             lblTitulo.Font = new Font("Segoe UI Semibold", 16F, FontStyle.Bold);
             lblTitulo.ForeColor = Color.White;
             lblTitulo.AutoSize = true;
@@ -156,7 +156,7 @@ namespace DynamicSepticSystem
             // ===== Panel inferior =====
             var panelBotones = new Panel();
             panelBotones.Dock = DockStyle.Bottom;
-            panelBotones.Height = 138;
+            panelBotones.Height = 160;
             panelBotones.BackColor = colorSuave;
             panelBotones.Padding = new Padding(20, 12, 20, 12);
 
@@ -195,10 +195,16 @@ namespace DynamicSepticSystem
             this.lblPorcentaje = new Label();
             this.lblPorcentaje.Text = "0%";
             this.lblPorcentaje.Location = new Point(752, 82);
-            this.lblPorcentaje.Size = new Size(280, 20);
+            this.lblPorcentaje.Size = new Size(380, 20);
             this.lblPorcentaje.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
             this.lblPorcentaje.ForeColor = colorPrimario;
             this.lblPorcentaje.TextAlign = ContentAlignment.MiddleLeft;
+
+            // --- Fila 3: barra de etapas (Obra Negra / Albañilería / Acabados / Acabados Finales) ---
+            this.panelStages = new Panel();
+            this.panelStages.Location = new Point(22, 110);
+            this.panelStages.Size = new Size(1040, 30);
+            this.panelStages.BackColor = colorSuave;
 
             // --- Botones derecha ---
             this.btnDestajosPorCuadrilla = new Button();
@@ -257,6 +263,7 @@ namespace DynamicSepticSystem
             panelBotones.Controls.Add(this.lblEstadisticas);
             panelBotones.Controls.Add(this.progressBarActivacion);
             panelBotones.Controls.Add(this.lblPorcentaje);
+            panelBotones.Controls.Add(this.panelStages);
 
             // ===== Formulario =====
             this.AutoScaleDimensions = new SizeF(7F, 15F);
@@ -271,7 +278,7 @@ namespace DynamicSepticSystem
             this.Controls.Add(panelFiltros);
             this.Controls.Add(panelBanner);
             this.Name = "FormActivarTareasTreeList";
-            this.Text = "Gestión de Destajos por Casa";
+            this.Text = "Activación de Destajos";
             this.StartPosition = FormStartPosition.CenterParent;
             this.Font = new Font("Segoe UI", 9F);
             this.DoubleBuffered = true;
@@ -289,6 +296,7 @@ namespace DynamicSepticSystem
         private Label lblEstadisticas;
         private ProgressBar progressBarActivacion;
         private Label lblPorcentaje;
+        private Panel panelStages;
         private Button btnRepositorio;
         private Button btnDestajosPorCuadrilla;
         private Button btnGuardar;

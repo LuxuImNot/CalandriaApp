@@ -55,6 +55,11 @@ namespace DynamicSepticSystem
             // Manejar evento de redimensionamiento
             this.Resize += FormAlmacen_Resize;
             this.Load += FormAlmacen_Load;
+
+            // Almacen hibrido: sustituye el panel clasico por la UI web servida por
+            // el API. Si falla o WebView2 no esta, deja el formulario clasico.
+            // Se apaga con AlmacenWeb=false en App.config.
+            InicializarPanelWeb();
         }
 
         /// <summary>

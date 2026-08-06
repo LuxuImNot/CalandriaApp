@@ -31,6 +31,11 @@ namespace DynamicSepticSystem
             
             // Cargar proveedores
             CargarProveedores();
+
+            // Insignia "NUEVO" del flujo de compra por destajos activados + mover al carrito.
+            NewFeatureBadge.Adjuntar(label4, "ocmulti-destajos-mover-v1",
+                "Compra por destajos activados",
+                "Ahora solo aparecen insumos de destajos ACTIVADOS de cada casa (varias casas se suman en una orden). Al agregar un insumo se MUEVE al carrito en vez de quedarse repetido abajo.");
         }
 
         private void AplicarTema()
@@ -116,30 +121,18 @@ namespace DynamicSepticSystem
 
         private void ActualizarCatalogoInsumos()
         {
-            Dictionary<string, int> casasPorPrototipo = new Dictionary<string, int>();
-            List<(string Manzana, string Lote)> casasSeleccionadas = new List<(string, string)>();
-
+            var casas = new List<(string Manzana, string Lote, string Prototipo)>();
             foreach (CasaSeleccionada casa in lstCasas.Items)
-            {
-                string prototipo = casa.Prototipo;
-                string manzana = casa.Manzana;
-                string lote = casa.Lote;
-
-                if (!casasPorPrototipo.ContainsKey(prototipo))
-                    casasPorPrototipo[prototipo] = 0;
-                casasPorPrototipo[prototipo]++;
-
-                casasSeleccionadas.Add((manzana, lote));
-            }
+                casas.Add((casa.Manzana, casa.Lote, casa.Prototipo));
 
             Dictionary<string, InsumoOrdenCompra> insumosTotales = new Dictionary<string, InsumoOrdenCompra>();
             Dictionary<string, decimal> faltantesPorClave = new Dictionary<string, decimal>();
 
-            // Obtener insumos pendientes por casa (vía API)
-            foreach (var (manzana, lote) in casasSeleccionadas)
+            // Pendientes (ya pedido y aún no recibido) por casa, para no recomprar.
+            foreach (var casa in casas)
             {
                 var pendientes = ApiClient.Get<List<PendienteMaterialApi>>(
-                    $"/api/compras/pendientes?manzana={Uri.EscapeDataString(manzana ?? "")}&lote={Uri.EscapeDataString(lote ?? "")}");
+                    $"/api/compras/pendientes?manzana={Uri.EscapeDataString(casa.Manzana ?? "")}&lote={Uri.EscapeDataString(casa.Lote ?? "")}");
 
                 foreach (var p in pendientes ?? new List<PendienteMaterialApi>())
                 {
@@ -153,59 +146,79 @@ namespace DynamicSepticSystem
                 }
             }
 
-            // Obtener insumos por prototipo (catálogo de explosión vía API)
-            foreach (var kvp in casasPorPrototipo)
+            // Insumos a comprar = SOLO destajos ACTIVADOS de cada casa (regla del cliente).
+            // Cada casa (manzana-lote) aporta los suyos y se SUMAN: varias casas y varios
+            // destajos conviven en una sola OC. Algunos insumos vienen SIN clave de almacén
+            // (se rastrean por nombre, ClaveResuelta=false).
+            foreach (var casa in casas)
             {
-                string prototipo = kvp.Key;
-                int cantidadCasas = kvp.Value;
-
                 var filas = ApiClient.Get<List<CatalogoMaterialApi>>(
-                    $"/api/compras/catalogo?prototipo={Uri.EscapeDataString(prototipo ?? "")}");
+                    "/api/compras/catalogo-destajos" +
+                    $"?prototipo={Uri.EscapeDataString(casa.Prototipo ?? "")}" +
+                    $"&manzana={Uri.EscapeDataString(casa.Manzana ?? "")}" +
+                    $"&lote={Uri.EscapeDataString(casa.Lote ?? "")}");
 
                 foreach (var fila in filas ?? new List<CatalogoMaterialApi>())
                 {
-                    string clave = fila.Clave;
-                    decimal cantidadTotal = fila.Cantidad * cantidadCasas;
+                    // Identidad por clave si la hay; si no, por descripción (sin clave).
+                    string clave = fila.Clave ?? "";
+                    string key = !string.IsNullOrWhiteSpace(clave)
+                        ? "C:" + clave
+                        : "N:" + (fila.Descripcion ?? "").Trim().ToUpperInvariant();
 
-                    bool fueAjustado = false;
-                    if (faltantesPorClave.TryGetValue(clave, out decimal pendiente))
+                    if (insumosTotales.ContainsKey(key))
                     {
-                        cantidadTotal -= pendiente;
-                        fueAjustado = pendiente > 0;
-                    }
-
-                    if (cantidadTotal <= 0)
-                        continue;
-
-                    if (insumosTotales.ContainsKey(clave))
-                    {
-                        insumosTotales[clave].Cantidad += Math.Round(cantidadTotal, 3);
-                        insumosTotales[clave].EsModificado |= fueAjustado;
+                        insumosTotales[key].Cantidad += Math.Round(fila.Cantidad, 3);
                     }
                     else
                     {
-                        insumosTotales[clave] = new InsumoOrdenCompra
+                        insumosTotales[key] = new InsumoOrdenCompra
                         {
                             Clave = clave,
                             Descripcion = fila.Descripcion,
                             Unidad = fila.Unidad,
-                            Cantidad = Math.Round(cantidadTotal, 3),
+                            Cantidad = Math.Round(fila.Cantidad, 3),
                             Familia = fila.Familia,
-                            EsModificado = fueAjustado,
-                            Precio = fila.Precio
+                            Precio = fila.Precio,
+                            ClaveResuelta = fila.ClaveResuelta
                         };
                     }
                 }
             }
 
-            listaCatalogoOriginal = insumosTotales.Values.ToList();
+            // Descontar lo ya pedido (pendiente) por clave, una sola vez, y quitar lo que
+            // quede en 0 o negativo (ya está cubierto por una OC previa).
+            foreach (var insumo in insumosTotales.Values)
+            {
+                if (string.IsNullOrWhiteSpace(insumo.Clave)) continue;
+                if (faltantesPorClave.TryGetValue(insumo.Clave, out decimal pendiente) && pendiente > 0)
+                {
+                    insumo.Cantidad = Math.Round(insumo.Cantidad - pendiente, 3);
+                    insumo.EsModificado = true;
+                }
+            }
+            foreach (var k in insumosTotales.Where(kv => kv.Value.Cantidad <= 0).Select(kv => kv.Key).ToList())
+                insumosTotales.Remove(k);
+
+            // Lo que ya está en el carrito NO debe reaparecer en el catálogo (se movió).
+            var enCarrito = olvCarrito.Objects?.Cast<InsumoOrdenCompra>().ToList()
+                            ?? new List<InsumoOrdenCompra>();
+            listaCatalogoOriginal = insumosTotales.Values
+                .Where(i => !enCarrito.Any(c => MismaIdentidad(c, i)))
+                .ToList();
             olvCatalogo.SetObjects(listaCatalogoOriginal);
             
 
-            // 🔁 Sincroniza las cantidades máximas del carrito con el catálogo actualizado
+            // 🔁 Sincroniza las cantidades máximas del carrito con el catálogo actualizado.
+            // Se compara por clave cuando existe; los insumos sin clave se cotejan por
+            // descripción (no colisionar todos los claveless en Clave vacía).
             foreach (var insumo in olvCarrito.Objects.Cast<InsumoOrdenCompra>())
             {
-                var actualizado = listaCatalogoOriginal.FirstOrDefault(i => i.Clave == insumo.Clave);
+                var actualizado = listaCatalogoOriginal.FirstOrDefault(i =>
+                    string.IsNullOrWhiteSpace(insumo.Clave)
+                        ? string.IsNullOrWhiteSpace(i.Clave) &&
+                          string.Equals(i.Descripcion, insumo.Descripcion, StringComparison.OrdinalIgnoreCase)
+                        : i.Clave == insumo.Clave);
                 if (actualizado != null)
                 {
                     insumo.CantidadMaxima = actualizado.Cantidad;
@@ -709,43 +722,46 @@ namespace DynamicSepticSystem
                 return;
             }
 
-            Dictionary<string, int> casasPorPrototipo = new Dictionary<string, int>();
-            foreach (CasaSeleccionada casa in lstCasas.Items)
-            {
-                if (!casasPorPrototipo.ContainsKey(casa.Prototipo))
-                    casasPorPrototipo[casa.Prototipo] = 0;
-                casasPorPrototipo[casa.Prototipo]++;
-            }
-
             Dictionary<string, InsumoOrdenCompra> insumosTotales = new Dictionary<string, InsumoOrdenCompra>();
 
-            foreach (var kvp in casasPorPrototipo)
+            // Por casa: solo insumos de destajos ACTIVADOS de cada manzana-lote, sumados.
+            foreach (CasaSeleccionada casa in lstCasas.Items)
             {
-                string prototipo = kvp.Key;
-                int cantidadCasas = kvp.Value;
-
                 var filas = ApiClient.Get<List<CatalogoMaterialApi>>(
-                    $"/api/compras/catalogo?prototipo={Uri.EscapeDataString(prototipo ?? "")}");
+                    "/api/compras/catalogo-destajos" +
+                    $"?prototipo={Uri.EscapeDataString(casa.Prototipo ?? "")}" +
+                    $"&manzana={Uri.EscapeDataString(casa.Manzana ?? "")}" +
+                    $"&lote={Uri.EscapeDataString(casa.Lote ?? "")}");
 
                 foreach (var fila in filas ?? new List<CatalogoMaterialApi>())
                 {
-                    string clave = fila.Clave;
-                    if (insumosTotales.ContainsKey(clave))
-                        insumosTotales[clave].Cantidad += fila.Cantidad * cantidadCasas;
+                    string clave = fila.Clave ?? "";
+                    string key = !string.IsNullOrWhiteSpace(clave)
+                        ? "C:" + clave
+                        : "N:" + (fila.Descripcion ?? "").Trim().ToUpperInvariant();
+                    if (insumosTotales.ContainsKey(key))
+                        insumosTotales[key].Cantidad += fila.Cantidad;
                     else
-                        insumosTotales[clave] = new InsumoOrdenCompra
+                        insumosTotales[key] = new InsumoOrdenCompra
                         {
                             Clave = clave,
                             Descripcion = fila.Descripcion,
                             Unidad = fila.Unidad,
-                            Cantidad = fila.Cantidad * cantidadCasas,
+                            Cantidad = fila.Cantidad,
                             Familia = fila.Familia,
-                            Precio = fila.Precio
+                            Precio = fila.Precio,
+                            ClaveResuelta = fila.ClaveResuelta
                         };
                 }
             }
 
-            var lista = insumosTotales.Values.ToList();
+            // Excluir lo que ya está en el carrito (se movió allí).
+            var enCarrito = olvCarrito.Objects?.Cast<InsumoOrdenCompra>().ToList()
+                            ?? new List<InsumoOrdenCompra>();
+            var lista = insumosTotales.Values
+                .Where(i => !enCarrito.Any(c => MismaIdentidad(c, i)))
+                .ToList();
+            listaCatalogoOriginal = lista;
             olvCatalogo.ShowGroups = true;
             olvCatalogo.SetObjects(lista);
         }
@@ -771,7 +787,15 @@ namespace DynamicSepticSystem
             olvCatalogo.FormatRow += (sender, e) =>
             {
                 var insumo = e.Model as InsumoOrdenCompra;
-                if (insumo != null && insumo.EsModificado)
+                if (insumo == null) return;
+
+                // Insumo de destajo SIN clave de almacén: se rastreará por nombre.
+                // Se resalta en naranja para avisar al comprador.
+                if (!insumo.ClaveResuelta)
+                {
+                    e.Item.BackColor = Color.FromArgb(255, 224, 178); // naranja claro
+                }
+                else if (insumo.EsModificado)
                 {
                     e.Item.BackColor = Color.LightGoldenrodYellow;
                 }
@@ -956,8 +980,13 @@ namespace DynamicSepticSystem
             var insumo = olvCatalogo.SelectedObject as InsumoOrdenCompra;
             if (insumo == null) return;
 
-            // Evitar duplicados en el carrito
-            if (olvCarrito.Objects.Cast<InsumoOrdenCompra>().Any(i => i.Clave == insumo.Clave))
+            // Evitar duplicados en el carrito (por clave; si no hay clave, por descripción).
+            bool yaEsta = olvCarrito.Objects.Cast<InsumoOrdenCompra>().Any(i =>
+                string.IsNullOrWhiteSpace(insumo.Clave)
+                    ? string.IsNullOrWhiteSpace(i.Clave) &&
+                      string.Equals(i.Descripcion, insumo.Descripcion, StringComparison.OrdinalIgnoreCase)
+                    : i.Clave == insumo.Clave);
+            if (yaEsta)
             {
                 MessageBox.Show("Este insumo ya está en el carrito.");
                 return;
@@ -972,12 +1001,27 @@ namespace DynamicSepticSystem
                 Cantidad = insumo.Cantidad,
                 CantidadMaxima = insumo.Cantidad, // 👈 AQUÍ se asigna el tope
                 Familia = insumo.Familia,
-                Precio = insumo.Precio
+                Precio = insumo.Precio,
+                ClaveResuelta = insumo.ClaveResuelta
             };
 
             var lista = olvCarrito.Objects.Cast<InsumoOrdenCompra>().ToList();
             lista.Add(copia);
             olvCarrito.SetObjects(lista);
+
+            // MOVER: el insumo pasa entero al carrito, así que se quita del catálogo
+            // (modelo + vista). Vuelve si se saca del carrito (olvCarrito_MouseDoubleClick).
+            listaCatalogoOriginal.RemoveAll(i => MismaIdentidad(i, insumo));
+            olvCatalogo.RemoveObject(insumo);
+        }
+
+        /// <summary>Misma identidad de insumo: por clave si la hay; si no, por descripción.</summary>
+        private static bool MismaIdentidad(InsumoOrdenCompra a, InsumoOrdenCompra b)
+        {
+            if (a == null || b == null) return false;
+            if (!string.IsNullOrWhiteSpace(a.Clave) || !string.IsNullOrWhiteSpace(b.Clave))
+                return string.Equals(a.Clave, b.Clave, StringComparison.OrdinalIgnoreCase);
+            return string.Equals(a.Descripcion, b.Descripcion, StringComparison.OrdinalIgnoreCase);
         }
 
         private void btnEliminarCasa_Click(object sender, EventArgs e)
@@ -1048,6 +1092,10 @@ namespace DynamicSepticSystem
             public decimal Importe => Math.Round(Precio * Cantidad, 2);
             public bool EsModificado { get; set; } = false; // NUEVO
             public decimal CantidadMaxima { get; set; }  // límite para la edición
+
+            // false = insumo de destajo sin clave de almacén (se rastrea por nombre).
+            // Los agregados manualmente o de la explosión llevan clave → true.
+            public bool ClaveResuelta { get; set; } = true;
 
 
         }
@@ -1165,7 +1213,27 @@ namespace DynamicSepticSystem
             if (hit?.RowObject != null)
             {
                 var insumo = (InsumoOrdenCompra)hit.RowObject;
-                olvCarrito.RemoveObject(insumo); // o con confirmación si quieres
+                olvCarrito.RemoveObject(insumo);
+
+                // Devolver al catálogo con su cantidad completa (CantidadMaxima = lo
+                // disponible original) si no está ya y si pertenece a alguna casa actual.
+                if (!listaCatalogoOriginal.Any(i => MismaIdentidad(i, insumo)))
+                {
+                    var devuelto = new InsumoOrdenCompra
+                    {
+                        Clave = insumo.Clave,
+                        Descripcion = insumo.Descripcion,
+                        Unidad = insumo.Unidad,
+                        Cantidad = insumo.CantidadMaxima > 0 ? insumo.CantidadMaxima : insumo.Cantidad,
+                        Familia = insumo.Familia,
+                        Precio = insumo.Precio,
+                        ClaveResuelta = insumo.ClaveResuelta
+                    };
+                    listaCatalogoOriginal.Add(devuelto);
+
+                    // Reaplica el filtro de búsqueda actual para que aparezca correctamente.
+                    txtBuscar_TextChanged(txtBuscar, EventArgs.Empty);
+                }
             }
         }
 

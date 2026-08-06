@@ -445,7 +445,9 @@ namespace DynamicSepticSystem
                                 int startQuote = releasesJson.IndexOf("\"", tagIndex + 11);
                                 int endQuote = releasesJson.IndexOf("\"", startQuote + 1);
                                 string latestVersion = releasesJson.Substring(startQuote + 1, endQuote - startQuote - 1);
-                                
+                                if (latestVersion.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+                                    latestVersion = latestVersion.Substring(1);
+
                                 AgregarLinea($"   � �ltima versi�n disponible: {latestVersion}");
                                 AgregarLinea($"   � Versi�n local: {Actualizador.VersionLocal}");
                                 

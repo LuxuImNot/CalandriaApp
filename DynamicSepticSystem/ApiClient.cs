@@ -32,6 +32,9 @@ namespace DynamicSepticSystem
         /// <summary>Token JWT de la sesión actual (vacío si no se ha autenticado por API).</summary>
         public static string Token { get; private set; }
 
+        /// <summary>Vencimiento (UTC) del token actual, o null si no hay sesión API.</summary>
+        public static DateTime? ExpiraUtc { get; private set; }
+
         public static bool Autenticado => !string.IsNullOrEmpty(Token);
 
         /// <summary>
@@ -48,19 +51,36 @@ namespace DynamicSepticSystem
                 string json = LeerOLanzar(resp);
                 var login = JsonConvert.DeserializeObject<LoginResponseApi>(json);
                 Token = login?.Token;
+                ExpiraUtc = login?.ExpiraUtc;
                 return login;
             }
         }
 
-        public static void CerrarSesion() => Token = null;
+        public static void CerrarSesion()
+        {
+            Token = null;
+            ExpiraUtc = null;
+        }
+
+        /// <summary>
+        /// Agrega a la petición el Bearer de sesión y, si hay una obra activa,
+        /// el header X-Obra-Id que el API usa para resolver contra qué base de
+        /// datos de obra correr la consulta.
+        /// </summary>
+        private static void AplicarEncabezados(HttpRequestMessage req)
+        {
+            if (Autenticado)
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+            if (Global.ObraActualId.HasValue)
+                req.Headers.Add("X-Obra-Id", Global.ObraActualId.Value.ToString());
+        }
 
         /// <summary>GET tipado a una ruta relativa (p. ej. "/api/almacen/manzanas").</summary>
         public static T Get<T>(string rutaRelativa)
         {
             using (var req = new HttpRequestMessage(HttpMethod.Get, BaseUrl + rutaRelativa))
             {
-                if (Autenticado)
-                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+                AplicarEncabezados(req);
 
                 using (var resp = Http.SendAsync(req).GetAwaiter().GetResult())
                 {
@@ -78,8 +98,7 @@ namespace DynamicSepticSystem
         {
             using (var req = new HttpRequestMessage(HttpMethod.Get, BaseUrl + rutaRelativa))
             {
-                if (Autenticado)
-                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+                AplicarEncabezados(req);
 
                 using (var resp = Http.SendAsync(req).GetAwaiter().GetResult())
                 {
@@ -116,8 +135,7 @@ namespace DynamicSepticSystem
             string body = JsonConvert.SerializeObject(cuerpo);
             using (var req = new HttpRequestMessage(HttpMethod.Post, BaseUrl + rutaRelativa))
             {
-                if (Autenticado)
-                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token);
+                AplicarEncabezados(req);
                 req.Content = new StringContent(body, Encoding.UTF8, "application/json");
 
                 using (var resp = Http.SendAsync(req).GetAwaiter().GetResult())
@@ -157,7 +175,9 @@ namespace DynamicSepticSystem
         public string Cuerpo { get; }
 
         public ApiException(HttpStatusCode statusCode, string cuerpo)
-            : base($"El API respondió {(int)statusCode} ({statusCode}).")
+            : base(statusCode == HttpStatusCode.Forbidden
+                ? "No tienes permiso para realizar esta acción."
+                : $"El API respondió {(int)statusCode} ({statusCode}).")
         {
             StatusCode = statusCode;
             Cuerpo = cuerpo;
@@ -227,6 +247,14 @@ namespace DynamicSepticSystem
         public List<LineaAsignacionNominaApi> Lineas { get; set; } = new List<LineaAsignacionNominaApi>();
     }
 
+    public sealed class EliminarAsignacionRequestApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Ruta { get; set; }
+        public List<int> NodoIds { get; set; } = new List<int>();
+    }
+
     // ---- Compras · Proveedores ----
 
     public sealed class ProveedorApi
@@ -272,12 +300,56 @@ namespace DynamicSepticSystem
         public decimal Cantidad { get; set; }
         public string Familia { get; set; }
         public decimal Precio { get; set; }
+
+        // true si el insumo tiene clave de almacén (del árbol o resuelta por catálogo);
+        // false si quedó sin clave (se rastreará por nombre). Solo lo llena catalogo-destajos.
+        public bool ClaveResuelta { get; set; } = true;
     }
 
     public sealed class PendienteMaterialApi
     {
         public string Clave { get; set; }
         public decimal CantidadPendiente { get; set; }
+    }
+
+    // ---- Conciliación de factura (CFDI) contra la OC ----
+
+    public sealed class ConciliarFacturaResponseApi
+    {
+        public string FolioOC { get; set; }
+        public string Emisor { get; set; }
+        public string Rfc { get; set; }
+        public string Uuid { get; set; }
+        public decimal TotalFactura { get; set; }
+        public bool UsoIA { get; set; }
+        public string Aviso { get; set; }
+        public List<LineaConciliacionApi> Lineas { get; set; } = new List<LineaConciliacionApi>();
+        public List<FacturaConceptoApi> SinAsignar { get; set; } = new List<FacturaConceptoApi>();
+    }
+
+    public sealed class LineaConciliacionApi
+    {
+        public int IdDetalle { get; set; }
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal CantidadOC { get; set; }
+        public decimal CantidadFacturada { get; set; }
+        public decimal Diferencia { get; set; }
+        public string DescripcionFactura { get; set; }
+        public string Origen { get; set; }
+        public double Confianza { get; set; }
+    }
+
+    public sealed class FacturaConceptoApi
+    {
+        public string NoIdentificacion { get; set; }
+        public string ClaveProdServ { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public decimal ValorUnitario { get; set; }
+        public decimal Importe { get; set; }
     }
 
     public sealed class UpsertCatalogoResponseApi
@@ -361,6 +433,24 @@ namespace DynamicSepticSystem
         public string Identificador { get; set; }
         public bool EsConcepto { get; set; }
         public string NombreNodo { get; set; }
+        public string Descripcion { get; set; }
+        public string Extension { get; set; }
+        public double TamanioKB { get; set; }
+        public DateTime Fecha { get; set; }
+        public string Usuario { get; set; }
+    }
+
+    // ---- Destajos · evidencias fotográficas (api/evidencias-destajo) ----
+
+    /// <summary>Metadatos de una evidencia fotográfica de destajo, sin el binario.</summary>
+    public sealed class EvidenciaDestajoApi
+    {
+        public int Id { get; set; }
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Ruta { get; set; }
+        public int NodoId { get; set; }
+        public string NombreDestajo { get; set; }
         public string Descripcion { get; set; }
         public string Extension { get; set; }
         public double TamanioKB { get; set; }
@@ -565,5 +655,482 @@ namespace DynamicSepticSystem
     public sealed class GuardarFolioEstimacionRespApi
     {
         public int FolioId { get; set; }
+    }
+
+    // ---- Destajos (api/destajos) ----
+
+    public sealed class NodoDestajoApi
+    {
+        public int Id { get; set; }
+        public int ParentId { get; set; }
+        public string Nombre { get; set; }
+        public string Descripcion { get; set; }
+        public string Clave { get; set; }
+        public int Nivel { get; set; }
+        public int Orden { get; set; }
+        public int TipoTarea { get; set; }
+        public string TipoTareaTexto { get; set; }
+        public decimal Cantidad { get; set; }
+        public string Unidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+        public decimal Importe { get; set; }
+        public bool Activa { get; set; }
+        public string CuadrillaAsignada { get; set; }
+        public bool DesatajoActivado { get; set; }
+        public bool Finalizado { get; set; }
+        public DateTime? FechaActivacion { get; set; }
+        public DateTime? FechaFinalizacion { get; set; }
+        public decimal Surtido { get; set; }
+        public string Estado { get; set; }
+    }
+
+    public sealed class ResumenDestajosApi
+    {
+        public int Categorias { get; set; }
+        public int Destajos { get; set; }
+        public int Terminados { get; set; }
+        public int Activados { get; set; }
+        public int Disponibles { get; set; }
+        public int Bloqueados { get; set; }
+        public int Insumos { get; set; }
+        public int InsumosPendientes { get; set; }
+        public decimal ImporteTotal { get; set; }
+        public decimal ImporteTerminado { get; set; }
+        public int AvancePct { get; set; }
+    }
+
+    public sealed class ArbolDestajosApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public string Ruta { get; set; }
+        public List<NodoDestajoApi> Nodos { get; set; } = new List<NodoDestajoApi>();
+        public ResumenDestajosApi Resumen { get; set; }
+    }
+
+    public sealed class CasaDestajoApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public string Ruta { get; set; }
+    }
+
+    /// <summary>Progreso real de una casa (api/destajos/resumen-casas), para el mapa del panel.</summary>
+    public sealed class ResumenCasaApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public int Destajos { get; set; }
+        public int Terminados { get; set; }
+        public int Activados { get; set; }
+        public decimal ImporteTotal { get; set; }
+        public decimal ImporteTerminado { get; set; }
+        public int AvancePct { get; set; }
+        public string Estado { get; set; }
+        public DateTime? UltimaActualizacion { get; set; }
+    }
+
+    public sealed class CuadrillaDestajoApi
+    {
+        public string Codigo { get; set; }
+        public int Miembros { get; set; }
+        public string Jefe { get; set; }
+    }
+
+    public sealed class MiembroCuadrillaDestajoApi
+    {
+        public string Clave { get; set; }
+        public string Nombre { get; set; }
+        public string Rol { get; set; }
+        public bool EsJefe { get; set; }
+        public string Telefono { get; set; }
+    }
+
+    public sealed class ResultadoDestajoApi
+    {
+        public bool Ok { get; set; }
+        public string Mensaje { get; set; }
+    }
+
+    /// <summary>Fila de api/destajos/reporte-semana.</summary>
+    public sealed class RegistroSemanaApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Ruta { get; set; }
+        public string DestajoNombre { get; set; }
+        public string CategoriaNombre { get; set; }
+        public string Cuadrilla { get; set; }
+        public DateTime? FechaActivacion { get; set; }
+        public DateTime? FechaFinalizacion { get; set; }
+        public bool Finalizado { get; set; }
+    }
+
+    /// <summary>Fila de api/destajos/reporte-cuadrilla.</summary>
+    public sealed class RegistroCuadrillaApi
+    {
+        public string Cuadrilla { get; set; }
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public int DestajoId { get; set; }
+        public string DestajoNombre { get; set; }
+        public DateTime? FechaFinalizacion { get; set; }
+        public int CategoriaId { get; set; }
+        public string CategoriaNombre { get; set; }
+        public decimal Importe { get; set; }
+        public string Ruta { get; set; }
+        public bool NominaDistribuida { get; set; }
+        public DateTime? FechaDistribucionNomina { get; set; }
+    }
+
+    /// <summary>Fila de api/nomina/reporte (listado agregado por trabajador).</summary>
+    public sealed class NominaReporteApi
+    {
+        public int? IdTrabajador { get; set; }
+        public string Clave { get; set; }
+        public string Nombre { get; set; }
+        public string Rol { get; set; }
+        public string Cuadrillas { get; set; }
+        public int NumRecibos { get; set; }
+        public decimal Monto { get; set; }
+    }
+
+    /// <summary>Fila de api/nomina/recibos (cabecera del recibo, sin el PDF binario).</summary>
+    public sealed class ReciboNominaApi
+    {
+        public int Id { get; set; }
+        public int? IdTrabajador { get; set; }
+        public string NombreTrabajador { get; set; }
+        public string Rol { get; set; }
+        public string CodigoCuadrilla { get; set; }
+        public string Concepto { get; set; }
+        public decimal Monto { get; set; }
+        public DateTime FechaRecibo { get; set; }
+        public DateTime? PeriodoDesde { get; set; }
+        public DateTime? PeriodoHasta { get; set; }
+        public decimal TotalCuadrilla { get; set; }
+        public bool TienePdf { get; set; }
+    }
+
+    // ---- Almacén (api/almacen) ----
+
+    public sealed class HistorialMovimientoApi
+    {
+        public DateTime Fecha { get; set; }
+        public string TipoMovimiento { get; set; }
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+        public decimal Importe { get; set; }
+        public string Usuario { get; set; }
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public string Justificacion { get; set; }
+    }
+
+    public sealed class InventarioAlmacenItemApi
+    {
+        public string FolioOC { get; set; }
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+        public decimal Importe { get; set; }
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public DateTime FechaEntrada { get; set; }
+        public string Usuario { get; set; }
+        public string Justificacion { get; set; }
+        public bool EsExcepcion { get; set; }
+        public string Estado { get; set; }
+    }
+
+    public sealed class OrdenPendienteApi
+    {
+        public string Folio { get; set; }
+        public string NombreOrden { get; set; }
+    }
+
+    public sealed class OcDetallePendienteApi
+    {
+        public int Id { get; set; }
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal CantidadComprada { get; set; }
+        public string Estado { get; set; }
+        public string Justificacion { get; set; }
+    }
+
+    public sealed class OcCasaApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+    }
+
+    public sealed class CasaAlmacenApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+    }
+
+    public sealed class InsumoMovimientoApi
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+        public decimal Importe { get; set; }
+        public string Justificacion { get; set; }
+    }
+
+    public sealed class ResultadoEntradaApi
+    {
+        public bool Ok { get; set; }
+        public string Mensaje { get; set; }
+        public List<InsumoMovimientoApi> Insumos { get; set; }
+    }
+
+    public sealed class InsumoPendienteSalidaApi
+    {
+        public string Destajo { get; set; }
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+        public decimal Disponible { get; set; }
+        public decimal MaximoPermitido { get; set; }
+    }
+
+    public sealed class PendientesSalidaApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public List<InsumoPendienteSalidaApi> Insumos { get; set; }
+        public string Mensaje { get; set; }
+    }
+
+    public sealed class ResultadoSalidaApi
+    {
+        public bool Ok { get; set; }
+        public string Mensaje { get; set; }
+        public string Folio { get; set; }
+        public decimal TotalImporte { get; set; }
+        public List<InsumoMovimientoApi> Insumos { get; set; }
+    }
+
+    // ---- Trabajadores (api/trabajadores) ----
+
+    public sealed class TrabajadorApi
+    {
+        public int Id { get; set; }
+        public string Clave { get; set; }
+        public string Nombre { get; set; }
+        public string Nacionalidad { get; set; }
+        public DateTime? FechaNacimiento { get; set; }
+        public string Curp { get; set; }
+        public string Rfc { get; set; }
+        public string Ine { get; set; }
+        public string Nss { get; set; }
+    }
+
+    public sealed class TrabajadorDetalleApi
+    {
+        public int Id { get; set; }
+        public string Clave { get; set; }
+        public string Nombre { get; set; }
+        public string Nacionalidad { get; set; }
+        public DateTime? FechaNacimiento { get; set; }
+        public string Curp { get; set; }
+        public string Rfc { get; set; }
+        public string Ine { get; set; }
+        public string Nss { get; set; }
+        public string FotoBase64 { get; set; }
+        public bool TieneCurp { get; set; }
+        public int CurpKb { get; set; }
+        public bool TieneRfc { get; set; }
+        public int RfcKb { get; set; }
+        public bool TieneIne { get; set; }
+        public int IneKb { get; set; }
+        public bool TieneNss { get; set; }
+        public int NssKb { get; set; }
+        public string RolCuadrilla { get; set; }
+    }
+
+    public sealed class ClaveNuevaApi
+    {
+        public string Clave { get; set; }
+    }
+
+    public sealed class MiembroCuadrillaApi
+    {
+        public int? IdTrabajador { get; set; }
+        public string Nombre { get; set; }
+        public string Rol { get; set; }
+        public bool EsJefe { get; set; }
+        public string Telefono { get; set; }
+    }
+
+    public sealed class CuadrillaGuardadaApi
+    {
+        public string Codigo { get; set; }
+    }
+
+    public sealed class ReciboTrabajadorApi
+    {
+        public int Id { get; set; }
+        public int? IdTrabajador { get; set; }
+        public string NombreTrabajador { get; set; }
+        public string Rol { get; set; }
+        public string CodigoCuadrilla { get; set; }
+        public string Concepto { get; set; }
+        public decimal Monto { get; set; }
+        public DateTime FechaRecibo { get; set; }
+        public DateTime? PeriodoDesde { get; set; }
+        public DateTime? PeriodoHasta { get; set; }
+        public decimal TotalCuadrilla { get; set; }
+        public bool TienePdf { get; set; }
+    }
+
+    // ---- Editor de Tareas (api/editor-tareas) ----
+
+    public sealed class NodoEditorApi
+    {
+        public int Id { get; set; }
+        public int? ParentId { get; set; }
+        public string Nombre { get; set; }
+        public string Descripcion { get; set; }
+        public int Orden { get; set; }
+        public int Nivel { get; set; }
+        public int TipoTarea { get; set; }
+        public string TipoTareaTexto { get; set; }
+        public DateTime FechaCreacion { get; set; }
+        public DateTime? FechaModificacion { get; set; }
+        public string UsuarioCreacion { get; set; }
+        public bool EsNuevo { get; set; }
+        public Dictionary<string, string> Valores { get; set; } = new Dictionary<string, string>();
+    }
+
+    public sealed class ColumnaDefApi
+    {
+        public string Nombre { get; set; }
+        public string Titulo { get; set; }
+        public int Ancho { get; set; }
+        public string TipoDato { get; set; }
+        public bool EsEditable { get; set; }
+        public string Formato { get; set; }
+        public bool EsCalculada { get; set; }
+        public int TipoOperacion { get; set; }
+        public string ColumnaOrigen1 { get; set; }
+        public string ColumnaOrigen2 { get; set; }
+    }
+
+    public sealed class ArbolEditorApi
+    {
+        public string Ruta { get; set; }
+        public List<NodoEditorApi> Nodos { get; set; } = new List<NodoEditorApi>();
+        public List<ColumnaDefApi> Columnas { get; set; } = new List<ColumnaDefApi>();
+    }
+
+    public sealed class GuardarArbolResponseApi
+    {
+        public bool Ok { get; set; }
+        public string Mensaje { get; set; }
+        public Dictionary<int, int> IdsReasignados { get; set; } = new Dictionary<int, int>();
+    }
+
+    // ---- Perfiles y permisos (api/perfiles) ----
+
+    public sealed class PermisoApi
+    {
+        public string Clave { get; set; }
+        public string Modulo { get; set; }
+        public string Etiqueta { get; set; }
+    }
+
+    public sealed class PerfilResumenApi
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; }
+        public string Descripcion { get; set; }
+        public bool EsSistema { get; set; }
+        public int CantidadUsuarios { get; set; }
+    }
+
+    public sealed class PerfilDetalleApi
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; }
+        public string Descripcion { get; set; }
+        public bool EsSistema { get; set; }
+        public List<string> Permisos { get; set; } = new List<string>();
+    }
+
+    public sealed class UsuarioPerfilApi
+    {
+        public string Nombre { get; set; }
+        public int? PerfilId { get; set; }
+        public string PerfilNombre { get; set; }
+        public string FotoBase64 { get; set; }
+        public string FotoExtension { get; set; }
+        public DateTime FechaAlta { get; set; }
+        public bool FechaAltaConfirmada { get; set; }
+    }
+
+    public sealed class GuardarPerfilRespApi
+    {
+        public int Id { get; set; }
+    }
+
+    // ---- Obras (api/obras) ----
+
+    public sealed class ObraApi
+    {
+        public int Id { get; set; }
+        public string Nombre { get; set; }
+    }
+
+    public sealed class CrearObraResponseApi
+    {
+        public int Id { get; set; }
+        public string NombreBD { get; set; }
+    }
+
+    public sealed class AsignacionObrasUsuarioApi
+    {
+        public string Usuario { get; set; }
+        public List<int> ObraIds { get; set; } = new List<int>();
+    }
+
+    /// <summary>Paleta de acento + estado del logo de la obra activa (api/obras/{id}/tema).</summary>
+    public sealed class TemaObraApi
+    {
+        public string ColorPrimario { get; set; }
+        public string ColorSecundario { get; set; }
+        public string ColorSuave { get; set; }
+        public bool TieneLogo { get; set; }
+        public string LogoExtension { get; set; }
+    }
+
+    /// <summary>Desglose del perfil activo (api/auth/mi-perfil), para el modal del avatar del rail.</summary>
+    public sealed class MiPerfilApi
+    {
+        public string Usuario { get; set; }
+        public string Perfil { get; set; }
+        public DateTime FechaAlta { get; set; }
+        public bool TieneFoto { get; set; }
+        public string FotoExtension { get; set; }
+        public List<PermisoApi> Permisos { get; set; }
     }
 }

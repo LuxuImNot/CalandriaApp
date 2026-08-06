@@ -245,11 +245,14 @@
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
     <Reference Include="WindowsBase" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="System.Xaml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Actualizador.cs">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Compile>
+    <Compile Include="Casa.cs" />
     <Compile Include="CasaInventario.cs" />
     <Compile Include="ConceptoExistente.cs" />
     <Compile Include="DialogSeleccionarNivel.cs">
@@ -266,6 +269,18 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="FormActivarTareasTreeList.PanelPasos.cs">
+      <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormActivarTareasTreeList.Almacen.cs">
+      <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormActivarTareasTreeList.Insumos.cs">
+      <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormActivarTareasTreeList.Web.cs">
       <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
       <SubType>Form</SubType>
     </Compile>
@@ -305,6 +320,22 @@
     <Compile Include="FormAlmacen_Core.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="FormAlmacen.Web.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormComprasWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormTrabajadoresWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormPerfilesWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormSeleccionObraWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="OrdenCompraPdfService.cs" />
     <Compile Include="FormAlmacen_Entradas.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -378,6 +409,10 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="FormEditorTreeList.GestorInsumos.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormEditorTreeList.Web.cs">
+      <DependentUpon>FormEditorTreeList.cs</DependentUpon>
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="FormEstimacionConceptoMigrado.AgregarConcepto.cs">
@@ -483,12 +518,6 @@
     <Compile Include="FormCompraIndirecta.Designer.cs">
       <DependentUpon>FormCompraIndirecta.cs</DependentUpon>
     </Compile>
-    <Compile Include="FormEstimacionConcepto.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormEstimacionConcepto.Designer.cs">
-      <DependentUpon>FormEstimacionConcepto.cs</DependentUpon>
-    </Compile>
     <Compile Include="FormEstimacionConceptoMigrado.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -499,32 +528,8 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="FormEvidenciasFotograficas.Designer.cs" />
-    <Compile Include="FormInsumos.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormInsumos.Designer.cs">
-      <DependentUpon>FormInsumos.cs</DependentUpon>
-    </Compile>
-    <Compile Include="FormManoObra.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormManoObra.Designer.cs">
-      <DependentUpon>FormManoObra.cs</DependentUpon>
-    </Compile>
     <Compile Include="FormPdfPreview.cs">
       <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormReporte.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormReporte.Designer.cs">
-      <DependentUpon>FormReporte.cs</DependentUpon>
-    </Compile>
-    <Compile Include="FormRutaCritica.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormRutaCritica.Designer.cs">
-      <DependentUpon>FormRutaCritica.cs</DependentUpon>
     </Compile>
     <Compile Include="FormSeleccionarTitulo.cs">
       <SubType>Form</SubType>
@@ -542,6 +547,10 @@
     <Compile Include="GestorEvidencias.cs" />
     <Compile Include="GestorFotosConcepto.cs" />
     <Compile Include="ApiClient.cs" />
+    <Compile Include="NewFeatureBadge.cs" />
+    <Compile Include="FormAlmacen_EntradasTarjetas.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="NodoConcepto.cs" />
     <Compile Include="NodoTree.cs" />
     <Compile Include="PasswordHasher.cs" />
@@ -551,7 +560,12 @@
     <Compile Include="PanelPrincipal.Designer.cs">
       <DependentUpon>PanelPrincipal.cs</DependentUpon>
     </Compile>
+    <Compile Include="TareaRutaCritica.cs" />
     <Compile Include="PanelPrincipal.ModernExtensions.cs">
+      <DependentUpon>PanelPrincipal.cs</DependentUpon>
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PanelPrincipal.Web.cs">
       <DependentUpon>PanelPrincipal.cs</DependentUpon>
       <SubType>Form</SubType>
     </Compile>
@@ -568,6 +582,7 @@
       <DependentUpon>FormProgresoActualizacion.cs</DependentUpon>
     </Compile>
     <Compile Include="InventarioService.cs" />
+    <Compile Include="SalidaAlmacenService.cs" />
     <Compile Include="Resizer.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -615,7 +630,13 @@
     <Compile Include="FormAsignarNomina.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="FormAsignarNominaWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="FormDistribucionNomina.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormDistribucionNominaWeb.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="FormReporteDestajosSemana.cs">
@@ -635,11 +656,9 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Global.cs" />
+    <Compile Include="TemaObra.cs" />
     <Compile Include="FormLogin.cs">
       <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormLogin.Designer.cs">
-      <DependentUpon>FormLogin.cs</DependentUpon>
     </Compile>
     <Compile Include="FormGenerarOrden.cs">
       <SubType>Form</SubType>
@@ -674,9 +693,6 @@
     <EmbeddedResource Include="FormCompraMulti.resx">
       <DependentUpon>FormCompraMulti.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="FormEstimacionConcepto.resx">
-      <DependentUpon>FormEstimacionConcepto.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="FormEstimacionConceptoMigrado.resx">
       <DependentUpon>FormEstimacionConceptoMigrado.cs</DependentUpon>
     </EmbeddedResource>
@@ -692,9 +708,6 @@
     <EmbeddedResource Include="FormRegistrarTrabajador.resx">
       <DependentUpon>FormRegistrarTrabajador.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="FormRutaCritica.resx">
-      <DependentUpon>FormRutaCritica.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="FormSeleccionarTitulo.resx">
       <DependentUpon>FormSeleccionarTitulo.cs</DependentUpon>
     </EmbeddedResource>
@@ -706,9 +719,6 @@
     </EmbeddedResource>
     <EmbeddedResource Include="FormAsignarCuadrilla.resx">
       <DependentUpon>FormAsignarCuadrilla.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="FormLogin.resx">
-      <DependentUpon>FormLogin.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="FormGenerarOrden.resx">
       <DependentUpon>FormGenerarOrden.cs</DependentUpon>
@@ -773,6 +783,8 @@
     <None Include="CORRECCION_TablaAvanceManualObra.md" />
     <None Include="DATOS_REQUERIDOS_AvanceObra.md" />
     <None Include="DIAGNOSTICO_FechaFinalizacion.md" />
+    <None Include="DIAGRAMA_ARQUITECTURA_VISUAL.md" />
+    <None Include="DOCUMENTACION_ARQUITECTURA_COMPLETA.md" />
     <None Include="DOCUMENTACION_ConsultaPorCasa_FormAlmacen.md" />
     <None Include="DOCUMENTACION_FormActivarTareasTreeList.md" />
     <None Include="DOCUMENTACION_FormAvanceConcepto.md" />
@@ -801,11 +813,14 @@
     <None Include="IMPLEMENTACION_FechaConceptos_Automatica.md" />
     <None Include="IMPLEMENTACION_MapaPanZoom.md" />
     <None Include="INDICE_DOCUMENTACION_ESTADO_DESTAJO.md" />
+    <None Include="INDICE_GENERAL_DOCUMENTACION.md" />
+    <None Include="INDICE_RAPIDO_REFERENCIA.md" />
     <None Include="INICIO_RAPIDO_FormActivarTareasTreeList.md" />
     <None Include="INICIO_RAPIDO_TreeList.md" />
     <None Include="INTEGRACION_FormAlmacen.md" />
     <None Include="MANUAL_FormAvanceObra.md" />
     <None Include="MANUAL_USO_ConsultaPorCasa.md" />
+    <None Include="MATRIZ_FUNCIONALIDADES_MODULOS.md" />
     <None Include="MEJORAS_UI_FormAlmacen.md" />
     <None Include="MEJORA_ColumnaTotalPresupuestado.md" />
     <None Include="MEJORA_GraficaPorCategorias.md" />
@@ -851,6 +866,7 @@
     <None Include="RESUMEN_ConsultaPorCasa.md" />
     <None Include="RESUMEN_CORRECCIONES_FormAgregarConcepto.md" />
     <None Include="RESUMEN_DRAG_DROP_TreeList.md" />
+    <None Include="RESUMEN_EJECUTIVO_ANALISIS.md" />
     <None Include="RESUMEN_EJECUTIVO_FormAlmacen.md" />
     <None Include="RESUMEN_FormActivarTareasTreeList.md" />
     <None Include="RESUMEN_Inventario_FormAlmacen.md" />
@@ -869,11 +885,26 @@
     <None Include="TEMATIZACION_APLICADA.md" />
     <None Include="Test-AzureSQLConnection.ps1" />
     <None Include="VALIDACION_ESTADO_DESTAJO.md" />
+    <None Include="VERIFICACION_ANALISIS_COMPLETO.md" />
     <None Include="VERIFICACION_FINAL_Sistema.md" />
     <None Include="VERIFICACION_GuardadoOrdenesCompra.md" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+    <!-- Secretos: NO se versionan (ver .gitignore). Cada máquina crea su propia
+         copia a partir de los .example. Se copian al output solo si existen. -->
+    <None Include="secrets.config" Condition="Exists('secrets.config')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="connectionStrings.config" Condition="Exists('connectionStrings.config')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="secrets.config.example">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="connectionStrings.config.example">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.7.2">
@@ -895,6 +926,7 @@
     <Content Include="DIAGNOSTICO_OrdenConceptos.sql" />
     <Content Include="DIAGNOSTICO_Partidas.sql" />
     <Content Include="EJEMPLOS_IntegracionTreeList.txt" />
+    <Content Include="LEEME.txt" />
     <Content Include="Properties\Logo.png" />
     <None Include="Resources\LogoCamaney.bmp" />
     <None Include="Resources\LogoCamaney.png" />
@@ -975,5 +1007,20 @@
     <Content Include="SQL_VERIFICAR_AzureSQL.sql" />
     <Content Include="SQL_VERIFICAR_BaseDatos.sql" />
   </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.Web.WebView2.Core">
+      <HintPath>..\packages\Microsoft.Web.WebView2.1.0.4078.44\lib\net462\Microsoft.Web.WebView2.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Web.WebView2.WinForms">
+      <HintPath>..\packages\Microsoft.Web.WebView2.1.0.4078.44\lib\net462\Microsoft.Web.WebView2.WinForms.dll</HintPath>
+    </Reference>
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>Falta el paquete NuGet: {0}. Restaurar antes de compilar.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\Microsoft.Web.WebView2.1.0.4078.44\build\Microsoft.Web.WebView2.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Web.WebView2.1.0.4078.44\build\Microsoft.Web.WebView2.targets'))" />
+  </Target>
+  <Import Project="..\packages\Microsoft.Web.WebView2.1.0.4078.44\build\Microsoft.Web.WebView2.targets" Condition="Exists('..\packages\Microsoft.Web.WebView2.1.0.4078.44\build\Microsoft.Web.WebView2.targets')" />
 </Project>

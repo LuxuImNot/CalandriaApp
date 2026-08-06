@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace DynamicSepticSystem
@@ -44,6 +47,12 @@ namespace DynamicSepticSystem
         private Panel guiaCardAcciones;
         private FlowLayoutPanel guiaAccionesFlow;
 
+        // Evidencias fotográficas (EvidenciasDestajo)
+        private Panel guiaCardEvidencias;
+        private FlowLayoutPanel guiaEvidenciasFlow;
+        private Label guiaEvidenciasEstado;
+        private int _evidenciasToken = 0; // descarta cargas viejas si el usuario cambia de destajo antes de que respondan
+
         // Sin selección
         private Panel guiaCardVacio;
 
@@ -73,24 +82,24 @@ namespace DynamicSepticSystem
             var banner = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 60,
+                Height = 66,
                 BackColor = GuiaPrimario
             };
             banner.Controls.Add(new Label
             {
                 Text = "ASISTENTE DE DESTAJO",
-                Font = new Font("Segoe UI Semibold", 11.5F, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 12.5F, FontStyle.Bold),
                 ForeColor = Color.White,
                 AutoSize = true,
-                Location = new Point(16, 10)
+                Location = new Point(16, 11)
             });
             banner.Controls.Add(new Label
             {
                 Text = "Te guía paso a paso por cada etapa",
-                Font = new Font("Segoe UI", 8.5F),
+                Font = new Font("Segoe UI", 9.5F),
                 ForeColor = Color.FromArgb(189, 200, 215),
                 AutoSize = true,
-                Location = new Point(17, 32)
+                Location = new Point(17, 36)
             });
 
             // Contenido scrollable
@@ -106,11 +115,13 @@ namespace DynamicSepticSystem
 
             guiaCardVacio = ConstruirCardVacio();
             guiaCardEtapa = ConstruirCardEtapa();
+            guiaCardEvidencias = ConstruirCardEvidencias();
             guiaCardSiguiente = ConstruirCardSiguiente();
             guiaCardAcciones = ConstruirCardAcciones();
 
             guiaContenido.Controls.Add(guiaCardVacio);
             guiaContenido.Controls.Add(guiaCardEtapa);
+            guiaContenido.Controls.Add(guiaCardEvidencias);
             guiaContenido.Controls.Add(guiaCardSiguiente);
             guiaContenido.Controls.Add(guiaCardAcciones);
 
@@ -142,12 +153,12 @@ namespace DynamicSepticSystem
             var lblTitulo = new Label
             {
                 Text = titulo,
-                Font = new Font("Segoe UI Semibold", 8.5F, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 9.5F, FontStyle.Bold),
                 ForeColor = GuiaTextoSuave,
                 AutoSize = false,
                 TextAlign = ContentAlignment.MiddleLeft,
                 Dock = DockStyle.Top,
-                Height = 26,
+                Height = 29,
                 Padding = new Padding(12, 6, 12, 4),
                 BackColor = Color.FromArgb(252, 253, 254)
             };
@@ -176,7 +187,7 @@ namespace DynamicSepticSystem
         {
             Panel cuerpo;
             var card = ConstruirCard("INICIO", out cuerpo);
-            card.Height = 200;
+            card.Height = 220;
 
             var icono = new Label
             {
@@ -192,21 +203,21 @@ namespace DynamicSepticSystem
             var titulo = new Label
             {
                 Text = "Selecciona un destajo",
-                Font = new Font("Segoe UI Semibold", 11F, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 12F, FontStyle.Bold),
                 ForeColor = GuiaTexto,
                 AutoSize = false,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Dock = DockStyle.Top,
-                Height = 26
+                Height = 28
             };
 
             var pasos = new Label
             {
                 Text = "1.  Elige Manzana y Lote\n" +
                        "2.  Pulsa “Cargar Tareas”\n" +
-                       "3.  Marca un destajo para activarlo\n" +
-                       "4.  Selecciónalo aquí para ver opciones",
-                Font = new Font("Segoe UI", 9F),
+                       "3.  En el panel de progreso elige un destajo\n" +
+                       "4.  Aquí verás sus opciones paso a paso",
+                Font = new Font("Segoe UI", 10F),
                 ForeColor = GuiaTexto,
                 AutoSize = false,
                 TextAlign = ContentAlignment.TopLeft,
@@ -224,18 +235,18 @@ namespace DynamicSepticSystem
         {
             Panel cuerpo;
             var card = ConstruirCard("ETAPA ACTUAL", out cuerpo);
-            card.Height = 138;
+            card.Height = 150;
 
             guiaBadgeEtapa = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 46,
+                Height = 50,
                 BackColor = GuiaTextoSuave
             };
             guiaBadgeTexto = new Label
             {
                 Text = "○  SIN ACTIVAR",
-                Font = new Font("Segoe UI Semibold", 14F, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 15.5F, FontStyle.Bold),
                 ForeColor = Color.White,
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleCenter
@@ -245,7 +256,7 @@ namespace DynamicSepticSystem
             guiaEtapaDescripcion = new Label
             {
                 Text = "Marca el destajo para activarlo y asignarle cuadrilla.",
-                Font = new Font("Segoe UI", 10F),
+                Font = new Font("Segoe UI", 11F),
                 ForeColor = GuiaTexto,
                 AutoSize = false,
                 Dock = DockStyle.Fill,
@@ -262,23 +273,23 @@ namespace DynamicSepticSystem
         {
             Panel cuerpo;
             var card = ConstruirCard("SIGUIENTE PASO", out cuerpo);
-            card.Height = 158;
+            card.Height = 172;
 
             guiaSiguienteTitulo = new Label
             {
                 Text = "—",
-                Font = new Font("Segoe UI Semibold", 11.5F, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 12.5F, FontStyle.Bold),
                 ForeColor = GuiaPrimario,
                 AutoSize = false,
                 Dock = DockStyle.Top,
-                Height = 26,
+                Height = 28,
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
             guiaSiguienteDescripcion = new Label
             {
                 Text = "—",
-                Font = new Font("Segoe UI", 9F),
+                Font = new Font("Segoe UI", 10F),
                 ForeColor = GuiaTexto,
                 AutoSize = false,
                 Dock = DockStyle.Fill,
@@ -290,10 +301,10 @@ namespace DynamicSepticSystem
             {
                 Text = "Acción",
                 Dock = DockStyle.Bottom,
-                Height = 42,
+                Height = 44,
                 BackColor = GuiaAcento,
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI Semibold", 10.5F, FontStyle.Bold),
+                Font = new Font("Segoe UI Semibold", 11.5F, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand
             };
@@ -306,11 +317,46 @@ namespace DynamicSepticSystem
             return card;
         }
 
+        /// <summary>
+        /// Miniaturas de las evidencias fotográficas (tabla EvidenciasDestajo,
+        /// api/evidencias-destajo) del destajo actualmente mostrado. Sólo consulta;
+        /// la carga se hace en otra pantalla/dispositivo.
+        /// </summary>
+        private Panel ConstruirCardEvidencias()
+        {
+            Panel cuerpo;
+            var card = ConstruirCard("EVIDENCIAS FOTOGRÁFICAS", out cuerpo);
+            card.Height = 150;
+
+            guiaEvidenciasEstado = new Label
+            {
+                Text = "—",
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Italic),
+                ForeColor = GuiaTextoSuave,
+                AutoSize = false,
+                Dock = DockStyle.Top,
+                Height = 20,
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+
+            guiaEvidenciasFlow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = true,
+                AutoScroll = true
+            };
+
+            cuerpo.Controls.Add(guiaEvidenciasFlow);
+            cuerpo.Controls.Add(guiaEvidenciasEstado);
+            return card;
+        }
+
         private Panel ConstruirCardAcciones()
         {
             Panel cuerpo;
             var card = ConstruirCard("ACCIONES DISPONIBLES", out cuerpo);
-            card.Height = 158;
+            card.Height = 195;
 
             guiaAccionesFlow = new FlowLayoutPanel
             {
@@ -330,11 +376,11 @@ namespace DynamicSepticSystem
             {
                 Text = texto,
                 Width = anchoBtn,
-                Height = 26,
+                Height = 29,
                 Margin = new Padding(0, 0, 0, 4),
                 BackColor = color,
                 ForeColor = Color.White,
-                Font = new Font("Segoe UI", 8.75F, FontStyle.Bold),
+                Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
                 FlatStyle = FlatStyle.Flat,
                 Cursor = Cursors.Hand,
                 TextAlign = ContentAlignment.MiddleLeft,
@@ -367,7 +413,7 @@ namespace DynamicSepticSystem
         {
             if (panelGuia == null) return;
 
-            var item = olvTareas.SelectedObject as ItemTareaActivacion;
+            var item = ItemSeleccionado();
             var etapa = DeterminarEtapa(item);
 
             switch (etapa)
@@ -415,6 +461,7 @@ namespace DynamicSepticSystem
         {
             guiaCardVacio.Visible = false;
             guiaCardEtapa.Visible = false;
+            guiaCardEvidencias.Visible = false;
             guiaCardSiguiente.Visible = false;
             guiaCardAcciones.Visible = false;
         }
@@ -439,9 +486,9 @@ namespace DynamicSepticSystem
             PintarBadge(GuiaAcento, "▣  CATEGORÍA");
             guiaEtapaDescripcion.Text = $"{item.Nombre}\n{totalHijos} destajo(s) · {activados} activados · {terminados} terminados.";
 
-            guiaSiguienteTitulo.Text = "Expande la categoría";
-            guiaSiguienteDescripcion.Text = "Abre los destajos hijos para activarlos uno por uno.";
-            ConfigurarBotonPrimario("Expandir categoría", GuiaAcento, () => olvTareas.Expand(item));
+            guiaSiguienteTitulo.Text = "Avanza por sus destajos";
+            guiaSiguienteDescripcion.Text = "El panel de progreso muestra el destajo actual de esta categoría; ve a él para activarlo.";
+            ConfigurarBotonPrimario("▸ Ir al destajo actual", GuiaAcento, () => SeleccionarDestajoActual(item));
         }
 
         private void MostrarEstadoSinActivar(ItemTareaActivacion item)
@@ -452,6 +499,9 @@ namespace DynamicSepticSystem
 
             PintarBadge(GuiaTextoSuave, "○  SIN ACTIVAR");
             guiaEtapaDescripcion.Text = $"{item.Nombre}\nAún sin cuadrilla. Actívalo para asignarle una.";
+
+            guiaCardEvidencias.Visible = true;
+            CargarEvidencias(item);
 
             guiaSiguienteTitulo.Text = "Activar y asignar cuadrilla";
             guiaSiguienteDescripcion.Text = "Al activar se abrirá el selector de cuadrilla y se generará el PDF de orden.";
@@ -478,6 +528,9 @@ namespace DynamicSepticSystem
             PintarBadge(GuiaAviso, "●  ACTIVADO");
             guiaEtapaDescripcion.Text = $"{item.Nombre}\nCuadrilla {cuadrilla} · activado {activado}";
 
+            guiaCardEvidencias.Visible = true;
+            CargarEvidencias(item);
+
             guiaSiguienteTitulo.Text = "Cuando termine, finaliza";
             guiaSiguienteDescripcion.Text = "Al finalizar quedará disponible para distribuir nómina.";
             ConfigurarBotonPrimario("✓ Finalizar destajo", GuiaExito, () =>
@@ -503,6 +556,9 @@ namespace DynamicSepticSystem
 
             PintarBadge(GuiaExito, "✓  TERMINADO");
             guiaEtapaDescripcion.Text = $"{item.Nombre}\nCuadrilla {cuadrilla} · terminado {terminado}";
+
+            guiaCardEvidencias.Visible = true;
+            CargarEvidencias(item);
 
             guiaSiguienteTitulo.Text = "Distribuir nómina";
             guiaSiguienteDescripcion.Text = "Abre el reporte por cuadrilla y captura el monto y concepto de cada trabajador.";
@@ -637,6 +693,193 @@ namespace DynamicSepticSystem
                 }));
             guiaAccionesFlow.Controls.Add(CrearBotonAccion("ℹ️  Ver propiedades",
                 Color.FromArgb(127, 140, 141), (s, e) => MenuItemPropiedades_Click(null, EventArgs.Empty)));
+            if (EsUsuarioAdmin())
+                guiaAccionesFlow.Controls.Add(CrearBotonAccion("↩️  Reabrir destajo (deshacer)",
+                    GuiaAviso, (s, e) => MenuItemReabrir_Click(null, EventArgs.Empty)));
+        }
+
+        // ============================================================
+        // Evidencias fotográficas (EvidenciasDestajo)
+        // ============================================================
+
+        /// <summary>
+        /// Pide al API las evidencias del destajo indicado y las pinta como
+        /// miniaturas. Corre en segundo plano para no congelar la UI mientras
+        /// bajan las fotos.
+        /// </summary>
+        private void CargarEvidencias(ItemTareaActivacion item)
+        {
+            guiaEvidenciasFlow.Controls.Clear();
+            guiaEvidenciasEstado.Text = "Cargando evidencias…";
+            guiaEvidenciasEstado.Visible = true;
+
+            int token = ++_evidenciasToken;
+            string manzana = manzanaActual, lote = loteActual, ruta = rutaActual;
+            int nodoId = item.ID;
+
+            Task.Run(() =>
+            {
+                List<EvidenciaDestajoApi> lista;
+                try
+                {
+                    lista = ApiClient.Get<List<EvidenciaDestajoApi>>(
+                        "/api/evidencias-destajo?manzana=" + Uri.EscapeDataString(manzana ?? "") +
+                        "&lote=" + Uri.EscapeDataString(lote ?? "") +
+                        "&ruta=" + Uri.EscapeDataString(ruta ?? "") +
+                        "&nodoId=" + nodoId) ?? new List<EvidenciaDestajoApi>();
+                }
+                catch
+                {
+                    lista = null; // error de red/API
+                }
+
+                BeginInvoke((Action)(() =>
+                {
+                    if (token != _evidenciasToken) return; // el usuario ya cambió de destajo
+
+                    if (lista == null)
+                    {
+                        guiaEvidenciasEstado.Text = "No se pudieron cargar las evidencias.";
+                        return;
+                    }
+                    if (lista.Count == 0)
+                    {
+                        guiaEvidenciasEstado.Text = "Sin evidencias fotográficas.";
+                        return;
+                    }
+
+                    guiaEvidenciasEstado.Visible = false;
+                    foreach (var ev in lista)
+                        guiaEvidenciasFlow.Controls.Add(CrearMiniaturaEvidencia(ev));
+                }));
+            });
+        }
+
+        /// <summary>Miniatura clicable; la imagen se baja en segundo plano y se pinta al llegar.</summary>
+        private Control CrearMiniaturaEvidencia(EvidenciaDestajoApi ev)
+        {
+            var box = new PictureBox
+            {
+                Width = 56,
+                Height = 56,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.FromArgb(245, 246, 248),
+                Margin = new Padding(0, 0, 6, 6),
+                Cursor = Cursors.Hand
+            };
+            var tt = new ToolTip();
+            tt.SetToolTip(box, string.IsNullOrWhiteSpace(ev.Descripcion)
+                ? ev.Fecha.ToString("dd/MM/yyyy HH:mm", CultureInfo.CurrentCulture)
+                : ev.Descripcion);
+            box.Click += (s, e) => VerEvidenciaCompleta(ev);
+
+            Task.Run(() =>
+            {
+                byte[] bytes = null;
+                try { bytes = ApiClient.GetBytes($"/api/evidencias-destajo/{ev.Id}/foto"); } catch { }
+                if (bytes == null || bytes.Length == 0) return;
+
+                BeginInvoke((Action)(() =>
+                {
+                    try
+                    {
+                        using (var ms = new MemoryStream(bytes))
+                        using (var tmp = Image.FromStream(ms))
+                            box.Image = new Bitmap(tmp);
+                    }
+                    catch { /* miniatura ilegible, se deja el placeholder */ }
+                }));
+            });
+
+            return box;
+        }
+
+        /// <summary>Abre la evidencia a tamaño completo; permite eliminarla si el usuario es Admin.</summary>
+        private void VerEvidenciaCompleta(EvidenciaDestajoApi ev)
+        {
+            byte[] bytes;
+            try
+            {
+                bytes = ApiClient.GetBytes($"/api/evidencias-destajo/{ev.Id}/foto");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("No se pudo cargar la evidencia:\n" + ex.Message,
+                    "Evidencias", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (bytes == null || bytes.Length == 0)
+            {
+                MessageBox.Show("La evidencia no tiene imagen.", "Evidencias",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            using (var dlg = new Form
+            {
+                Text = string.IsNullOrWhiteSpace(ev.Descripcion) ? "Evidencia fotográfica" : ev.Descripcion,
+                Size = new Size(760, 640),
+                StartPosition = FormStartPosition.CenterParent,
+                BackColor = Color.Black,
+                ShowInTaskbar = false
+            })
+            {
+                var pic = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
+                using (var ms = new MemoryStream(bytes))
+                using (var tmp = Image.FromStream(ms))
+                    pic.Image = new Bitmap(tmp);
+
+                var pie = new Label
+                {
+                    Dock = DockStyle.Bottom,
+                    Height = 30,
+                    BackColor = Color.Black,
+                    ForeColor = Color.White,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Text = $"{ev.Fecha:dd/MM/yyyy HH:mm} · {ev.Usuario}"
+                };
+
+                dlg.Controls.Add(pic);
+                dlg.Controls.Add(pie);
+
+                if (EsUsuarioAdmin())
+                {
+                    var btnEliminar = new Button
+                    {
+                        Text = "✕ Eliminar evidencia",
+                        Dock = DockStyle.Top,
+                        Height = 32,
+                        BackColor = GuiaPeligro,
+                        ForeColor = Color.White,
+                        FlatStyle = FlatStyle.Flat,
+                        Cursor = Cursors.Hand
+                    };
+                    btnEliminar.FlatAppearance.BorderSize = 0;
+                    btnEliminar.Click += (s, e) =>
+                    {
+                        if (MessageBox.Show("¿Eliminar esta evidencia? No se puede deshacer.",
+                            "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                            return;
+                        try
+                        {
+                            ApiClient.Post($"/api/evidencias-destajo/{ev.Id}/eliminar", null);
+                            dlg.Close();
+                            var actual = ItemSeleccionado();
+                            if (actual != null) CargarEvidencias(actual);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show("No se pudo eliminar:\n" + ex.Message,
+                                "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                    };
+                    dlg.Controls.Add(btnEliminar);
+                }
+
+                dlg.ShowDialog(this);
+                pic.Image?.Dispose();
+            }
         }
 
         // ============================================================
@@ -649,7 +892,13 @@ namespace DynamicSepticSystem
         private void ConectarPanelGuia()
         {
             if (panelGuia == null || olvTareas == null) return;
-            olvTareas.SelectedIndexChanged += (s, e) => ActualizarPanelGuia();
+            olvTareas.SelectedIndexChanged += (s, e) =>
+            {
+                // Si la selección viene del árbol real, sincroniza el destajo del asistente.
+                var sel = olvTareas.SelectedObject as ItemTareaActivacion;
+                if (sel != null) _destajoGuia = sel;
+                ActualizarPanelGuia();
+            };
             ActualizarPanelGuia();
         }
     }

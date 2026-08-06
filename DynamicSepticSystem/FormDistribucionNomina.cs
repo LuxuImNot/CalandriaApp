@@ -578,10 +578,11 @@ END";
             page.Size = PdfSharp.PageSize.Letter;
             var gfx = XGraphics.FromPdfPage(page);
 
-            var fuenteTitulo = new XFont("Arial", 16, XFontStyle.Bold);
-            var fuenteSubtitulo = new XFont("Arial", 11, XFontStyle.Bold);
+            var fuenteTitulo = new XFont("Arial", 15, XFontStyle.Bold);
+            var fuenteSubtitulo = new XFont("Arial", 10, XFontStyle.Bold);
             var fuenteSeccion = new XFont("Arial", 10, XFontStyle.Bold);
             var fuenteEnc = new XFont("Arial", 9, XFontStyle.Bold);
+            var fuenteCampo = new XFont("Arial", 9, XFontStyle.Bold);
             var fuenteNorm = new XFont("Arial", 9, XFontStyle.Regular);
             var fuentePeq = new XFont("Arial", 8, XFontStyle.Regular);
 
@@ -592,12 +593,15 @@ END";
             var brochaVerde = new XSolidBrush(XColor.FromArgb(39, 174, 96));
             var brochaBlanca = XBrushes.White;
             var penBorde = new XPen(XColor.FromArgb(189, 189, 189), 0.5);
+            var penCampo = new XPen(XColor.FromArgb(120, 120, 120), 0.8);
+
+            var cul = CultureInfo.GetCultureInfo("es-MX");
 
             double margen = 30;
             double ancho = page.Width - 2 * margen;
             double y = margen;
 
-            // Encabezado
+            // ===== Encabezado con logo Calandria y marca =====
             gfx.DrawRectangle(brochaAzul, margen, y, ancho, 50);
             try
             {
@@ -613,106 +617,131 @@ END";
             catch { }
             gfx.DrawString("CAMANEY DESARROLLO Y CONSTRUCCIÓN SA DE CV",
                 fuenteSubtitulo, brochaBlanca,
-                new XRect(margen + 50, y + 6, ancho - 50, 14), XStringFormats.TopLeft);
-            gfx.DrawString("DISTRIBUCIÓN DE NÓMINA", fuenteTitulo, brochaBlanca,
-                new XRect(margen + 50, y + 22, ancho - 50, 18), XStringFormats.TopLeft);
+                new XRect(margen + 50, y + 8, ancho - 56, 14), XStringFormats.TopLeft);
+            gfx.DrawString("REPORTE DE DISTRIBUCIÓN DE DESTAJOS", fuenteTitulo, brochaBlanca,
+                new XRect(margen + 50, y + 24, ancho - 56, 18), XStringFormats.TopLeft);
             y += 60;
 
-            // Info cuadrilla
-            gfx.DrawRectangle(brochaGris, margen, y, ancho, 50);
-            gfx.DrawRectangle(penBorde, margen, y, ancho, 50);
-            var cul = CultureInfo.GetCultureInfo("es-MX");
-            gfx.DrawString("Cuadrilla: " + _codigoCuadrilla, fuenteSubtitulo, brochaTexto,
-                new XRect(margen + 6, y + 6, ancho - 12, 14), XStringFormats.TopLeft);
-            gfx.DrawString(string.Format("Periodo: {0:dd/MM/yyyy} al {1:dd/MM/yyyy}", _desde, _hasta),
-                fuenteNorm, brochaTexto,
-                new XRect(margen + 6, y + 22, ancho - 12, 12), XStringFormats.TopLeft);
-            gfx.DrawString(string.Format("Miembros: {0}    Destajos finalizados: {1}",
-                _miembros.Count, _destajos.Count),
-                fuenteNorm, brochaTexto,
-                new XRect(margen + 6, y + 36, ancho - 12, 12), XStringFormats.TopLeft);
-            y += 60;
+            // ===== Bloque de datos de cabecera (en blanco para llenar a mano) =====
+            // Helper local: dibuja "Etiqueta:" y una línea de captura; rellena valor si lo hay.
+            Action<string, double, double, double, string> campo = (etiqueta, x, yy, xFin, valor) =>
+            {
+                gfx.DrawString(etiqueta, fuenteCampo, brochaTexto,
+                    new XRect(x, yy, 150, 12), XStringFormats.TopLeft);
+                double xLinea = x + gfx.MeasureString(etiqueta + " ", fuenteCampo).Width + 2;
+                if (!string.IsNullOrEmpty(valor))
+                    gfx.DrawString(valor, fuenteNorm, brochaTexto,
+                        new XRect(xLinea, yy, xFin - xLinea, 12), XStringFormats.TopLeft);
+                gfx.DrawLine(penCampo, xLinea, yy + 12, xFin, yy + 12);
+            };
 
-            // Sección de destajos
+            double bloqueAlto = 96;
+            gfx.DrawRectangle(brochaGris, margen, y, ancho, bloqueAlto);
+            gfx.DrawRectangle(penBorde, margen, y, ancho, bloqueAlto);
+
+            double colIzq = margen + 10;
+            double finIzq = margen + ancho * 0.55 - 10;
+            double colDer = margen + ancho * 0.55 + 6;
+            double finDer = margen + ancho - 10;
+
+            double yf = y + 8;
+            campo("Edificación:", colIzq, yf, finIzq, "");
+            campo("Cuadrilla:", colDer, yf, finDer, _codigoCuadrilla);
+            yf += 18;
+            campo("Urbanización:", colIzq, yf, finIzq, "");
+            campo("Nombre de supervisor:", colDer, yf, finDer, "");
+            yf += 18;
+            campo("No. Supervisor:", colIzq, yf, finIzq, "");
+            campo("Periodo:", colDer, yf, finDer,
+                string.Format("{0:dd/MM/yyyy} al {1:dd/MM/yyyy}", _desde, _hasta));
+            yf += 18;
+            campo("Fecha:", colIzq, yf, finIzq, DateTime.Today.ToString("dd/MM/yyyy", cul));
+            yf += 18;
+            campo("Jefe de Cuadrilla:", colIzq, yf, finIzq, "");
+            y += bloqueAlto + 10;
+
+            // ===== Tabla de destajos =====
             gfx.DrawRectangle(brochaCelta, margen, y, ancho, 16);
-            gfx.DrawString("DESTAJOS FINALIZADOS DE LA CUADRILLA", fuenteSeccion, brochaBlanca,
+            gfx.DrawString("DESTAJOS FINALIZADOS", fuenteSeccion, brochaBlanca,
                 new XRect(margen + 4, y + 2, ancho - 8, 13), XStringFormats.TopLeft);
             y += 16;
 
-            double colCasa = ancho * 0.12;
-            double colDestajo = ancho * 0.46;
-            double colCategoria = ancho * 0.20;
-            double colFecha = ancho * 0.12;
-            double colImporte = ancho - colCasa - colDestajo - colCategoria - colFecha;
+            double colNum = ancho * 0.07;
+            double colDest = ancho * 0.45;
+            double colCasa = ancho * 0.13;
+            double colPrecio = ancho * 0.15;
+            double colObs = ancho - colNum - colDest - colCasa - colPrecio;
 
-            gfx.DrawRectangle(brochaAzul, margen, y, ancho, 14);
-            double xCol = margen;
-            gfx.DrawString("Casa", fuenteEnc, brochaBlanca,
-                new XRect(xCol + 4, y + 2, colCasa - 4, 10), XStringFormats.TopLeft);
-            xCol += colCasa;
-            gfx.DrawString("Destajo", fuenteEnc, brochaBlanca,
-                new XRect(xCol + 4, y + 2, colDestajo - 4, 10), XStringFormats.TopLeft);
-            xCol += colDestajo;
-            gfx.DrawString("Categoría", fuenteEnc, brochaBlanca,
-                new XRect(xCol + 4, y + 2, colCategoria - 4, 10), XStringFormats.TopLeft);
-            xCol += colCategoria;
-            gfx.DrawString("Fecha", fuenteEnc, brochaBlanca,
-                new XRect(xCol + 4, y + 2, colFecha - 4, 10), XStringFormats.TopLeft);
-            xCol += colFecha;
-            gfx.DrawString("Importe", fuenteEnc, brochaBlanca,
-                new XRect(xCol + 4, y + 2, colImporte - 8, 10), XStringFormats.TopRight);
-            y += 14;
+            Action dibujarEncabezadoDestajos = () =>
+            {
+                gfx.DrawRectangle(brochaAzul, margen, y, ancho, 14);
+                double xc = margen;
+                gfx.DrawString("Nº destajo", fuenteEnc, brochaBlanca,
+                    new XRect(xc + 4, y + 2, colNum - 4, 10), XStringFormats.TopLeft);
+                xc += colNum;
+                gfx.DrawString("Destajo", fuenteEnc, brochaBlanca,
+                    new XRect(xc + 4, y + 2, colDest - 4, 10), XStringFormats.TopLeft);
+                xc += colDest;
+                gfx.DrawString("Casa", fuenteEnc, brochaBlanca,
+                    new XRect(xc + 4, y + 2, colCasa - 4, 10), XStringFormats.TopLeft);
+                xc += colCasa;
+                gfx.DrawString("Precio", fuenteEnc, brochaBlanca,
+                    new XRect(xc + 4, y + 2, colPrecio - 8, 10), XStringFormats.TopRight);
+                xc += colPrecio;
+                gfx.DrawString("Observaciones", fuenteEnc, brochaBlanca,
+                    new XRect(xc + 4, y + 2, colObs - 4, 10), XStringFormats.TopLeft);
+                y += 14;
+            };
+            dibujarEncabezadoDestajos();
 
             bool alt = false;
             decimal total = 0m;
+            int numero = 1;
             foreach (var d in _destajos.OrderBy(x => x.Categoria).ThenBy(x => x.Casa))
             {
-                if (y > page.Height - 100)
+                if (y > page.Height - 110)
                 {
                     page = doc.AddPage();
                     page.Size = PdfSharp.PageSize.Letter;
                     gfx = XGraphics.FromPdfPage(page);
                     y = margen;
+                    dibujarEncabezadoDestajos();
                 }
 
                 var brochaFila = alt ? brochaGris : new XSolidBrush(XColor.FromArgb(255, 255, 255));
                 gfx.DrawRectangle(brochaFila, margen, y, ancho, 14);
                 gfx.DrawRectangle(penBorde, margen, y, ancho, 14);
 
-                xCol = margen;
-                gfx.DrawString(Truncar(d.Casa ?? "-", 14), fuenteNorm, brochaTexto,
-                    new XRect(xCol + 4, y + 2, colCasa - 4, 10), XStringFormats.TopLeft);
-                xCol += colCasa;
-                gfx.DrawString(Truncar(d.Nombre ?? "-", 60), fuenteNorm, brochaTexto,
-                    new XRect(xCol + 4, y + 2, colDestajo - 4, 10), XStringFormats.TopLeft);
-                xCol += colDestajo;
-                gfx.DrawString(Truncar(d.Categoria ?? "-", 26), fuenteNorm, brochaTexto,
-                    new XRect(xCol + 4, y + 2, colCategoria - 4, 10), XStringFormats.TopLeft);
-                xCol += colCategoria;
-                gfx.DrawString(d.FechaFinalizacion.HasValue
-                    ? d.FechaFinalizacion.Value.ToString("dd/MM/yyyy", cul) : "-",
-                    fuenteNorm, brochaTexto,
-                    new XRect(xCol + 4, y + 2, colFecha - 4, 10), XStringFormats.TopLeft);
-                xCol += colFecha;
+                double xc = margen;
+                gfx.DrawString(numero.ToString(), fuenteNorm, brochaTexto,
+                    new XRect(xc + 4, y + 2, colNum - 4, 10), XStringFormats.TopLeft);
+                xc += colNum;
+                gfx.DrawString(Truncar(d.Nombre ?? "-", 58), fuenteNorm, brochaTexto,
+                    new XRect(xc + 4, y + 2, colDest - 4, 10), XStringFormats.TopLeft);
+                xc += colDest;
+                gfx.DrawString(Truncar(d.Casa ?? "-", 16), fuenteNorm, brochaTexto,
+                    new XRect(xc + 4, y + 2, colCasa - 4, 10), XStringFormats.TopLeft);
+                xc += colCasa;
                 gfx.DrawString(d.Importe.ToString("C2", cul), fuenteNorm, brochaTexto,
-                    new XRect(xCol + 4, y + 2, colImporte - 8, 10), XStringFormats.TopRight);
+                    new XRect(xc + 4, y + 2, colPrecio - 8, 10), XStringFormats.TopRight);
 
                 y += 14;
                 total += d.Importe;
                 alt = !alt;
+                numero++;
             }
 
-            // Fila total
+            // Fila total de precios
             gfx.DrawRectangle(brochaVerde, margen, y, ancho, 16);
             gfx.DrawString("TOTAL DESTAJOS", fuenteEnc, brochaBlanca,
-                new XRect(margen + 4, y + 3, ancho - colImporte - 8, 12), XStringFormats.TopLeft);
+                new XRect(margen + 4, y + 3, ancho - colPrecio - colObs - 8, 12), XStringFormats.TopLeft);
             gfx.DrawString(total.ToString("C2", cul), fuenteEnc, brochaBlanca,
-                new XRect(margen + ancho - colImporte + 4, y + 3, colImporte - 8, 12),
+                new XRect(margen + colNum + colDest + colCasa + 4, y + 3, colPrecio - 8, 12),
                 XStringFormats.TopRight);
             y += 24;
 
-            // Sección distribución por trabajador
-            if (y > page.Height - 200)
+            // ===== Integrantes de cuadrilla y monto asignado =====
+            if (y > page.Height - 160)
             {
                 page = doc.AddPage();
                 page.Size = PdfSharp.PageSize.Letter;
@@ -721,35 +750,35 @@ END";
             }
 
             gfx.DrawRectangle(brochaCelta, margen, y, ancho, 16);
-            gfx.DrawString("DISTRIBUCIÓN POR TRABAJADOR", fuenteSeccion, brochaBlanca,
+            gfx.DrawString("INTEGRANTES DE CUADRILLA  ·  MONTO ASIGNADO", fuenteSeccion, brochaBlanca,
                 new XRect(margen + 4, y + 2, ancho - 8, 13), XStringFormats.TopLeft);
             y += 16;
 
-            double cTrab = ancho * 0.40;
-            double cRol = ancho * 0.18;
-            double cConcepto = ancho * 0.27;
-            double cMonto = ancho - cTrab - cRol - cConcepto;
+            double iTrab = ancho * 0.50;
+            double iRol = ancho * 0.20;
+            double iMonto = ancho * 0.15;
+            double iObs = ancho - iTrab - iRol - iMonto;
 
             gfx.DrawRectangle(brochaAzul, margen, y, ancho, 14);
-            xCol = margen;
-            gfx.DrawString("Trabajador", fuenteEnc, brochaBlanca,
-                new XRect(xCol + 4, y + 2, cTrab - 4, 10), XStringFormats.TopLeft);
-            xCol += cTrab;
+            double xi = margen;
+            gfx.DrawString("Integrante de cuadrilla", fuenteEnc, brochaBlanca,
+                new XRect(xi + 4, y + 2, iTrab - 4, 10), XStringFormats.TopLeft);
+            xi += iTrab;
             gfx.DrawString("Rol", fuenteEnc, brochaBlanca,
-                new XRect(xCol + 4, y + 2, cRol - 4, 10), XStringFormats.TopLeft);
-            xCol += cRol;
-            gfx.DrawString("Concepto", fuenteEnc, brochaBlanca,
-                new XRect(xCol + 4, y + 2, cConcepto - 4, 10), XStringFormats.TopLeft);
-            xCol += cConcepto;
-            gfx.DrawString("Monto", fuenteEnc, brochaBlanca,
-                new XRect(xCol + 4, y + 2, cMonto - 8, 10), XStringFormats.TopRight);
+                new XRect(xi + 4, y + 2, iRol - 4, 10), XStringFormats.TopLeft);
+            xi += iRol;
+            gfx.DrawString("Monto asignado", fuenteEnc, brochaBlanca,
+                new XRect(xi + 4, y + 2, iMonto - 8, 10), XStringFormats.TopRight);
+            xi += iMonto;
+            gfx.DrawString("Observaciones", fuenteEnc, brochaBlanca,
+                new XRect(xi + 4, y + 2, iObs - 4, 10), XStringFormats.TopLeft);
             y += 14;
 
             alt = false;
             decimal asignado = 0m;
             foreach (var m in _miembros)
             {
-                if (y > page.Height - 80)
+                if (y > page.Height - 110)
                 {
                     page = doc.AddPage();
                     page.Size = PdfSharp.PageSize.Letter;
@@ -762,19 +791,16 @@ END";
                 gfx.DrawRectangle(brochaFila, margen, y, ancho, 14);
                 gfx.DrawRectangle(penBorde, margen, y, ancho, 14);
 
-                xCol = margen;
+                xi = margen;
                 string prefijo = m.EsJefe ? "[JEFE] " : "";
-                gfx.DrawString(Truncar(prefijo + (m.Nombre ?? "-"), 52), fuenteNorm, brochaTexto,
-                    new XRect(xCol + 4, y + 2, cTrab - 4, 10), XStringFormats.TopLeft);
-                xCol += cTrab;
-                gfx.DrawString(Truncar(m.Rol ?? "-", 22), fuenteNorm, brochaTexto,
-                    new XRect(xCol + 4, y + 2, cRol - 4, 10), XStringFormats.TopLeft);
-                xCol += cRol;
-                gfx.DrawString(Truncar(m.Concepto ?? "-", 38), fuenteNorm, brochaTexto,
-                    new XRect(xCol + 4, y + 2, cConcepto - 4, 10), XStringFormats.TopLeft);
-                xCol += cConcepto;
+                gfx.DrawString(Truncar(prefijo + (m.Nombre ?? "-"), 64), fuenteNorm, brochaTexto,
+                    new XRect(xi + 4, y + 2, iTrab - 4, 10), XStringFormats.TopLeft);
+                xi += iTrab;
+                gfx.DrawString(Truncar(m.Rol ?? "-", 26), fuenteNorm, brochaTexto,
+                    new XRect(xi + 4, y + 2, iRol - 4, 10), XStringFormats.TopLeft);
+                xi += iRol;
                 gfx.DrawString(m.Monto.ToString("C2", cul), fuenteNorm, brochaTexto,
-                    new XRect(xCol + 4, y + 2, cMonto - 8, 10), XStringFormats.TopRight);
+                    new XRect(xi + 4, y + 2, iMonto - 8, 10), XStringFormats.TopRight);
 
                 y += 14;
                 asignado += m.Monto;
@@ -783,11 +809,38 @@ END";
 
             gfx.DrawRectangle(brochaAzul, margen, y, ancho, 16);
             gfx.DrawString("TOTAL ASIGNADO", fuenteEnc, brochaBlanca,
-                new XRect(margen + 4, y + 3, ancho - cMonto - 8, 12), XStringFormats.TopLeft);
+                new XRect(margen + 4, y + 3, iTrab + iRol - 8, 12), XStringFormats.TopLeft);
             gfx.DrawString(asignado.ToString("C2", cul), fuenteEnc, brochaBlanca,
-                new XRect(margen + ancho - cMonto + 4, y + 3, cMonto - 8, 12), XStringFormats.TopRight);
+                new XRect(margen + iTrab + iRol + 4, y + 3, iMonto - 8, 12), XStringFormats.TopRight);
+            y += 24;
 
-            // Pie
+            // ===== Firmas =====
+            double altoFirmas = 64;
+            if (y > page.Height - margen - altoFirmas - 20)
+            {
+                page = doc.AddPage();
+                page.Size = PdfSharp.PageSize.Letter;
+                gfx = XGraphics.FromPdfPage(page);
+                y = margen;
+            }
+
+            double yFirma = page.Height - margen - altoFirmas;
+            double anchoFirma = ancho / 3;
+            string[] etiquetasFirma =
+            {
+                "Nombre y Firma Residente",
+                "Nombre y firma Calidad",
+                "Nombre y firma Gerente de Proyecto"
+            };
+            for (int i = 0; i < etiquetasFirma.Length; i++)
+            {
+                double xc = margen + i * anchoFirma;
+                gfx.DrawLine(penCampo, xc + 14, yFirma, xc + anchoFirma - 14, yFirma);
+                gfx.DrawString(etiquetasFirma[i], fuentePeq, brochaTexto,
+                    new XRect(xc, yFirma + 3, anchoFirma, 12), XStringFormats.TopCenter);
+            }
+
+            // ===== Pie =====
             double yPie = page.Height - margen - 10;
             gfx.DrawLine(new XPen(XColor.FromArgb(13, 71, 161), 1.5),
                 margen, yPie, margen + ancho, yPie);

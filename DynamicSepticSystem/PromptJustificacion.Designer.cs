@@ -1,7 +1,6 @@
-﻿namespace DynamicSepticSystem
+namespace DynamicSepticSystem
 {
     partial class PromptJustificacion
-
     {
         /// <summary>
         /// Required designer variable.
@@ -24,22 +23,18 @@
         #region Windows Form Designer generated code
 
         /// <summary>
-        /// Required method for Designer support - do not modify
-        /// the contents of this method with the code editor.
+        /// La interfaz se construye por codigo en ConstruirUi (PromptJustificacion.cs);
+        /// aqui solo queda el cascaron minimo requerido por el disenador.
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             this.SuspendLayout();
-
-            // 
-            // Form1
-            // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
-            this.ClientSize = new System.Drawing.Size(800, 450);
-            this.Name = "Form1";
-            this.Text = "Inventario General";
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.Name = "PromptJustificacion";
             this.ResumeLayout(false);
         }
+
+        #endregion
     }
 }
-    #endregion

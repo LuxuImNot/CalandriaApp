@@ -36,6 +36,7 @@ namespace DynamicSepticSystem
         private Image imagenMapaCompleto = null;
         private Bitmap imagenCacheada = null; // 🔥 Cache de la imagen escalada
         private Timer timerZoom;
+        private Timer timerSesion;
         private float zoomActual = 1.0f;
         private float zoomObjetivo = 1.0f;
         private PointF offsetActual = new PointF(0, 0);
@@ -86,6 +87,11 @@ namespace DynamicSepticSystem
 
             // 📝 Crédito discreto al pie del sidebar
             AgregarCreditoLuxuDev();
+
+            // 🔐 Refresca el indicador de sesión (detecta vencimiento del token API)
+            timerSesion = new Timer { Interval = 60000 };
+            timerSesion.Tick += (s, e) => ActualizarInfoUsuario();
+            timerSesion.Start();
         }
 
         /// <summary>
@@ -729,7 +735,12 @@ namespace DynamicSepticSystem
                 lblRol.ForeColor = Color.FromArgb(220, 220, 220);
                 lblRol.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
             }
-            
+
+            // Selector persistente de obra: un clic reabre la pantalla de selección.
+            var lblObraActual = this.Controls.Find("lblObraActual", true).FirstOrDefault() as Label;
+            if (lblObraActual != null)
+                lblObraActual.Click += (s, e) => AbrirSelectorObra();
+
             // Configurar logo desde Resources
             var pictureBoxLogo = this.Controls.Find("pictureBoxLogo", true).FirstOrDefault() as PictureBox;
             if (pictureBoxLogo != null)
@@ -769,6 +780,36 @@ namespace DynamicSepticSystem
             ActualizarInfoUsuario();
         }
         
+        // Etiquetas cortas por módulo para no mostrar las claves crudas de permiso
+        // (p. ej. "almacen.ver", "almacen.editar" -> una sola vez "Almacén").
+        private static readonly Dictionary<string, string> EtiquetasModulo = new Dictionary<string, string>
+        {
+            { "sistema", "Sistema" },
+            { "almacen", "Almacén" },
+            { "compras", "Compras" },
+            { "nomina", "Nómina" },
+            { "trabajadores", "Trabajadores" },
+            { "destajos", "Destajos" },
+            { "estimaciones", "Estimaciones" },
+            { "errores", "Errores" },
+        };
+
+        /// <summary>Agrupa los permisos por módulo (antes del primer punto) para un resumen corto.</summary>
+        private static string CategorizarPermisos(List<string> permisos)
+        {
+            if (permisos == null || permisos.Count == 0)
+                return "";
+
+            return string.Join(", ", permisos
+                .Select(p => p?.Split('.')[0] ?? "")
+                .Where(m => !string.IsNullOrEmpty(m))
+                .Distinct()
+                .Select(m => EtiquetasModulo.TryGetValue(m, out var etiqueta) ? etiqueta : m)
+                .OrderBy(m => m));
+        }
+
+        private ToolTip tooltipSesion;
+
         /// <summary>
         /// Actualiza la información del usuario en la interfaz
         /// </summary>
@@ -776,29 +817,78 @@ namespace DynamicSepticSystem
         {
             var lblUser = this.Controls.Find("lblUser", true).FirstOrDefault() as Label;
             var lblRol = this.Controls.Find("lblRol", true).FirstOrDefault() as Label;
+            var lblSesion = this.Controls.Find("lblSesion", true).FirstOrDefault() as Label;
+            var lblObraActual = this.Controls.Find("lblObraActual", true).FirstOrDefault() as Label;
             var panelDevTools = this.Controls.Find("panelDevTools", true).FirstOrDefault() as Panel;
-            
+
+            if (lblObraActual != null)
+                lblObraActual.Text = "🏗 " + (Global.ObraActualNombre ?? "Sin obra") + " (cambiar)";
+
+            if (tooltipSesion == null)
+                tooltipSesion = new ToolTip { AutoPopDelay = 8000, InitialDelay = 300 };
+
             if (Global.UsuarioActual != null)
             {
                 if (lblUser != null)
                     lblUser.Text = $"▶ {Global.UsuarioActual.Nombre}";
-                    
+
+                string categorias = CategorizarPermisos(Global.UsuarioActual.Permisos);
+
                 if (lblRol != null)
-                    lblRol.Text = $"► {string.Join(", ", Global.UsuarioActual.Permisos)}";
-                
+                {
+                    lblRol.Text = !string.IsNullOrEmpty(Global.UsuarioActual.Perfil)
+                        ? $"► {Global.UsuarioActual.Perfil}"
+                        : (string.IsNullOrEmpty(categorias) ? "► Sin perfil asignado" : $"► {categorias}");
+
+                    string detalle = Global.UsuarioActual.Permisos != null && Global.UsuarioActual.Permisos.Count > 0
+                        ? string.Join(", ", Global.UsuarioActual.Permisos)
+                        : "Sin permisos asignados";
+                    tooltipSesion.SetToolTip(lblRol, detalle);
+                }
+
                 // Mostrar/ocultar panel de DevTools según permisos
-                bool esAdmin = (Global.UsuarioActual.Nombre == "admin");
+                bool esAdmin = Global.EsAdmin;
                 if (panelDevTools != null)
                     panelDevTools.Visible = esAdmin;
+
+                if (lblSesion != null)
+                {
+                    // El token puede seguir "presente" pero vencido: se trata como
+                    // sesión API inactiva para que el indicador refleje la realidad.
+                    bool apiActivo = ApiClient.Autenticado
+                        && (!ApiClient.ExpiraUtc.HasValue || ApiClient.ExpiraUtc.Value > DateTime.UtcNow);
+
+                    if (apiActivo)
+                    {
+                        string vence = ApiClient.ExpiraUtc.HasValue
+                            ? $" · vence {ApiClient.ExpiraUtc.Value.ToLocalTime():HH:mm}"
+                            : "";
+                        lblSesion.Text = $"● API conectada{vence}";
+                        lblSesion.ForeColor = Color.FromArgb(46, 204, 113);
+                    }
+                    else
+                    {
+                        lblSesion.Text = ApiClient.Autenticado
+                            ? "○ Sesión API vencida (relogueo pendiente)"
+                            : "○ Sin conexión API (modo local)";
+                        lblSesion.ForeColor = Color.FromArgb(230, 126, 34);
+                    }
+                }
             }
             else
             {
                 if (lblUser != null)
                     lblUser.Text = "▶ Sin usuario";
-                    
+
                 if (lblRol != null)
+                {
                     lblRol.Text = "Sin permisos activos";
-                    
+                    tooltipSesion.SetToolTip(lblRol, "");
+                }
+
+                if (lblSesion != null)
+                    lblSesion.Text = "";
+
                 if (panelDevTools != null)
                     panelDevTools.Visible = false;
             }
@@ -896,7 +986,7 @@ namespace DynamicSepticSystem
 
             // 🔒 HARD PROGRESS - Solo visible para admin
             ToolStripMenuItem miHardProgress = null;
-            bool esAdmin = (Global.UsuarioActual?.Nombre == "admin");
+            bool esAdmin = Global.EsAdmin;
 
             // EDITAR EXPLOSIONES - disponible para todos los usuarios ahora
             var miEditarExplosiones = new ToolStripMenuItem("Editar Explosiones")
@@ -1027,6 +1117,14 @@ namespace DynamicSepticSystem
                 };
                 miRegistroErrores.Click += (s, e) => AbrirFormLogErrores();
                 miAdministrativos.DropDownItems.Add(miRegistroErrores);
+
+                var miPerfilesPermisos = new ToolStripMenuItem("Perfiles y Permisos [ADMIN]")
+                {
+                    Font = new Font("Segoe UI", 9F, FontStyle.Regular),
+                    ForeColor = ThemeManager.ColorTextoOscuro
+                };
+                miPerfilesPermisos.Click += (s, e) => AbrirFormPerfilesWeb();
+                miAdministrativos.DropDownItems.Add(miPerfilesPermisos);
             }
 
             menuStripGeneral.Items.AddRange(new ToolStripItem[] { miCompras, miAlmacen, miObra, miPersonal, miEvidencias, miAdministrativos });
@@ -1212,6 +1310,11 @@ namespace DynamicSepticSystem
                 BuildMainMenu();
             }
             catch { }
+
+            // Panel híbrido: sustituye el área central por la UI web servida por el
+            // API. Si falla o WebView2 no está, deja el panel clásico intacto.
+            // Se apaga con PanelWeb=false en App.config.
+            InicializarPanelWeb();
         }
         public List<TareaRutaCritica> ConstruirJerarquiaPorWBS(List<TareaRutaCritica> tareasPlanas)
         {
@@ -1399,11 +1502,12 @@ namespace DynamicSepticSystem
         {
             public string Nombre { get; set; }
             public string Clave { get; set; }
+            public string Perfil { get; set; }
             public List<string> Permisos { get; set; }
 
             public bool TienePermiso(string permiso)
             {
-                return Permisos.Contains(permiso);
+                return Permisos != null && Permisos.Contains(permiso);
             }
         }
 
@@ -1464,8 +1568,39 @@ namespace DynamicSepticSystem
 
         private void btnRegistrarUsuario_Click(object sender, EventArgs e)
         {
-            var form = new FormRegistrarUsuario();
-            form.ShowDialog();
+            // Deshabilitado tras la migración multi-obra: FormRegistrarUsuario
+            // inserta con SQL directo en la tabla Usuarios de CALANDRIA, que ya
+            // no es la fuente de verdad (los usuarios viven en CalandriaControl,
+            // ver SQL_CrearBDMaestraYMigrar.sql). Un usuario creado aquí
+            // desaparecería silenciosamente del sistema real.
+            MessageBox.Show(
+                "El registro de usuarios se movió a la base de datos maestra.\n\n" +
+                "Por ahora, da de alta usuarios nuevos directamente en CalandriaControl " +
+                "y asígnales perfil y obras desde \"Perfiles y Permisos\".",
+                "Registrar usuario", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void btnGestionPerfiles_Click(object sender, EventArgs e)
+        {
+            AbrirFormPerfilesWeb();
+        }
+
+        private void AbrirFormPerfilesWeb()
+        {
+            foreach (Form form in Application.OpenForms)
+            {
+                if (form is FormPerfilesWeb)
+                {
+                    form.BringToFront();
+                    form.Focus();
+                    return;
+                }
+            }
+
+            // Show(), no ShowDialog(): un WebView2 modal sobre el del panel
+            // principal (también WebView2) cuelga EnsureCoreWebView2Async sin
+            // lanzar excepción — ver AbrirFormTrabajadoresWeb.
+            new FormPerfilesWeb().Show();
         }
 
         private void btnCambiarTema_Click(object sender, EventArgs e)
@@ -1507,10 +1642,44 @@ namespace DynamicSepticSystem
             AbrirFormRegistrarTrabajador();
         }
 
+        /// <summary>
+        /// true = usar FormTrabajadoresWeb (registro, cuadrillas y perfil con
+        /// recibos en una sola UI web); false = formularios WinForms clásicos,
+        /// sin recompilar. Ver App.config "TrabajadoresWeb".
+        /// </summary>
+        private static bool TrabajadoresWebActivo
+        {
+            get
+            {
+                var v = ConfigurationManager.AppSettings["TrabajadoresWeb"];
+                return string.IsNullOrWhiteSpace(v) || v.Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        private void AbrirFormTrabajadoresWeb(string vista)
+        {
+            foreach (Form form in Application.OpenForms)
+            {
+                if (form is FormTrabajadoresWeb)
+                {
+                    form.BringToFront();
+                    form.Focus();
+                    return;
+                }
+            }
+
+            // Show(), no ShowDialog(): un WebView2 modal sobre el del panel
+            // principal (también WebView2) aborta la inicialización con
+            // COMException E_ABORT — ver reference_webview2_multi_instance.
+            new FormTrabajadoresWeb(vista).Show();
+        }
+
         private void AbrirFormRegistrarTrabajador()
         {
             try
             {
+                if (TrabajadoresWebActivo) { AbrirFormTrabajadoresWeb("registro"); return; }
+
                 using (var form = new FormRegistrarTrabajador())
                 {
                     form.ShowDialog(this);
@@ -1527,6 +1696,8 @@ namespace DynamicSepticSystem
         {
             try
             {
+                if (TrabajadoresWebActivo) { AbrirFormTrabajadoresWeb("cuadrillas"); return; }
+
                 using (var form = new FormAsignarCuadrilla())
                 {
                     form.ShowDialog(this);
@@ -1543,6 +1714,8 @@ namespace DynamicSepticSystem
         {
             try
             {
+                if (TrabajadoresWebActivo) { AbrirFormTrabajadoresWeb("perfil"); return; }
+
                 using (var form = new FormPerfilTrabajador())
                 {
                     form.ShowDialog(this);
@@ -1557,18 +1730,7 @@ namespace DynamicSepticSystem
 
         private void btnGestionarCuadrillas_Click(object sender, EventArgs e)
         {
-            try
-            {
-                using (var form = new FormAsignarCuadrilla("DestajoX"))
-                {
-                    form.ShowDialog(this);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error al abrir la gestión de cuadrillas:\n\n" + ex.Message,
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            AbrirFormGestionCuadrillas();
         }
 
 
@@ -1578,13 +1740,27 @@ namespace DynamicSepticSystem
                 "Información", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
+        /// <summary>
+        /// true = usar FormComprasWeb (orden múltiple, indirecta y consulta de
+        /// órdenes en una sola UI web); false = formularios WinForms clásicos,
+        /// sin recompilar. Ver App.config "ComprasWeb".
+        /// </summary>
+        private static bool ComprasWebActivo
+        {
+            get
+            {
+                var v = ConfigurationManager.AppSettings["ComprasWeb"];
+                return string.IsNullOrWhiteSpace(v) || v.Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
         private void AbrirFormCompraMulti()
         {
             try
             {
                 foreach (Form form in Application.OpenForms)
                 {
-                    if (form is FormCompraMulti)
+                    if (form is FormCompraMulti || form is FormComprasWeb)
                     {
                         form.BringToFront();
                         form.Focus();
@@ -1592,12 +1768,22 @@ namespace DynamicSepticSystem
                     }
                 }
 
-                var frm = new FormCompraMulti();
-                frm.ShowDialog();
+                if (ComprasWebActivo)
+                {
+                    // Show(), no ShowDialog(): un WebView2 modal sobre el del panel
+                    // principal (también WebView2) aborta la inicialización con
+                    // COMException E_ABORT — ver reference_webview2_multi_instance.
+                    new FormComprasWeb("multi").Show();
+                }
+                else
+                {
+                    var frm = new FormCompraMulti();
+                    frm.ShowDialog();
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al abrir Orden de Compra Múltiple:\n\n{ex.Message}", 
+                MessageBox.Show($"Error al abrir Orden de Compra Múltiple:\n\n{ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -1608,7 +1794,7 @@ namespace DynamicSepticSystem
             {
                 foreach (Form form in Application.OpenForms)
                 {
-                    if (form is FormCompraIndirecta)
+                    if (form is FormCompraIndirecta || form is FormComprasWeb)
                     {
                         form.BringToFront();
                         form.Focus();
@@ -1616,12 +1802,19 @@ namespace DynamicSepticSystem
                     }
                 }
 
-                var frm = new FormCompraIndirecta();
-                frm.ShowDialog();
+                if (ComprasWebActivo)
+                {
+                    new FormComprasWeb("indirecta").Show();
+                }
+                else
+                {
+                    var frm = new FormCompraIndirecta();
+                    frm.ShowDialog();
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al abrir Orden de Compra Indirecta:\n\n{ex.Message}", 
+                MessageBox.Show($"Error al abrir Orden de Compra Indirecta:\n\n{ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -1713,15 +1906,32 @@ namespace DynamicSepticSystem
         {
             try
             {
-                // Abrir el repositorio de órdenes de compra sin filtro específico
-                using (var formRepo = new FormRepositorioPDFsOrdenesCompra())
+                foreach (Form form in Application.OpenForms)
                 {
-                    formRepo.ShowDialog(this);
+                    if (form is FormRepositorioPDFsOrdenesCompra || form is FormComprasWeb)
+                    {
+                        form.BringToFront();
+                        form.Focus();
+                        return;
+                    }
+                }
+
+                if (ComprasWebActivo)
+                {
+                    new FormComprasWeb("consulta").Show();
+                }
+                else
+                {
+                    // Abrir el repositorio de órdenes de compra sin filtro específico
+                    using (var formRepo = new FormRepositorioPDFsOrdenesCompra())
+                    {
+                        formRepo.ShowDialog(this);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al abrir repositorio de órdenes:\n\n{ex.Message}", 
+                MessageBox.Show($"Error al abrir repositorio de órdenes:\n\n{ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -1758,7 +1968,7 @@ namespace DynamicSepticSystem
             try
             {
                 // Verificar que sea admin
-                if (Global.UsuarioActual == null || Global.UsuarioActual.Nombre != "admin")
+                if (!Global.EsAdmin)
                 {
                     MessageBox.Show(
                         "Esta función solo está disponible para el usuario administrador.",
@@ -1801,7 +2011,7 @@ namespace DynamicSepticSystem
             try
             {
                 // Verificar que sea admin
-                if (Global.UsuarioActual == null || Global.UsuarioActual.Nombre != "admin")
+                if (!Global.EsAdmin)
                 {
                     MessageBox.Show(
                         "Esta función solo está disponible para el usuario administrador.",
@@ -1889,9 +2099,12 @@ namespace DynamicSepticSystem
                     }
                 }
 
-                // Abrir nuevo formulario en modo modal
+                // No modal: WebView2 dentro de un ShowDialog (loop de mensajes
+                // anidado, ventana dueña deshabilitada) es inestable con el
+                // panel principal ya hospedando su propio WebView2 — ver
+                // reference_webview2_multi_instance. Show() evita ese loop.
                 var frm = new FormActivarTareasTreeList();
-                frm.ShowDialog(this);
+                frm.Show(this);
             }
             catch (Exception ex)
             {
@@ -1984,7 +2197,7 @@ namespace DynamicSepticSystem
             try
             {
                 // Verificar que sea admin
-                if (Global.UsuarioActual == null || Global.UsuarioActual.Nombre != "admin")
+                if (!Global.EsAdmin)
                 {
                     MessageBox.Show(
                         "Esta función solo está disponible para el usuario administrador.",
@@ -2069,21 +2282,23 @@ namespace DynamicSepticSystem
             }
         }
 
-        private void btnCerrarSesion_Click(object sender, EventArgs e)
+        /// <summary>
+        /// Limpia el estado de datos ligado a la obra/casa activa (no toca la
+        /// sesión de usuario). Se reutiliza al cerrar sesión y al cambiar de
+        /// obra, para no duplicar el mismo reset en ambos lugares.
+        /// </summary>
+        private void LimpiarEstadoObra()
         {
-            // Limpiar referencias a datos de usuario y casa actual
-            Global.UsuarioActual = null;
             casaActual = null;
             casas.Clear();
             inventarioCasas.Clear();
             rutasCriticasPorModelo.Clear();
-            
-            // Limpiar UI
+
             var lblCasaActual = this.Controls.Find("lblCasaActual", true).FirstOrDefault() as Label;
             var lblManzanaLote = this.Controls.Find("lblManzanaLote", true).FirstOrDefault() as Label;
             var lblPrototipo = this.Controls.Find("lblPrototipo", true).FirstOrDefault() as Label;
             var pictureBoxCasa = this.Controls.Find("pictureBoxCasa", true).FirstOrDefault() as PictureBox;
-            
+
             if (lblCasaActual != null)
                 lblCasaActual.Text = "Sin casa seleccionada";
             if (lblManzanaLote != null)
@@ -2105,25 +2320,98 @@ namespace DynamicSepticSystem
             {
                 lblInstruccionesMapa.Text = "💡 Busca una casa para ver su ubicación en el mapa";
             }
-                
+        }
+
+        /// <summary>
+        /// Reabre la pantalla de selección de obra sin cerrar sesión: el token
+        /// de usuario sigue siendo válido, solo cambia la obra activa (header
+        /// X-Obra-Id) con la que el API resuelve las siguientes consultas.
+        /// </summary>
+        private void AbrirSelectorObra()
+        {
+            // FormSeleccionObraWeb hospeda un WebView2 propio: no se abre con
+            // ShowDialog() mientras este formulario (que también hospeda
+            // WebView2) sigue vivo, aunque esté oculto (ver
+            // reference_webview2_multi_instance).
+            this.Hide();
+            var seleccion = new FormSeleccionObraWeb();
+            seleccion.ObraSeleccionada += (s2, e2) => seleccion.Close();
+            seleccion.FormClosed += (s2, e2) =>
+            {
+                if (seleccion.SeSeleccionoObra)
+                {
+                    LimpiarEstadoObra();
+                    CargarInventarioAlInicio();
+                    // El mapa y el tema del panel web son por obra; sin esto se
+                    // quedan mostrando la obra anterior hasta recargar la app.
+                    EnviarDatosAlPanel();
+                    _ = EnviarTemaAlPanel();
+                }
+                this.Show();
+                ActualizarInfoUsuario();
+            };
+            seleccion.Show();
+        }
+
+        private void btnCerrarSesion_Click(object sender, EventArgs e)
+        {
+            // Limpiar referencias a datos de usuario y casa actual
+            Global.UsuarioActual = null;
+            Global.ObraActualId = null;
+            Global.ObraActualNombre = null;
+            ApiClient.CerrarSesion(); // evita que el token del usuario anterior siga activo
+            LimpiarEstadoObra();
             ActualizarInfoUsuario();
 
+            // FormLogin hospeda un WebView2 propio: no se abre con ShowDialog()
+            // mientras este formulario (que también hospeda WebView2) sigue vivo,
+            // aunque esté oculto (ver reference_webview2_multi_instance).
             this.Hide();
+            bool loginExitoso = false;
             var login = new FormLogin();
-            if (login.ShowDialog() == DialogResult.OK)
+            login.LoginExitoso += (s2, e2) =>
             {
-                this.Show();
-                MostrarPermisosEnLabel();
-                CargarInventarioAlInicio();
-            }
-            else
+                loginExitoso = true;
+                login.Close();
+            };
+            login.FormClosed += (s2, e2) =>
             {
-                this.Close();
-            }
-            
-            // Llama al recolector de basura para liberar recursos de usuario anterior
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
+                if (loginExitoso)
+                {
+                    // Multi-obra: tras un relogueo hay que volver a elegir obra,
+                    // igual que en el arranque de la app (Program.cs).
+                    var seleccion = new FormSeleccionObraWeb();
+                    seleccion.ObraSeleccionada += (s3, e3) => seleccion.Close();
+                    seleccion.FormClosed += (s3, e3) =>
+                    {
+                        if (seleccion.SeSeleccionoObra)
+                        {
+                            this.Show();
+                            MostrarPermisosEnLabel();
+                            // El panel web (WebView2) sigue vivo desde el primer login —
+                            // sin esto se queda mostrando nombre/perfil/permisos del
+                            // usuario anterior hasta recargar la app.
+                            EnviarDatosAlPanel();
+                            _ = EnviarTemaAlPanel();
+                            CargarInventarioAlInicio();
+                        }
+                        else
+                        {
+                            this.Close();
+                        }
+                    };
+                    seleccion.Show();
+                }
+                else
+                {
+                    this.Close();
+                }
+
+                // Libera recursos del usuario anterior.
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            };
+            login.Show();
         }
 
         private void btnBuscarCasa_Click(object sender, EventArgs e)
@@ -2281,445 +2569,6 @@ namespace DynamicSepticSystem
             // ✨ Nuevo origen: ActivacionTareasRuta + Ruta{Calandra|Tunera}Destajo
             // Replica el cálculo de FormActivarTareasTreeList.ActualizarEstadisticas
             CargarProgresoDesdeActivacion();
-        }
-
-        // Cálculo legado (AvanceManualObra) — preservado por si se necesita restaurar.
-        // No se llama desde producción; CargarResumenProgreso ahora usa el nuevo método.
-        private void CargarResumenProgresoLegacy()
-        {
-            var progressBarGeneral = this.Controls.Find("progressBarGeneral", true).FirstOrDefault() as ProgressBar;
-            var lblProgresoGeneralValor = this.Controls.Find("lblProgresoGeneralValor", true).FirstOrDefault() as Label;
-            var progressBarPartidas = this.Controls.Find("progressBarPartidas", true).FirstOrDefault() as ProgressBar;
-            var lblProgresoPartidasValor = this.Controls.Find("lblProgresoPartidasValor", true).FirstOrDefault() as Label;
-            var lblTotalDestajos = this.Controls.Find("lblTotalDestajos", true).FirstOrDefault() as Label;
-            var lblDestajosCompletados = this.Controls.Find("lblDestajosCompletados", true).FirstOrDefault() as Label;
-            var lblDestajosPendientes = this.Controls.Find("lblDestajosPendientes", true).FirstOrDefault() as Label;
-            var lblUltimaActualizacion = this.Controls.Find("lblUltimaActualizacion", true).FirstOrDefault() as Label;
-            
-            if (casaActual == null)
-            {
-                // Limpiar los datos de progreso
-                if (progressBarGeneral != null)
-                {
-                    progressBarGeneral.Style = ProgressBarStyle.Blocks;
-                    progressBarGeneral.Value = 0;
-                }
-                if (lblProgresoGeneralValor != null)
-                    lblProgresoGeneralValor.Text = "0%";
-                
-                if (progressBarPartidas != null)
-                {
-                    progressBarPartidas.Style = ProgressBarStyle.Blocks;
-                    progressBarPartidas.Value = 0;
-                }
-                if (lblProgresoPartidasValor != null)
-                    lblProgresoPartidasValor.Text = "$0.00";
-                
-                if (lblTotalDestajos != null)
-                    lblTotalDestajos.Text = "Total de Partidas: 0";
-                if (lblDestajosCompletados != null)
-                    lblDestajosCompletados.Text = "Partidas Completadas: 0";
-                if (lblDestajosPendientes != null)
-                    lblDestajosPendientes.Text = "Partidas Pendientes: 0";
-                if (lblUltimaActualizacion != null)
-                    lblUltimaActualizacion.Text = "Última Actualización: -";
-                // 🎨 Reset del dashboard moderno
-                ResetearDashboardModerno();
-                return;
-            }
-
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    
-                    // 🔥🔥🔥 PASO 1: DETECTAR COLUMNA DE COSTO según prototipo
-                    // (IGUAL QUE FormEstimacionConceptoMigrado.CrearNodoPartidaDinamica)
-                    string columnaCosto = "CostoCalandra"; // Default
-                    bool esPrototipoTunera = false;
-                    
-                    if (!string.IsNullOrEmpty(casaActual.Prototipo))
-                    {
-                        if (casaActual.Prototipo.ToUpper().Contains("TUNERA"))
-                        {
-                            columnaCosto = "CostoTunera";
-                            esPrototipoTunera = true;
-                        }
-                    }
-                    
-                    // Verificar si existe la columna
-                    using (SqlCommand cmdCheck = new SqlCommand(@"
-                        SELECT COUNT(*) 
-                        FROM INFORMATION_SCHEMA.COLUMNS 
-                        WHERE TABLE_NAME = 'PresupuestoObra' 
-                        AND COLUMN_NAME = @col", conn))
-                    {
-                        cmdCheck.Parameters.AddWithValue("@col", columnaCosto);
-                        if ((int)cmdCheck.ExecuteScalar() == 0)
-                            columnaCosto = "CostoCalandra"; // Fallback
-                    }
-                    
-                    // 🔥🔥🔥 PASO 2: CARGAR TODAS LAS PARTIDAS CON INFO COMPLETA
-                    // (IGUAL QUE FormEstimacionConceptoMigrado.CargarTodasLasPartidas)
-                    // ✅ INCLUYE: EsDinamica, ValorM2, LimiteM2
-                    
-                    // Verificar columnas existentes
-                    var columnasExistentes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                    using (SqlCommand cmdCols = new SqlCommand(@"
-                        SELECT COLUMN_NAME 
-                        FROM INFORMATION_SCHEMA.COLUMNS 
-                        WHERE TABLE_NAME = 'PresupuestoObra'", conn))
-                    using (var reader = cmdCols.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            columnasExistentes.Add(reader.GetString(0));
-                        }
-                    }
-                    
-                    bool tieneEsDinamica = columnasExistentes.Contains("EsDinamica");
-                    bool tieneValorM2Tunera = columnasExistentes.Contains("ValorM2Tunera");
-                    bool tieneValorM2Calandra = columnasExistentes.Contains("ValorM2Calandra");
-                    bool tienePrototipos = columnasExistentes.Contains("PrototiposAplicables");
-                    
-                    // Construir query dinámicamente
-                    var selectColumns = new List<string> 
-                    { 
-                        "WBS_Correcto AS WBS",
-                        $"ISNULL([{columnaCosto}], 0) AS Costo"
-                    };
-                    
-                    if (tieneEsDinamica) selectColumns.Add("ISNULL(EsDinamica, 0) AS EsDinamica");
-                    if (tieneValorM2Tunera) selectColumns.Add("ISNULL(ValorM2Tunera, 0) AS ValorM2Tunera");
-                    if (tieneValorM2Calandra) selectColumns.Add("ISNULL(ValorM2Calandra, 0) AS ValorM2Calandra");
-                    if (tienePrototipos) selectColumns.Add("PrototiposAplicables");
-                    
-                    string sqlPartidas = $@"
-                        SELECT {string.Join(", ", selectColumns)}
-                        FROM PresupuestoObra
-                        WHERE WBS_Correcto IS NOT NULL AND WBS_Correcto > 0
-                        ORDER BY WBS_Correcto";
-                    
-                    // ✅ Diccionario con INFO COMPLETA de partidas
-                    var partidasInfo = new Dictionary<int, (decimal costo, bool esDinamica, double valorM2Tunera, double valorM2Calandra)>();
-                    decimal totalPresupuestado = 0;
-                    int totalPartidas = 0;
-                    
-                    using (SqlCommand cmd = new SqlCommand(sqlPartidas, conn))
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            int wbs = Convert.ToInt32(reader["WBS"]);
-                            decimal costo = Convert.ToDecimal(reader["Costo"]);
-                            bool esDinamica = tieneEsDinamica && Convert.ToBoolean(reader["EsDinamica"]);
-                            double valorM2Tunera = tieneValorM2Tunera ? Convert.ToDouble(reader["ValorM2Tunera"]) : 0;
-                            double valorM2Calandra = tieneValorM2Calandra ? Convert.ToDouble(reader["ValorM2Calandra"]) : 0;
-                            string prototipos = tienePrototipos && reader["PrototiposAplicables"] != DBNull.Value 
-                                ? reader["PrototiposAplicables"].ToString() 
-                                : null;
-                            
-                            // 🔥 APLICAR FILTRO DE PROTOTIPO (igual que FormEstimacionConceptoMigrado)
-                            bool aplicaAProto = true;
-                            if (!string.IsNullOrEmpty(prototipos) && !string.IsNullOrEmpty(casaActual.Prototipo))
-                            {
-                                var protosAplicables = prototipos.Split(new[] { ',', ';', '|' }, StringSplitOptions.RemoveEmptyEntries)
-                                    .Select(p => p.Trim().ToUpperInvariant())
-                                    .ToList();
-                                
-                                if (protosAplicables.Count > 0)
-                                {
-                                    string protoActual = casaActual.Prototipo.ToUpperInvariant();
-                                    aplicaAProto = protosAplicables.Any(p => protoActual.Contains(p) || p.Contains(protoActual));
-                                }
-                            }
-                            
-                            if (aplicaAProto)
-                            {
-                                partidasInfo[wbs] = (costo, esDinamica, valorM2Tunera, valorM2Calandra);
-                                
-                                // ✅ CALCULAR COSTO PRESUPUESTADO (será ajustado por dinámicas después)
-                                totalPresupuestado += costo;
-                                totalPartidas++;
-                            }
-                        }
-                    }
-                    
-                    // 🔥🔥🔥 PASO 3: CARGAR AVANCES Y CALCULAR TOTAL EJECUTADO
-                    // (IGUAL QUE FormEstimacionConceptoMigrado.CargarAvancesPartidas + ActualizarTotales)
-                    decimal totalEjecutado = 0;
-                    int partidasCompletadas = 0;
-                    DateTime? ultimaActualizacion = null;
-                    
-                    // ✅ DICCIONARIO PARA AJUSTAR PRESUPUESTO POR PARTIDAS DINÁMICAS
-                    var ajustesDinamicos = new Dictionary<int, decimal>();
-                    
-                    // Verificar si existe columna MetrosCuadrados y FechaActualizacion
-                    bool tieneMontoEjecutado = false;
-                    bool tieneMetrosCuadrados = false;
-                    bool tieneFechaActualizacion = false;
-                    
-                    using (SqlCommand cmdCheckCols = new SqlCommand(@"
-                        SELECT COLUMN_NAME 
-                        FROM INFORMATION_SCHEMA.COLUMNS 
-                        WHERE TABLE_NAME = 'AvanceManualObra' 
-                        AND COLUMN_NAME IN ('MontoEjecutado', 'MetrosCuadrados', 'FechaActualizacion')", conn))
-                    using (var reader = cmdCheckCols.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            string colName = reader.GetString(0);
-                            if (colName == "MontoEjecutado") tieneMontoEjecutado = true;
-                            if (colName == "MetrosCuadrados") tieneMetrosCuadrados = true;
-                            if (colName == "FechaActualizacion") tieneFechaActualizacion = true;
-                        }
-                    }
-                    
-                    // Construir query de avances
-                    string sqlAvances = "SELECT WBS, AvancePorcentaje";
-                    if (tieneMontoEjecutado) sqlAvances += ", MontoEjecutado";
-                    if (tieneMetrosCuadrados) sqlAvances += ", MetrosCuadrados";
-                    if (tieneFechaActualizacion) sqlAvances += ", FechaActualizacion";
-                    sqlAvances += @"
-                        FROM AvanceManualObra
-                        WHERE Manzana = @manzana 
-                          AND Lote = @lote
-                          AND TRY_CAST(WBS AS INT) > 0";
-                    
-                    using (SqlCommand cmd = new SqlCommand(sqlAvances, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@manzana", casaActual.Manzana);
-                        cmd.Parameters.AddWithValue("@lote", casaActual.Lote);
-                        
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                try
-                                {
-                                    string wbsString = reader["WBS"]?.ToString();
-                                    if (string.IsNullOrWhiteSpace(wbsString) || !int.TryParse(wbsString, out int wbs))
-                                        continue;
-                                    
-                                    // Solo procesar si esta partida está en el presupuesto (filtrada por prototipo)
-                                    if (!partidasInfo.ContainsKey(wbs))
-                                        continue;
-                                    
-                                    double avancePorcentaje = 0;
-                                    double montoEjecutado = 0;
-                                    double metrosCuadrados = 0;
-                                    
-                                    object avanceObj = reader["AvancePorcentaje"];
-                                    if (avanceObj != null && avanceObj != DBNull.Value)
-                                        avancePorcentaje = Convert.ToDouble(avanceObj);
-                                    
-                                    if (tieneMontoEjecutado)
-                                    {
-                                        object montoObj = reader["MontoEjecutado"];
-                                        if (montoObj != null && montoObj != DBNull.Value)
-                                            montoEjecutado = Convert.ToDouble(montoObj);
-                                    }
-                                    
-                                    if (tieneMetrosCuadrados)
-                                    {
-                                        object m2Obj = reader["MetrosCuadrados"];
-                                        if (m2Obj != null && m2Obj != DBNull.Value)
-                                            metrosCuadrados = Convert.ToDouble(m2Obj);
-                                    }
-                                    
-                                    var info = partidasInfo[wbs];
-                                    
-                                    // ✅ RECALCULAR PRESUPUESTO Y EJECUTADO PARA PARTIDAS DINÁMICAS
-                                    // (IGUAL QUE FormEstimacionConceptoMigrado.RecalcularAvanceConcepto)
-                                    if (info.esDinamica && metrosCuadrados > 0)
-                                    {
-                                        double valorM2 = esPrototipoTunera ? info.valorM2Tunera : info.valorM2Calandra;
-                                        decimal costoRecalculado = (decimal)(metrosCuadrados * valorM2);
-                                        
-                                        // Guardar diferencia para ajustar total presupuestado
-                                        decimal diferencia = costoRecalculado - info.costo;
-                                        ajustesDinamicos[wbs] = diferencia;
-                                        
-                                        // ✅ RECALCULAR MONTO EJECUTADO si es necesario
-                                        if (montoEjecutado == 0 && avancePorcentaje > 0)
-                                        {
-                                            montoEjecutado = (double)(costoRecalculado * (decimal)(avancePorcentaje / 100.0));
-                                        }
-                                        else if (montoEjecutado > 0)
-                                        {
-                                            // Usar el monto ejecutado guardado (puede haber sido actualizado manualmente)
-                                            // pero validar que no exceda el costo recalculado
-                                            if ((decimal)montoEjecutado > costoRecalculado)
-                                            {
-                                                montoEjecutado = (double)costoRecalculado;
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // Para partidas NO dinámicas, calcular desde porcentaje si no hay monto
-                                        if (montoEjecutado == 0 && avancePorcentaje > 0)
-                                        {
-                                            montoEjecutado = (double)(info.costo * (decimal)(avancePorcentaje / 100.0));
-                                        }
-                                    }
-                                    
-                                    totalEjecutado += (decimal)montoEjecutado;
-                                    
-                                    if (avancePorcentaje >= 100)
-                                        partidasCompletadas++;
-                                    
-                                    // Capturar última fecha de actualización
-                                    if (tieneFechaActualizacion)
-                                    {
-                                        object fechaObj = reader["FechaActualizacion"];
-                                        if (fechaObj != null && fechaObj != DBNull.Value)
-                                        {
-                                            DateTime fecha = Convert.ToDateTime(fechaObj);
-                                            if (!ultimaActualizacion.HasValue || fecha > ultimaActualizacion.Value)
-                                                ultimaActualizacion = fecha;
-                                        }
-                                    }
-                                }
-                                catch (Exception exRow)
-                                {
-                                    System.Diagnostics.Debug.WriteLine($"❌ Error al procesar avance: {exRow.Message}");
-                                }
-                            }
-                        }
-                    }
-                    
-                    // ✅ AJUSTAR TOTAL PRESUPUESTADO POR PARTIDAS DINÁMICAS
-                    // (IGUAL QUE FormEstimacionConceptoMigrado suma los costos recalculados)
-                    foreach (var ajuste in ajustesDinamicos.Values)
-                    {
-                        totalPresupuestado += ajuste;
-                    }
-                    
-                    int partidasPendientes = totalPartidas - partidasCompletadas;
-                    
-                    // 🔥 PASO 4: CALCULAR AVANCE GENERAL (%)
-                    // Fórmula: (totalEjecutado / totalPresupuestado) * 100
-                    // (EXACTAMENTE IGUAL QUE FormEstimacionConceptoMigrado.ActualizarTotales)
-                    decimal avanceGeneral = 0;
-                    if (totalPresupuestado > 0)
-                    {
-                        avanceGeneral = (totalEjecutado / totalPresupuestado) * 100;
-                        
-                        // Limitar al 100%
-                        if (avanceGeneral > 100)
-                        {
-                            #if DEBUG
-                            System.Diagnostics.Debug.WriteLine($"⚠️ ADVERTENCIA: Avance general calculado ({avanceGeneral:F2}%) supera el 100%. Limitando a 100%.");
-                            System.Diagnostics.Debug.WriteLine($"   Total Presupuestado: {totalPresupuestado:C2}");
-                            System.Diagnostics.Debug.WriteLine($"   Total Ejecutado: {totalEjecutado:C2}");
-                            #endif
-                            
-                            avanceGeneral = 100;
-                        }
-                    }
-                    
-                    // 🎨 ACTUALIZAR UI CON LOS VALORES CALCULADOS
-                    
-                    // ✅ AVANCE FÍSICO (%): Mostrar avanceGeneral (mismo que lblAvanceGeneral en FormEstimacionConceptoMigrado)
-                    if (progressBarGeneral != null)
-                    {
-                        progressBarGeneral.Style = ProgressBarStyle.Blocks;
-                        progressBarGeneral.Value = Math.Min(100, Math.Max(0, (int)avanceGeneral));
-                    }
-                    if (lblProgresoGeneralValor != null)
-                        lblProgresoGeneralValor.Text = $"{avanceGeneral:F1}%";
-                    
-                    // ✅ AVANCE ECONÓMICO ($): Mostrar totalEjecutado (mismo que lblTotalEjecutado en FormEstimacionConceptoMigrado)
-                    if (progressBarPartidas != null)
-                    {
-                        progressBarPartidas.Style = ProgressBarStyle.Blocks;
-                        // La barra muestra el porcentaje de avance
-                        progressBarPartidas.Value = Math.Min(100, Math.Max(0, (int)avanceGeneral));
-                    }
-                    if (lblProgresoPartidasValor != null)
-                        // Mostrar el monto total ejecutado
-                        lblProgresoPartidasValor.Text = $"{totalEjecutado:C2}";
-                    
-                    // ESTADÍSTICAS
-                    if (lblTotalDestajos != null)
-                        lblTotalDestajos.Text = $"Total de Partidas: {totalPartidas}";
-                    if (lblDestajosCompletados != null)
-                        lblDestajosCompletados.Text = $"Partidas Completadas: {partidasCompletadas}";
-                    if (lblDestajosPendientes != null)
-                        lblDestajosPendientes.Text = $"Partidas Pendientes: {partidasPendientes}";
-                    if (lblUltimaActualizacion != null)
-                    {
-                        lblUltimaActualizacion.Text = ultimaActualizacion.HasValue ?
-                            $"Última Actualización: {ultimaActualizacion.Value:dd/MM/yyyy HH:mm}" :
-                            "Última Actualización: Sin datos";
-                    }
-
-                    // ✨ Dashboard moderno: KPIs animados + barras animadas + trends
-                    ActualizarDashboardModerno(
-                        avanceFisicoPct: avanceGeneral,
-                        totalEjecutado: totalEjecutado,
-                        totalPresupuestado: totalPresupuestado,
-                        totalPartidas: totalPartidas,
-                        partidasCompletadas: partidasCompletadas,
-                        partidasPendientes: partidasPendientes,
-                        ultimaActualizacion: ultimaActualizacion);
-
-                    // 🔥🔥🔥 DEBUG: Mostrar valores calculados en consola
-                    #if DEBUG
-                    System.Diagnostics.Debug.WriteLine("+----------------------------------------------------------------------+");
-                    System.Diagnostics.Debug.WriteLine("│  🔥🔥🔥 RESUMEN DE PROGRESO (PanelPrincipal) - CORREGIDO             │");
-                    System.Diagnostics.Debug.WriteLine("│----------------------------------------------------------------------│");
-                    System.Diagnostics.Debug.WriteLine($"│  Casa: M{casaActual.Manzana}-L{casaActual.Lote}");
-                    System.Diagnostics.Debug.WriteLine($"│  Prototipo: {casaActual.Prototipo}");
-                    System.Diagnostics.Debug.WriteLine($"│  Columna de costo usada: {columnaCosto}");
-                    System.Diagnostics.Debug.WriteLine("│----------------------------------------------------------------------│");
-                    System.Diagnostics.Debug.WriteLine($"│  📊 Total Presupuestado: {totalPresupuestado:C2} (ajustado por dinámicas)");
-                    System.Diagnostics.Debug.WriteLine($"│  ✅ Total Ejecutado:     {totalEjecutado:C2}");
-                    System.Diagnostics.Debug.WriteLine($"│  🔥 Avance General:      {avanceGeneral:F1}%");
-                    System.Diagnostics.Debug.WriteLine("│----------------------------------------------------------------------│");
-                    System.Diagnostics.Debug.WriteLine($"│  📝 Total Partidas:      {totalPartidas} (filtradas por prototipo)");
-                    System.Diagnostics.Debug.WriteLine($"│  ✅ Completadas:        {partidasCompletadas}");
-                    System.Diagnostics.Debug.WriteLine($"│  ⏳ Pendientes:          {partidasPendientes}");
-                    System.Diagnostics.Debug.WriteLine($"│  🔧 Partidas dinámicas ajustadas: {ajustesDinamicos.Count}");
-                    if (ajustesDinamicos.Count > 0)
-                    {
-                        decimal totalAjuste = ajustesDinamicos.Values.Sum();
-                        System.Diagnostics.Debug.WriteLine($"│  💰 Total ajuste dinámico: {totalAjuste:C2}");
-                    }
-                    System.Diagnostics.Debug.WriteLine("+----------------------------------------------------------------------+");
-                    #endif
-                }
-            }
-            catch (Exception ex)
-            {
-                #if DEBUG
-                MessageBox.Show($"Error al cargar resumen de progreso:\n{ex.Message}\n\nStack Trace:\n{ex.StackTrace}", 
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                #else
-                // En producción, solo mostrar mensaje genérico
-                System.Diagnostics.Debug.WriteLine($"Error al cargar resumen de progreso: {ex.Message}");
-                #endif
-                
-                // En caso de error, mostrar valores en 0
-                if (progressBarGeneral != null)
-                    progressBarGeneral.Value = 0;
-                if (lblProgresoGeneralValor != null)
-                    lblProgresoGeneralValor.Text = "0%";
-                if (progressBarPartidas != null)
-                    progressBarPartidas.Value = 0;
-                if (lblProgresoPartidasValor != null)
-                    lblProgresoPartidasValor.Text = "$0.00";
-                if (lblTotalDestajos != null)
-                    lblTotalDestajos.Text = "Total de Partidas: Error al cargar";
-                if (lblDestajosCompletados != null)
-                    lblDestajosCompletados.Text = "Partidas Completadas: -";
-                if (lblDestajosPendientes != null)
-                    lblDestajosPendientes.Text = "Partidas Pendientes: -";
-                if (lblUltimaActualizacion != null)
-                    lblUltimaActualizacion.Text = "Última Actualización: Error";
-            }
         }
 
         /// <summary>

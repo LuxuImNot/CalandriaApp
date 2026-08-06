@@ -28,9 +28,6 @@ namespace DynamicSepticSystem
             if (_modernExtensionsReady) return;
             _modernExtensionsReady = true;
 
-            // Header date (deprecado, ya no se muestra)
-            // ActualizarFechaHeader();
-
             // Wire overlay buttons del mapa (definidos en el Designer)
             if (btnMapaZoomIn != null) btnMapaZoomIn.Click += (s, e) => ZoomMapa(1.25f);
             if (btnMapaZoomOut != null) btnMapaZoomOut.Click += (s, e) => ZoomMapa(0.8f);
@@ -213,23 +210,6 @@ namespace DynamicSepticSystem
                 txtLote.BorderStyle = BorderStyle.None;
                 txtLote.Font = new Font("Segoe UI", 10.5F);
                 txtLote.BackColor = Color.White;
-            }
-        }
-
-        private void ActualizarFechaHeader()
-        {
-            if (lblFechaActual == null) return;
-            try
-            {
-                CultureInfo ci = new CultureInfo("es-MX");
-                lblFechaActual.Text = DateTime.Now.ToString("dddd, dd 'de' MMMM 'de' yyyy", ci);
-                // Capitalizar primera letra del día
-                if (lblFechaActual.Text.Length > 0)
-                    lblFechaActual.Text = char.ToUpper(lblFechaActual.Text[0]) + lblFechaActual.Text.Substring(1);
-            }
-            catch
-            {
-                lblFechaActual.Text = DateTime.Now.ToString("dd/MM/yyyy");
             }
         }
 

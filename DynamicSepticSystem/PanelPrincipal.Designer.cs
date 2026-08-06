@@ -64,8 +64,11 @@ namespace DynamicSepticSystem
             this.btnRegistrarUsuario = new System.Windows.Forms.Button();
             this.btnRegistrarTrabajador = new System.Windows.Forms.Button();
             this.btnGestionarCuadrillas = new System.Windows.Forms.Button();
+            this.btnGestionPerfiles = new System.Windows.Forms.Button();
             this.btnCerrarSesion = new System.Windows.Forms.Button();
             this.lblRol = new System.Windows.Forms.Label();
+            this.lblSesion = new System.Windows.Forms.Label();
+            this.lblObraActual = new System.Windows.Forms.Label();
             this.lblUser = new System.Windows.Forms.Label();
             this.pictureBoxLogo = new System.Windows.Forms.PictureBox();
 
@@ -168,6 +171,8 @@ namespace DynamicSepticSystem
             this.panelSidebar.BackColor = System.Drawing.Color.FromArgb(88, 53, 23);
             this.panelSidebar.Controls.Add(this.panelDevTools);
             this.panelSidebar.Controls.Add(this.btnCerrarSesion);
+            this.panelSidebar.Controls.Add(this.lblObraActual);
+            this.panelSidebar.Controls.Add(this.lblSesion);
             this.panelSidebar.Controls.Add(this.lblRol);
             this.panelSidebar.Controls.Add(this.lblUser);
             this.panelSidebar.Controls.Add(this.pictureBoxLogo);
@@ -183,10 +188,11 @@ namespace DynamicSepticSystem
             this.panelDevTools.Controls.Add(this.btnRegistrarUsuario);
             this.panelDevTools.Controls.Add(this.btnRegistrarTrabajador);
             this.panelDevTools.Controls.Add(this.btnGestionarCuadrillas);
-            this.panelDevTools.Location = new System.Drawing.Point(20, 583);
+            this.panelDevTools.Controls.Add(this.btnGestionPerfiles);
+            this.panelDevTools.Location = new System.Drawing.Point(20, 539);
             this.panelDevTools.Margin = new System.Windows.Forms.Padding(3, 1, 3, 3);
             this.panelDevTools.Name = "panelDevTools";
-            this.panelDevTools.Size = new System.Drawing.Size(210, 190);
+            this.panelDevTools.Size = new System.Drawing.Size(210, 234);
             this.panelDevTools.TabIndex = 4;
             this.panelDevTools.Visible = false;
 
@@ -214,6 +220,12 @@ namespace DynamicSepticSystem
                 System.Drawing.Color.FromArgb(175, 110, 200), 142);
             this.btnGestionarCuadrillas.Click += new System.EventHandler(this.btnGestionarCuadrillas_Click);
 
+            ConfigSidebarBtn(this.btnGestionPerfiles, "Perfiles y Permisos",
+                System.Drawing.Color.FromArgb(243, 156, 18),
+                System.Drawing.Color.FromArgb(211, 127, 7),
+                System.Drawing.Color.FromArgb(250, 180, 60), 186);
+            this.btnGestionPerfiles.Click += new System.EventHandler(this.btnGestionPerfiles_Click);
+
             // btnCerrarSesion
             this.btnCerrarSesion.Anchor = System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
             this.btnCerrarSesion.BackColor = System.Drawing.Color.FromArgb(231, 76, 60);
@@ -239,6 +251,26 @@ namespace DynamicSepticSystem
             this.lblRol.Size = new System.Drawing.Size(220, 60);
             this.lblRol.TabIndex = 2;
             this.lblRol.Text = "Sin permisos activos";
+
+            // lblSesion
+            this.lblSesion.Font = new System.Drawing.Font("Segoe UI", 8F);
+            this.lblSesion.ForeColor = System.Drawing.Color.FromArgb(220, 220, 220);
+            this.lblSesion.Location = new System.Drawing.Point(15, 328);
+            this.lblSesion.Name = "lblSesion";
+            this.lblSesion.Size = new System.Drawing.Size(220, 30);
+            this.lblSesion.TabIndex = 4;
+            this.lblSesion.Text = "";
+            //
+            // lblObraActual
+            //
+            this.lblObraActual.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.lblObraActual.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Underline);
+            this.lblObraActual.ForeColor = System.Drawing.Color.FromArgb(220, 220, 220);
+            this.lblObraActual.Location = new System.Drawing.Point(15, 362);
+            this.lblObraActual.Name = "lblObraActual";
+            this.lblObraActual.Size = new System.Drawing.Size(220, 30);
+            this.lblObraActual.TabIndex = 5;
+            this.lblObraActual.Text = "Obra: —";
 
             // lblUser
             this.lblUser.Font = new System.Drawing.Font("Segoe UI", 11F, System.Drawing.FontStyle.Bold);
@@ -706,12 +738,15 @@ namespace DynamicSepticSystem
         private System.Windows.Forms.PictureBox pictureBoxLogo;
         private System.Windows.Forms.Label lblUser;
         private System.Windows.Forms.Label lblRol;
+        private System.Windows.Forms.Label lblSesion;
+        private System.Windows.Forms.Label lblObraActual;
         private System.Windows.Forms.Button btnCerrarSesion;
         private System.Windows.Forms.Panel panelDevTools;
         private System.Windows.Forms.Button btnDiagnosticoConexion;
         private System.Windows.Forms.Button btnRegistrarUsuario;
         private System.Windows.Forms.Button btnRegistrarTrabajador;
         private System.Windows.Forms.Button btnGestionarCuadrillas;
+        private System.Windows.Forms.Button btnGestionPerfiles;
 
         private System.Windows.Forms.Panel panelContenido;
 
