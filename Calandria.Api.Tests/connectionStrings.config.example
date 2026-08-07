@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Plantilla. Copia a "connectionStrings.config" (gitignorado) con los valores reales
+     del servidor. Solo se necesita CalandriaControlConn: Configuracion.CadenaConexionObra()
+     arma la cadena de la obra de prueba cambiando InitialCatalog sobre esta. -->
+<connectionStrings>
+  <add name="CalandriaControlConn"
+       connectionString="Server=TU_SERVIDOR;Database=CalandriaControl;User Id=TU_USUARIO;Password=TU_PASSWORD;TrustServerCertificate=true;Encrypt=false;Connect Timeout=30;"
+       providerName="System.Data.SqlClient" />
+</connectionStrings>
