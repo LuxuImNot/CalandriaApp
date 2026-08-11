@@ -49,12 +49,13 @@ namespace DynamicSepticSystem
         {
             _vistaInicial = vistaInicial;
 
-            Text = "Compras - Sistema Calandria";
+            Text = "Compras - Sistema Pilaris";
             StartPosition = FormStartPosition.CenterScreen;
             Size = new Size(1280, 800);
             MinimumSize = new Size(1024, 640);
             WindowState = FormWindowState.Maximized;
             BackColor = Color.White;
+            ThemeManager.AplicarIconoPorDefecto(this);
 
             webCompras = new WebView2 { Dock = DockStyle.Fill, BackColor = Color.White };
             Controls.Add(webCompras);
@@ -230,6 +231,7 @@ namespace DynamicSepticSystem
         private class MsgAccion { public string accion; }
         private class MsgCasaManzanaLote { public string manzana; public string lote; public string prototipo; }
         private class MsgCasaPrototipo { public string manzana; public string lote; public string prototipo; }
+        private class MsgCargarCatalogo { public string prototipo; }
         private class MsgCargarCatalogoMulti { public List<MsgCasaPrototipo> casas; }
         private class MsgUpsertCatalogoMulti
         {
@@ -281,6 +283,9 @@ namespace DynamicSepticSystem
                 switch (accion)
                 {
                     case "cargar-proveedores": CargarProveedoresWeb(); break;
+                    case "cargar-catalogo":
+                        { var d = JsonConvert.DeserializeObject<MsgCargarCatalogo>(json); CargarCatalogoWeb(d.prototipo); }
+                        break;
                     case "agregar-casa":
                         { var d = JsonConvert.DeserializeObject<MsgCasaManzanaLote>(json); AgregarCasaWeb(d.manzana, d.lote); }
                         break;
@@ -340,6 +345,20 @@ namespace DynamicSepticSystem
         {
             try { Push(new { tipo = "proveedores", lista = ApiClient.Get<List<ProveedorApi>>("/api/proveedores") ?? new List<ProveedorApi>() }); }
             catch (Exception ex) { ManejarErrorApi(ex, "No se pudieron cargar los proveedores"); }
+        }
+
+        private void CargarCatalogoWeb(string prototipo)
+        {
+            try
+            {
+                Push(new
+                {
+                    tipo = "catalogo",
+                    prototipo,
+                    lista = ApiClient.Get<List<CatalogoMaterialApi>>("/api/compras/catalogo?prototipo=" + Uri.EscapeDataString(prototipo ?? "")) ?? new List<CatalogoMaterialApi>()
+                });
+            }
+            catch (Exception ex) { ManejarErrorApi(ex, "No se pudo cargar el catálogo"); }
         }
 
         private void CrearProveedorWeb(MsgCrearProveedor d)

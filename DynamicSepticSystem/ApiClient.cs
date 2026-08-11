@@ -195,6 +195,13 @@ namespace DynamicSepticSystem
         public DateTime ExpiraUtc { get; set; }
     }
 
+    /// <summary>Si el usuario autenticado ya aceptó la versión vigente de Términos/Privacidad (api/terminos/estado).</summary>
+    public sealed class EstadoTerminosApi
+    {
+        public bool RequiereAceptar { get; set; }
+        public string Hash { get; set; }
+    }
+
     public sealed class MaterialCasaApi
     {
         public string Ruta { get; set; }
@@ -1099,6 +1106,9 @@ namespace DynamicSepticSystem
     {
         public int Id { get; set; }
         public string Nombre { get; set; }
+        public int NodosArbol { get; set; }
+        public int Insumos { get; set; }
+        public int Proveedores { get; set; }
     }
 
     public sealed class CrearObraResponseApi
@@ -1132,5 +1142,38 @@ namespace DynamicSepticSystem
         public bool TieneFoto { get; set; }
         public string FotoExtension { get; set; }
         public List<PermisoApi> Permisos { get; set; }
+    }
+
+    // ---- Facturación IA (api/facturacion) ----
+
+    public sealed class SaldoObraApi
+    {
+        public int ObraId { get; set; }
+        public string ObraNombre { get; set; }
+        public int Conteo { get; set; }
+        public decimal MontoACobrar { get; set; }
+        public bool TablaDisponible { get; set; }
+    }
+
+    public sealed class ConciliacionIaHistorialApi
+    {
+        public string Uuid { get; set; }
+        public string FolioOC { get; set; }
+        public DateTime Fecha { get; set; }
+        public string Usuario { get; set; }
+    }
+
+    public sealed class PdfFacturacionApi
+    {
+        public int Id { get; set; }
+        public int? ObraId { get; set; }
+        public string ObraNombre { get; set; }
+        public DateTime Desde { get; set; }
+        public DateTime Hasta { get; set; }
+        public int Conteo { get; set; }
+        public decimal MontoACobrar { get; set; }
+        public string NombreArchivo { get; set; }
+        public DateTime FechaGeneracion { get; set; }
+        public string Usuario { get; set; }
     }
 }

@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilaris · Selección de obra</title>
+
+<style>
+/* ============================================================
+   TOKENS — copiados tal cual de login.html/panel.html (paleta café
+   Calandria), para que esta pantalla se vea como parte del mismo sistema.
+   ============================================================ */
+:root {
+  --ink:#221E1B; --ink-2:#2F2825; --ink-3:#3C3430;
+  --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC; --on-ink-2:#A2978C;
+  --ok:#1F6B4A;   --ok-bg:#E2F0E8;
+  --warn:#C2620A; --warn-bg:#FAEADB;
+  --stop:#A31D1D; --stop-bg:#F7E3E3;
+  --idle:#6B655F; --idle-bg:#E9E6E1;
+  --shadow:0 1px 2px rgba(34,30,27,.06);
+  --shadow-lg:0 18px 46px -18px rgba(34,30,27,.35), 0 2px 6px rgba(34,30,27,.06);
+  --mono:ui-monospace,"Cascadia Mono","Segoe UI Mono","SF Mono",Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI Variable Text","Segoe UI",Roboto,sans-serif;
+  --r:8px; --r-2:12px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#100E0C; --ink-2:#191512; --ink-3:#241E1A;
+    --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+    --rule:#3A322C; --rule-soft:#2C2521;
+    --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+    --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+    --on-ink:#F2EEE9; --on-ink-2:#948A80;
+    --ok:#54B183;   --ok-bg:#163024;
+    --warn:#E0913F; --warn-bg:#33240F;
+    --stop:#DB6B6B; --stop-bg:#331717;
+    --idle:#948C83; --idle-bg:#262119;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    --shadow-lg:0 18px 46px -18px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#100E0C; --ink-2:#191512; --ink-3:#241E1A;
+  --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+  --rule:#3A322C; --rule-soft:#2C2521;
+  --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+  --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+  --on-ink:#F2EEE9; --on-ink-2:#948A80;
+  --ok:#54B183;   --ok-bg:#163024;
+  --warn:#E0913F; --warn-bg:#33240F;
+  --stop:#DB6B6B; --stop-bg:#331717;
+  --idle:#948C83; --idle-bg:#262119;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+  --shadow-lg:0 18px 46px -18px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.4);
+}
+:root[data-theme="light"]{
+  --ink:#221E1B; --ink-2:#2F2825; --ink-3:#3C3430;
+  --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC; --on-ink-2:#A2978C;
+  --ok:#1F6B4A;   --ok-bg:#E2F0E8;
+  --warn:#C2620A; --warn-bg:#FAEADB;
+  --stop:#A31D1D; --stop-bg:#F7E3E3;
+  --idle:#6B655F; --idle-bg:#E9E6E1;
+  --shadow:0 1px 2px rgba(34,30,27,.06);
+  --shadow-lg:0 18px 46px -18px rgba(34,30,27,.35), 0 2px 6px rgba(34,30,27,.06);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--paper); color:var(--text);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2{margin:0; text-wrap:balance; font-weight:600; letter-spacing:-.01em}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--brass); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion: reduce){ *{animation-duration:.001ms !important; transition-duration:.001ms !important} }
+
+/* ================= SHELL ================= */
+.stage{min-height:100dvh; display:grid; grid-template-columns:1.15fr 1fr}
+@media (max-width:860px){ .stage{grid-template-columns:1fr} .brand{display:none} }
+
+/* ================= BRAND (izquierda) ================= */
+.brand{
+  position:relative; overflow:hidden; background:var(--ink); color:var(--on-ink);
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:52px 56px;
+}
+.orb{position:absolute; border-radius:50%; filter:blur(70px); pointer-events:none}
+.orb-a{width:420px; height:420px; background:var(--brass); opacity:.22; top:-140px; left:-120px}
+.orb-b{width:340px; height:340px; background:var(--brass-2); opacity:.14; bottom:-110px; right:-80px}
+
+.brand-top{display:flex; align-items:center; gap:11px; position:relative}
+.brand-mark{
+  width:42px; height:42px; border-radius:var(--r); flex:none;
+  background:var(--brass); color:#17130C;
+  display:grid; place-items:center; font-family:var(--mono);
+  font-weight:700; font-size:19px;
+}
+.brand-name{font-weight:600; font-size:16px; letter-spacing:-.01em; line-height:1.2}
+.brand-sub{font-size:11.5px; color:var(--on-ink-2); letter-spacing:.04em}
+
+.brand-mid{position:relative; max-width:30ch}
+.brand-mid h1{font-size:32px; line-height:1.2; margin-bottom:14px}
+.brand-mid p{color:var(--on-ink-2); font-size:14.5px; margin:0}
+
+.brand-foot{position:relative; font-size:11.5px; color:var(--on-ink-2)}
+
+/* ================= PANEL (derecha) ================= */
+.panel{display:flex; align-items:center; justify-content:center; padding:32px 24px}
+.card{width:100%; max-width:420px}
+.card h2{font-size:23px}
+.card .sub{color:var(--text-2); margin:6px 0 24px; font-size:13.5px}
+
+.error{
+  display:none; align-items:flex-start; gap:8px; margin-bottom:16px;
+  background:var(--stop-bg); color:var(--stop); border-radius:var(--r);
+  padding:10px 12px; font-size:12.75px; line-height:1.4;
+}
+.error.is-on{display:flex}
+.error svg{width:15px; height:15px; flex:none; margin-top:1px}
+
+.obras-list{display:flex; flex-direction:column; gap:8px; margin-bottom:6px}
+.obra-item{
+  display:flex; align-items:center; gap:12px; width:100%;
+  padding:14px 16px; border:1.5px solid var(--rule); border-radius:var(--r-2);
+  background:var(--surface); color:var(--text);
+  transition:border-color .15s ease, background .15s ease;
+}
+.obra-item:hover{border-color:var(--brass); background:var(--brass-soft)}
+.obra-elegir{
+  display:flex; align-items:center; gap:12px; flex:1; min-width:0; text-align:left;
+  background:none; border:0; padding:0; color:inherit;
+}
+.obra-elegir:active{transform:scale(.99)}
+.obra-mark{
+  width:34px; height:34px; border-radius:var(--r); flex:none;
+  background:var(--brass-soft); color:var(--brass);
+  display:grid; place-items:center; font-family:var(--mono); font-weight:700; font-size:14px;
+}
+.obra-nombre{flex:1; min-width:0; font-weight:600; font-size:14px}
+.obra-nombre-fila{flex:1; min-width:0; display:flex; align-items:center; gap:8px}
+.obra-nombre-fila .obra-nombre{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.obra-pendiente{
+  flex:none; font-size:10.5px; font-weight:700; letter-spacing:.02em;
+  color:var(--warn); background:var(--warn-bg); border-radius:999px; padding:3px 9px;
+}
+.obra-pendiente-sub{display:block; font-size:11.5px; font-weight:400; color:var(--text-3); margin-top:2px}
+.obra-elegir svg{width:16px; height:16px; flex:none; color:var(--text-3); stroke-width:1.8}
+.obra-borrar, .obra-personalizar{
+  flex:none; width:32px; height:32px; border-radius:var(--r); border:0; background:none;
+  color:var(--text-3); display:grid; place-items:center;
+  transition:background .15s ease, color .15s ease;
+}
+.obra-borrar:hover{background:var(--stop-bg); color:var(--stop)}
+.obra-personalizar:hover{background:var(--brass-soft); color:var(--brass)}
+.obra-borrar svg, .obra-personalizar svg{width:16px; height:16px; stroke-width:1.8}
+
+.empty-obras{
+  padding:24px 4px; text-align:center; color:var(--text-3); font-size:13px;
+}
+.empty-obras[hidden]{display:none}
+
+.bloque-crear{margin-top:18px; padding-top:18px; border-top:1px solid var(--rule-soft)}
+.btn-link{
+  background:none; border:0; color:var(--brass); font-size:13px; font-weight:600; padding:0;
+}
+.btn-link:hover{color:var(--brass-2); text-decoration:underline}
+
+.field{margin-bottom:14px}
+.field label{
+  display:block; font-size:12px; font-weight:600; color:var(--text-2);
+  margin-bottom:6px; letter-spacing:.02em;
+}
+input[type=text]{
+  width:100%; height:44px; padding:0 14px; border:1.5px solid var(--rule); border-radius:var(--r);
+  background:var(--surface); color:var(--text); font-size:14.5px; font-family:inherit;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+input:focus{outline:none; border-color:var(--brass); box-shadow:0 0 0 3px var(--brass-soft)}
+
+button.primary{
+  width:100%; height:44px; border:0; border-radius:var(--r); background:var(--brass); color:#fff;
+  font-weight:600; font-size:14px; margin-top:4px; position:relative;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  transition:background .15s ease, transform .1s ease;
+}
+button.primary:hover{background:var(--brass-2)}
+button.primary:active{transform:scale(.985)}
+button.primary:disabled{opacity:.72; cursor:default}
+.spin{
+  width:16px; height:16px; border-radius:50%; border:2px solid rgba(255,255,255,.4);
+  border-top-color:#fff; animation:spin .7s linear infinite; display:none;
+}
+button.primary.is-loading .spin{display:inline-block}
+button.primary.is-loading .txt{opacity:.85}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.skeleton{
+  height:58px; border-radius:var(--r-2); background:var(--surface-2);
+  border:1px solid var(--rule-soft); margin-bottom:8px;
+  animation:pulse 1.1s ease-in-out infinite;
+}
+@keyframes pulse{0%,100%{opacity:.55}50%{opacity:.9}}
+
+/* ================= MODAL: borrar obra (3 verificaciones) ================= */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(20,17,15,.45); z-index:50;
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.modal-overlay[hidden]{display:none}
+.modal-card{
+  width:100%; max-width:420px; background:var(--surface); border-radius:var(--r-2);
+  box-shadow:var(--shadow-lg); padding:24px;
+}
+.modal-card h3{font-size:17px; margin-bottom:8px}
+.modal-warn{
+  display:flex; gap:10px; align-items:flex-start; background:var(--stop-bg); color:var(--stop);
+  border-radius:var(--r); padding:12px; font-size:13px; line-height:1.45; margin-bottom:16px;
+}
+.modal-warn svg{width:17px; height:17px; flex:none; margin-top:1px}
+.modal-warn b{font-weight:700}
+.check-row{
+  display:flex; align-items:flex-start; gap:10px; margin-bottom:16px; font-size:13px; line-height:1.4;
+  color:var(--text-2);
+}
+.check-row input[type=checkbox]{width:17px; height:17px; flex:none; margin-top:1px; accent-color:var(--stop)}
+.modal-actions{display:flex; gap:10px; margin-top:20px}
+.modal-actions button{
+  flex:1; height:42px; border-radius:var(--r); font-weight:600; font-size:13.5px; border:0;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.btn-cancelar{background:var(--surface-2); color:var(--text); border:1.5px solid var(--rule) !important}
+.btn-borrar{background:var(--stop); color:#fff}
+.btn-borrar:disabled{opacity:.5; cursor:default}
+.btn-borrar .spin{
+  width:15px; height:15px; border-radius:50%; border:2px solid rgba(255,255,255,.4);
+  border-top-color:#fff; animation:spin .7s linear infinite; display:none;
+}
+.btn-borrar.is-loading .spin{display:inline-block}
+
+/* ================= MODAL: personalizar (logo + paleta) ================= */
+.logo-drop{
+  border:1.5px dashed var(--rule); border-radius:var(--r-2); padding:20px; text-align:center;
+  cursor:pointer; margin-bottom:16px; transition:border-color .15s ease, background .15s ease;
+}
+.logo-drop:hover{border-color:var(--brass); background:var(--brass-soft)}
+.logo-drop img{max-width:100%; max-height:96px; border-radius:var(--r)}
+.logo-drop .hint{font-size:12.5px; color:var(--text-3); margin-top:8px}
+.paleta-preview{display:flex; gap:10px; margin:16px 0}
+.paleta-preview .swatch{flex:1; text-align:center}
+.paleta-preview .chip{height:40px; border-radius:var(--r); border:1px solid var(--rule-soft); margin-bottom:6px}
+.paleta-preview .hex{font-family:var(--mono); font-size:11px; color:var(--text-2)}
+.btn-guardar-logo{
+  width:100%; height:42px; border:0; border-radius:var(--r); background:var(--brass); color:#fff;
+  font-weight:600; font-size:13.5px; display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.btn-guardar-logo:disabled{opacity:.5; cursor:default}
+.btn-guardar-logo .spin{
+  width:15px; height:15px; border-radius:50%; border:2px solid rgba(255,255,255,.4);
+  border-top-color:#fff; animation:spin .7s linear infinite; display:none;
+}
+.btn-guardar-logo.is-loading .spin{display:inline-block}
+</style>
+</head>
+<body>
+<div class="stage">
+  <aside class="brand" aria-hidden="true">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+
+    <div class="brand-top">
+      <div class="brand-mark">C</div>
+      <div>
+        <div class="brand-name">Pilaris</div>
+        <div class="brand-sub">Control de obra</div>
+      </div>
+    </div>
+
+    <div class="brand-mid">
+      <h1>¿Qué obra vas a gestionar hoy?</h1>
+      <p>Puedes cambiar de obra en cualquier momento desde el panel principal.</p>
+    </div>
+
+    <div class="brand-foot">A software by LuxuDev</div>
+  </aside>
+
+  <main class="panel">
+    <div class="card">
+      <h2>Selecciona una obra</h2>
+      <p class="sub">Elige la obra con la que quieres trabajar en esta sesión.</p>
+
+      <div class="error" id="errorMsg">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="errorTexto"></span>
+      </div>
+
+      <div id="listaObras" class="obras-list">
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+      </div>
+      <div class="empty-obras" id="obrasVacio" hidden>No tienes obras asignadas todavía. Contacta a un administrador.</div>
+
+      <div class="bloque-crear" id="bloqueCrear" hidden>
+        <button type="button" class="btn-link" id="btnMostrarCrear">+ Nueva obra</button>
+        <form id="formCrear" hidden novalidate>
+          <div class="field" style="margin-top:14px">
+            <label for="nombreObraNueva">Nombre de la obra</label>
+            <input type="text" id="nombreObraNueva" autocomplete="off">
+          </div>
+          <button type="submit" class="primary" id="btnCrear">
+            <span class="spin"></span><span class="txt">Crear obra</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="modalBorrar" hidden>
+  <div class="modal-card">
+    <h3>Eliminar obra</h3>
+    <div class="modal-warn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+      <span>Esto borra <b>permanentemente</b> todos los datos de <b id="modalObraNombre"></b>: destajos, compras, almacén, nómina, todo. No hay forma de deshacerlo.</span>
+    </div>
+
+    <label class="check-row">
+      <input type="checkbox" id="checkEntiendo">
+      <span>Entiendo que esta acción es irreversible y borra todos los datos de la obra.</span>
+    </label>
+
+    <div class="field">
+      <label for="inputConfirmarNombre">Escribe el nombre de la obra para confirmar</label>
+      <input type="text" id="inputConfirmarNombre" autocomplete="off">
+    </div>
+
+    <div class="error" id="errorBorrar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="errorBorrarTexto"></span>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-cancelar" id="btnCancelarBorrar">Cancelar</button>
+      <button type="button" class="btn-borrar" id="btnConfirmarBorrar" disabled>
+        <span class="spin"></span><span class="txt">Eliminar obra</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalPersonalizar" hidden>
+  <div class="modal-card">
+    <h3>Personalizar <span id="personalizarObraNombre"></span></h3>
+    <p class="sub" style="margin:2px 0 16px">Sube el logo de la constructora; el sistema sugiere 3 colores del logo para acentuar sus pantallas.</p>
+
+    <div class="logo-drop" id="logoDrop">
+      <input type="file" id="inputLogo" accept="image/png,image/jpeg,image/webp" hidden>
+      <img id="logoPreview" hidden>
+      <div id="logoDropTexto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" width="28" height="28" style="margin:0 auto"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        <div class="hint">Haz clic para elegir el logo (PNG/JPG/WEBP, máx. 5&nbsp;MB)</div>
+      </div>
+    </div>
+
+    <div class="paleta-preview" id="paletaPreview" hidden>
+      <div class="swatch"><div class="chip" id="chipPrimario"></div><div class="hex" id="hexPrimario"></div></div>
+      <div class="swatch"><div class="chip" id="chipSecundario"></div><div class="hex" id="hexSecundario"></div></div>
+      <div class="swatch"><div class="chip" id="chipSuave"></div><div class="hex" id="hexSuave"></div></div>
+    </div>
+
+    <div class="error" id="errorPersonalizar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="errorPersonalizarTexto"></span>
+    </div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn-cancelar" id="btnCerrarPersonalizar">Cerrar</button>
+      <button type="button" class="btn-guardar-logo" id="btnGuardarLogo" disabled>
+        <span class="spin"></span><span class="txt">Guardar logo</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const HOST = window.chrome && window.chrome.webview ? window.chrome.webview : null;
+
+  function alHost(accion, extra){
+    if (!HOST) return;
+    HOST.postMessage(Object.assign({ accion }, extra || {}));
+  }
+
+  const listaObras = document.getElementById("listaObras");
+  const obrasVacio = document.getElementById("obrasVacio");
+  const errorBox = document.getElementById("errorMsg");
+  const errorTexto = document.getElementById("errorTexto");
+  const bloqueCrear = document.getElementById("bloqueCrear");
+  const btnMostrarCrear = document.getElementById("btnMostrarCrear");
+  const formCrear = document.getElementById("formCrear");
+  const btnCrear = document.getElementById("btnCrear");
+  const nombreObraNueva = document.getElementById("nombreObraNueva");
+
+  const modalBorrar = document.getElementById("modalBorrar");
+  const modalObraNombre = document.getElementById("modalObraNombre");
+  const checkEntiendo = document.getElementById("checkEntiendo");
+  const inputConfirmarNombre = document.getElementById("inputConfirmarNombre");
+  const errorBorrar = document.getElementById("errorBorrar");
+  const errorBorrarTexto = document.getElementById("errorBorrarTexto");
+  const btnCancelarBorrar = document.getElementById("btnCancelarBorrar");
+  const btnConfirmarBorrar = document.getElementById("btnConfirmarBorrar");
+
+  const modalPersonalizar = document.getElementById("modalPersonalizar");
+  const personalizarObraNombre = document.getElementById("personalizarObraNombre");
+  const logoDrop = document.getElementById("logoDrop");
+  const inputLogo = document.getElementById("inputLogo");
+  const logoPreview = document.getElementById("logoPreview");
+  const logoDropTexto = document.getElementById("logoDropTexto");
+  const paletaPreview = document.getElementById("paletaPreview");
+  const errorPersonalizar = document.getElementById("errorPersonalizar");
+  const errorPersonalizarTexto = document.getElementById("errorPersonalizarTexto");
+  const btnCerrarPersonalizar = document.getElementById("btnCerrarPersonalizar");
+  const btnGuardarLogo = document.getElementById("btnGuardarLogo");
+
+  let puedeAdministrar = false;
+  let obraABorrar = null; // { id, nombre }
+  let obraAPersonalizar = null; // { id, nombre }
+  let logoBase64Pendiente = null;
+  let logoExtensionPendiente = null;
+
+  function esc(s){ return (s == null ? "" : String(s)).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])); }
+
+  function mostrarError(msg){
+    errorTexto.textContent = msg;
+    errorBox.classList.add("is-on");
+  }
+  function ocultarError(){
+    errorBox.classList.remove("is-on");
+  }
+
+  function pintarObras(lista){
+    listaObras.innerHTML = "";
+    obrasVacio.hidden = !!(lista && lista.length);
+    if (!lista || !lista.length) return;
+
+    lista.forEach(o => {
+      const fila = document.createElement("div");
+      fila.className = "obra-item";
+
+      const sinConfigurar = !(o.nodosArbol || o.insumos || o.proveedores);
+
+      const elegir = document.createElement("button");
+      elegir.type = "button";
+      elegir.className = "obra-elegir";
+      elegir.innerHTML = `
+        <div class="obra-mark">${esc((o.nombre || "?").charAt(0).toUpperCase())}</div>
+        <div class="obra-nombre-fila">
+          <div class="obra-nombre">
+            ${esc(o.nombre)}
+            ${sinConfigurar ? '<span class="obra-pendiente-sub">Aún no tiene árbol de tareas, insumos ni proveedores capturados.</span>' : ""}
+          </div>
+          ${sinConfigurar ? '<span class="obra-pendiente">Configuración pendiente</span>' : ""}
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      `;
+      elegir.addEventListener("click", () => {
+        ocultarError();
+        alHost("elegir-obra", { id: o.id, nombre: o.nombre });
+      });
+      fila.appendChild(elegir);
+
+      if (puedeAdministrar) {
+        const personalizar = document.createElement("button");
+        personalizar.type = "button";
+        personalizar.className = "obra-personalizar";
+        personalizar.title = "Personalizar (logo y colores)";
+        personalizar.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.504 5.555-5.555C22 6.512 17.5 2 12 2z"/></svg>`;
+        personalizar.addEventListener("click", () => abrirModalPersonalizar(o));
+        fila.appendChild(personalizar);
+
+        const borrar = document.createElement("button");
+        borrar.type = "button";
+        borrar.className = "obra-borrar";
+        borrar.title = "Eliminar obra";
+        borrar.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6"/></svg>`;
+        borrar.addEventListener("click", () => abrirModalBorrar(o));
+        fila.appendChild(borrar);
+      }
+
+      listaObras.appendChild(fila);
+    });
+  }
+
+  // ---- Eliminar obra: 3 verificaciones (checkbox + nombre escrito + el
+  // servidor vuelve a comparar el nombre antes de tirar la BD) ----
+  function actualizarBotonBorrar(){
+    const nombreOk = obraABorrar && inputConfirmarNombre.value === obraABorrar.nombre;
+    btnConfirmarBorrar.disabled = !(checkEntiendo.checked && nombreOk);
+  }
+
+  function abrirModalBorrar(o){
+    obraABorrar = { id: o.id, nombre: o.nombre };
+    modalObraNombre.textContent = o.nombre;
+    checkEntiendo.checked = false;
+    inputConfirmarNombre.value = "";
+    errorBorrar.classList.remove("is-on");
+    btnConfirmarBorrar.disabled = true;
+    btnConfirmarBorrar.classList.remove("is-loading");
+    modalBorrar.hidden = false;
+  }
+
+  function cerrarModalBorrar(){
+    modalBorrar.hidden = true;
+    obraABorrar = null;
+  }
+
+  checkEntiendo.addEventListener("change", actualizarBotonBorrar);
+  inputConfirmarNombre.addEventListener("input", actualizarBotonBorrar);
+  btnCancelarBorrar.addEventListener("click", cerrarModalBorrar);
+
+  btnConfirmarBorrar.addEventListener("click", () => {
+    if (!obraABorrar || btnConfirmarBorrar.disabled) return;
+    errorBorrar.classList.remove("is-on");
+    btnConfirmarBorrar.disabled = true;
+    btnConfirmarBorrar.classList.add("is-loading");
+    alHost("eliminar-obra", { id: obraABorrar.id, nombreConfirmacion: inputConfirmarNombre.value });
+  });
+
+  // ---- Personalizar: subir logo, el servidor sugiere y guarda la paleta ----
+  function abrirModalPersonalizar(o){
+    obraAPersonalizar = { id: o.id, nombre: o.nombre };
+    personalizarObraNombre.textContent = o.nombre;
+    logoBase64Pendiente = null;
+    logoExtensionPendiente = null;
+    inputLogo.value = "";
+    logoPreview.hidden = true;
+    logoDropTexto.hidden = false;
+    paletaPreview.hidden = true;
+    errorPersonalizar.classList.remove("is-on");
+    btnGuardarLogo.disabled = true;
+    btnGuardarLogo.classList.remove("is-loading");
+    modalPersonalizar.hidden = false;
+  }
+
+  function cerrarModalPersonalizar(){
+    modalPersonalizar.hidden = true;
+    obraAPersonalizar = null;
+  }
+
+  btnCerrarPersonalizar.addEventListener("click", cerrarModalPersonalizar);
+
+  logoDrop.addEventListener("click", (ev) => { if (ev.target !== inputLogo) inputLogo.click(); });
+
+  inputLogo.addEventListener("change", () => {
+    const archivo = inputLogo.files && inputLogo.files[0];
+    if (!archivo) return;
+    errorPersonalizar.classList.remove("is-on");
+    if (archivo.size > 5 * 1024 * 1024) {
+      errorPersonalizarTexto.textContent = "El logo no puede superar los 5 MB.";
+      errorPersonalizar.classList.add("is-on");
+      return;
+    }
+    const lector = new FileReader();
+    lector.onload = () => {
+      const resultado = lector.result; // data:<mime>;base64,<...>
+      const coma = resultado.indexOf(",");
+      logoBase64Pendiente = resultado.slice(coma + 1);
+      logoExtensionPendiente = (archivo.name.split(".").pop() || "png").toLowerCase();
+      logoPreview.src = resultado;
+      logoPreview.hidden = false;
+      logoDropTexto.hidden = true;
+      btnGuardarLogo.disabled = false;
+    };
+    lector.readAsDataURL(archivo);
+  });
+
+  btnGuardarLogo.addEventListener("click", () => {
+    if (!obraAPersonalizar || !logoBase64Pendiente) return;
+    errorPersonalizar.classList.remove("is-on");
+    btnGuardarLogo.disabled = true;
+    btnGuardarLogo.classList.add("is-loading");
+    alHost("guardar-logo", { id: obraAPersonalizar.id, logoBase64: logoBase64Pendiente, extension: logoExtensionPendiente });
+  });
+
+  function mostrarPaleta(p){
+    document.getElementById("chipPrimario").style.background = p.colorPrimario;
+    document.getElementById("hexPrimario").textContent = p.colorPrimario;
+    document.getElementById("chipSecundario").style.background = p.colorSecundario;
+    document.getElementById("hexSecundario").textContent = p.colorSecundario;
+    document.getElementById("chipSuave").style.background = p.colorSuave;
+    document.getElementById("hexSuave").textContent = p.colorSuave;
+    paletaPreview.hidden = false;
+  }
+
+  btnMostrarCrear.addEventListener("click", () => {
+    formCrear.hidden = !formCrear.hidden;
+    if (!formCrear.hidden) nombreObraNueva.focus();
+  });
+
+  formCrear.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const nombre = nombreObraNueva.value.trim();
+    if (!nombre) { mostrarError("Escribe el nombre de la obra."); return; }
+    ocultarError();
+    btnCrear.disabled = true;
+    btnCrear.classList.add("is-loading");
+    alHost("crear-obra", { nombre });
+  });
+
+  let ultimaLista = [];
+
+  if (HOST) {
+    HOST.addEventListener("message", (e) => {
+      const d = e.data;
+      if (!d || !d.tipo) return;
+      switch (d.tipo) {
+        case "obras":
+          ultimaLista = d.lista || [];
+          pintarObras(ultimaLista);
+          break;
+        case "permisos":
+          puedeAdministrar = !!d.puedeCrear;
+          bloqueCrear.hidden = !puedeAdministrar;
+          pintarObras(ultimaLista);
+          break;
+        case "obraCreada":
+          btnCrear.disabled = false;
+          btnCrear.classList.remove("is-loading");
+          formCrear.hidden = true;
+          nombreObraNueva.value = "";
+          alHost("cargar-obras");
+          break;
+        case "obraError":
+          btnCrear.disabled = false;
+          btnCrear.classList.remove("is-loading");
+          mostrarError(d.mensaje || "No se pudo completar la operación.");
+          break;
+        case "obraEliminada":
+          cerrarModalBorrar();
+          break;
+        case "obraEliminarError":
+          btnConfirmarBorrar.classList.remove("is-loading");
+          actualizarBotonBorrar();
+          errorBorrarTexto.textContent = d.mensaje || "No se pudo eliminar la obra.";
+          errorBorrar.classList.add("is-on");
+          break;
+        case "logoGuardado":
+          btnGuardarLogo.classList.remove("is-loading");
+          btnGuardarLogo.disabled = false;
+          mostrarPaleta(d);
+          break;
+        case "logoError":
+          btnGuardarLogo.classList.remove("is-loading");
+          btnGuardarLogo.disabled = false;
+          errorPersonalizarTexto.textContent = d.mensaje || "No se pudo guardar el logo.";
+          errorPersonalizar.classList.add("is-on");
+          break;
+      }
+    });
+  }
+
+  alHost("cargar-obras");
+})();
+</script>
+</body>
+</html>
