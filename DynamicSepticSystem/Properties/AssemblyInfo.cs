@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("DynamicSepticSystem")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("Pilaris")]
+[assembly: AssemblyDescription("Sistema Pilaris - Control de Obra")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("DynamicSepticSystem")]
+[assembly: AssemblyProduct("Pilaris")]
 [assembly: AssemblyCopyright("Copyright ©  2025")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -29,5 +29,5 @@ using System.Runtime.InteropServices;
 //      Build Number
 //      Revision
 //
-[assembly: AssemblyVersion("1.9.4.2")]
-[assembly: AssemblyFileVersion("1.9.4.2")]
+[assembly: AssemblyVersion("1.9.4.8")]
+[assembly: AssemblyFileVersion("1.9.4.8")]
