@@ -677,7 +677,7 @@ namespace DynamicSepticSystem
             this.MinimumSize = new System.Drawing.Size(1024, 600);
             this.Name = "FormAlmacen";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Gestión de Almacén - Calandria Residencial";
+            this.Text = "Gestión de Almacén - Pilaris";
             this.tabPageHistorial.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.objectListViewHistorial)).EndInit();
             this.tabPage2.ResumeLayout(false);

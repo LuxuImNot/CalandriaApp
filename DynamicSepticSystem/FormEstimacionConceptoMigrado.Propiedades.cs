@@ -88,7 +88,7 @@ namespace DynamicSepticSystem
         private void ConfigurarPreviewFotosHover()
         {
             if (gestorFotosConcepto == null)
-                gestorFotosConcepto = new GestorFotosConcepto(connectionString);
+                gestorFotosConcepto = new GestorFotosConcepto();
 
             if (olvEstimacionConceptos == null)
                 return;

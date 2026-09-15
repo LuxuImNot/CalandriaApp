@@ -365,7 +365,7 @@ namespace DynamicSepticSystem
         {
             try
             {
-                ApiClient.Post("/api/proveedores", new
+                var resp = ApiClient.Post<ProveedorCreadoApi>("/api/proveedores", new
                 {
                     ClaveUnica = d.claveUnica,
                     Nombre = d.nombre,
@@ -373,7 +373,7 @@ namespace DynamicSepticSystem
                     Direccion = d.direccion,
                     Telefono = d.telefono
                 });
-                Push(new { tipo = "proveedorCreado", ok = true, mensaje = "Proveedor guardado correctamente." });
+                Push(new { tipo = "proveedorCreado", ok = true, mensaje = $"Proveedor guardado correctamente. Folio: {resp?.Folio}" });
             }
             catch (ApiException ex) when (ex.StatusCode == HttpStatusCode.Conflict)
             {

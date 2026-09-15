@@ -435,7 +435,7 @@ namespace DynamicSepticSystem
             Color badgeColor;
             string badge;
             if (d.Finalizado) { badgeColor = GuiaExito; badge = "✓ TERMINADO"; }
-            else if (d.DesatajoActivado) { badgeColor = GuiaAviso; badge = "● EN PROCESO"; }
+            else if (d.DesatajoActivado) { badgeColor = GuiaAviso; badge = "⚙ ACTIVADO"; }
             else { badgeColor = GuiaTextoSuave; badge = "○ PENDIENTE"; }
 
             decimal importe = itemsTareas.Where(i => i.ParentId == d.ID).Sum(i => i.Total);
@@ -590,7 +590,7 @@ namespace DynamicSepticSystem
                     badgeColor = GuiaExito; badge = "✓ TERMINADO"; break;
                 case EstadoPaso.Activado:
                     fondo = Color.FromArgb(255, 248, 236); borde = GuiaAviso;
-                    badgeColor = GuiaAviso; badge = "● EN PROCESO"; break;
+                    badgeColor = GuiaAviso; badge = "⚙ ACTIVADO"; break;
                 default:
                     fondo = Color.White; borde = GuiaAcento;
                     badgeColor = GuiaAcento; badge = "▸ POR ACTIVAR"; break;

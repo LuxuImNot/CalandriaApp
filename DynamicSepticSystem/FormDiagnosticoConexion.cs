@@ -450,8 +450,8 @@ namespace DynamicSepticSystem
 
                                 AgregarLinea($"   � �ltima versi�n disponible: {latestVersion}");
                                 AgregarLinea($"   � Versi�n local: {Actualizador.VersionLocal}");
-                                
-                                if (latestVersion != Actualizador.VersionLocal)
+
+                                if (Actualizador.EsNuevaVersion(Actualizador.VersionLocal, latestVersion))
                                 {
                                     AgregarLinea("   ??  Hay una actualizaci�n disponible");
                                 }

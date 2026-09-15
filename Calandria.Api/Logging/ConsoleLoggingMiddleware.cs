@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Owin;
 
@@ -13,13 +14,26 @@ namespace Calandria.Api.Logging
     /// Escribe a DOS destinos: a la consola (con color, útil al correr el host en
     /// modo consola) y a un archivo diario "logs\api-YYYYMMDD.log" junto al exe
     /// (imprescindible como Servicio de Windows, donde no hay consola adjunta).
-    /// No vuelca cuerpos (las subidas de fotos van en base64 y saturarían la salida).
+    ///
+    /// Con LogDetallado (config, default true) también vuelca el USUARIO autenticado
+    /// y el CUERPO de las peticiones de escritura (POST/PUT/PATCH), con tope de tamaño
+    /// y una lista de exclusión para NO volcar contraseñas ni cargas base64 (login,
+    /// evidencias, fotos, conciliar-factura). Así se supervisan las transacciones en vivo.
     /// </summary>
     public sealed class ConsoleLoggingMiddleware : OwinMiddleware
     {
         private static readonly object _candado = new object();
         private static readonly string _dirLogs =
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+
+        // Tope del cuerpo a registrar (evita saturar la consola/archivo).
+        private const int MaxCuerpo = 4000;
+
+        // Rutas cuyo cuerpo NO se registra (secretos o cargas grandes en base64).
+        private static readonly string[] _rutasSinCuerpo =
+        {
+            "auth/login", "evidencias", "fotos", "conciliar-factura", "trabajadores"
+        };
 
         public ConsoleLoggingMiddleware(OwinMiddleware next) : base(next)
         {
@@ -30,7 +44,19 @@ namespace Calandria.Api.Logging
             var req = context.Request;
             string linea = $"{req.Method} {req.Uri.PathAndQuery}";
 
-            Escribir(ConsoleColor.Cyan, $"{Hora()} >> {linea}");
+            bool detallado = Configuracion.LogDetallado;
+            string usuario = detallado ? UsuarioDe(context) : null;
+            string sufijoUsuario = string.IsNullOrEmpty(usuario) ? "" : $" (user: {usuario})";
+
+            Escribir(ConsoleColor.Cyan, $"{Hora()} >> {linea}{sufijoUsuario}");
+
+            // Vuelca el cuerpo de las transacciones de escritura (sin secretos/base64).
+            if (detallado && EsEscritura(req.Method) && !RutaExcluida(req.Uri.AbsolutePath))
+            {
+                string cuerpo = await LeerCuerpoRequest(context);
+                if (!string.IsNullOrWhiteSpace(cuerpo))
+                    Escribir(ConsoleColor.DarkGray, $"{Hora()}    body: {Resumir(cuerpo)}");
+            }
 
             var sw = Stopwatch.StartNew();
             try
@@ -39,15 +65,69 @@ namespace Calandria.Api.Logging
                 sw.Stop();
 
                 int status = context.Response.StatusCode;
-                Escribir(ColorEstado(status), $"{Hora()} << {status} {linea} ({sw.ElapsedMilliseconds} ms)");
+                Escribir(ColorEstado(status), $"{Hora()} << {status} {linea} ({sw.ElapsedMilliseconds} ms){sufijoUsuario}");
             }
             catch (Exception ex)
             {
                 sw.Stop();
                 Escribir(ConsoleColor.Red,
-                    $"{Hora()} !! {linea} EX {ex.GetType().Name}: {ex.Message} ({sw.ElapsedMilliseconds} ms)");
+                    $"{Hora()} !! {linea} EX {ex.GetType().Name}: {ex.Message} ({sw.ElapsedMilliseconds} ms){sufijoUsuario}");
                 throw;
             }
+        }
+
+        private static bool EsEscritura(string metodo) =>
+            metodo == "POST" || metodo == "PUT" || metodo == "PATCH" || metodo == "DELETE";
+
+        private static bool RutaExcluida(string ruta)
+        {
+            string r = (ruta ?? "").ToLowerInvariant();
+            foreach (var x in _rutasSinCuerpo)
+                if (r.Contains(x)) return true;
+            return false;
+        }
+
+        private static string UsuarioDe(IOwinContext context)
+        {
+            try { return context.Authentication?.User?.Identity?.Name; }
+            catch { return null; }
+        }
+
+        /// <summary>
+        /// Lee el cuerpo de la petición y lo deja re-leíble para el resto del pipeline
+        /// (reemplaza el stream por uno en memoria posicionado al inicio).
+        /// </summary>
+        private static async Task<string> LeerCuerpoRequest(IOwinContext context)
+        {
+            try
+            {
+                var original = context.Request.Body;
+                if (original == null) return "";
+
+                var ms = new MemoryStream();
+                await original.CopyToAsync(ms);
+                ms.Position = 0;
+
+                string texto;
+                using (var reader = new StreamReader(ms, Encoding.UTF8, false, 1024, leaveOpen: true))
+                    texto = await reader.ReadToEndAsync();
+
+                ms.Position = 0;
+                context.Request.Body = ms; // downstream vuelve a leer desde el inicio
+                return texto;
+            }
+            catch
+            {
+                return ""; // el logging nunca debe afectar la petición
+            }
+        }
+
+        /// <summary>Una sola línea, recortado al tope.</summary>
+        private static string Resumir(string cuerpo)
+        {
+            string s = cuerpo.Replace("\r", " ").Replace("\n", " ").Trim();
+            if (s.Length > MaxCuerpo) s = s.Substring(0, MaxCuerpo) + "…[+" + (cuerpo.Length - MaxCuerpo) + " chars]";
+            return s;
         }
 
         private static string Hora() => DateTime.Now.ToString("HH:mm:ss");

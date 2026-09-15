@@ -131,9 +131,58 @@ namespace DynamicSepticSystem
             form.ForeColor = ColorTextoOscuro;
             try { form.Font = FuenteRegular; } catch { }
 
+            AplicarIconoPorDefecto(form);
             HabilitarDoubleBuffer(form);
 
             AplicarTemaRecursivo(form);
+        }
+
+        /// <summary>
+        /// Reemplaza el ícono del form por el de la app (Resources/app.ico).
+        /// OJO: "Form.Icon" NUNCA es null por defecto (WinForms ya devuelve un
+        /// ícono genérico interno aunque nunca se le asigne uno), así que no
+        /// se puede usar "form.Icon == null" para detectar "sin ícono propio".
+        /// Como ningún form de este proyecto asigna un ícono custom por
+        /// Designer, aquí simplemente se sobreescribe siempre.
+        /// </summary>
+        private static Icon _iconoApp;
+        private static bool _iconoAppCargado;
+
+        public static void AplicarIconoPorDefecto(Form form)
+        {
+            if (form == null) return;
+            if (!_iconoAppCargado)
+            {
+                _iconoAppCargado = true;
+                _iconoApp = CargarIconoEmbebido();
+            }
+            if (_iconoApp != null) form.Icon = _iconoApp;
+        }
+
+        /// <summary>
+        /// Carga app.ico desde el recurso embebido del ensamblado (ver
+        /// DynamicSepticSystem.csproj). Icon.ExtractAssociatedIcon sobre el
+        /// propio .exe en ejecución no es confiable: puede devolver un ícono
+        /// genérico de .NET en vez del real, así que se evita por completo.
+        /// </summary>
+        private static Icon CargarIconoEmbebido()
+        {
+            try
+            {
+                var asm = Assembly.GetExecutingAssembly();
+                var nombre = "DynamicSepticSystem.app.ico";
+                if (Array.IndexOf(asm.GetManifestResourceNames(), nombre) < 0)
+                {
+                    // Por si el nombre por convención no coincide (recurso movido, etc.)
+                    foreach (var n in asm.GetManifestResourceNames())
+                        if (n.EndsWith(".app.ico", StringComparison.OrdinalIgnoreCase)) { nombre = n; break; }
+                }
+                using (var stream = asm.GetManifestResourceStream(nombre))
+                {
+                    return stream != null ? new Icon(stream) : null;
+                }
+            }
+            catch { return null; }
         }
 
         private static void AplicarTemaRecursivo(Control contenedor)

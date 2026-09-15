@@ -31,3 +31,23 @@ Updater/obj/
 # ---- Local / tooling ----
 .localpilot/
 *.log
+.aider*
+
+# ---- Secretos (cadenas de conexión, JWT, API keys, tokens) ----
+# Los .example SÍ se versionan como plantilla.
+secrets.config
+connectionStrings.config
+connectionStrings.release.config
+
+# ---- Artefactos y herramientas que no son fuente del proyecto ----
+Calandria.Api/deploy/
+CalandriaApi-publish-*/
+*.zip.sha256
+SKILLS4AI/
+animejs-skills-main/
+DynamicSepticSystem/graphify-out/
+DynamicSepticSystem/mapa_proyecto*.html
+context.txt
+*.mp4
+*.bak
+nul

@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Web.Http;
+using Calandria.Api.Auth;
 using Calandria.Api.Data;
 using Calandria.Api.Models;
 
@@ -19,11 +20,11 @@ namespace Calandria.Api.Controllers
     /// como binario al consultar. La columna de tamaño puede variar con/sin acentos,
     /// así que se detecta en el servidor.
     /// </summary>
-    [RoutePrefix("api/evidencias")]
+    [RoutePrefix("api/evidencias"), RequierePermiso("estimaciones.ver")]
     public class EvidenciasController : ApiController
     {
         /// <summary>POST /api/evidencias · guarda una evidencia. Devuelve true.</summary>
-        [HttpPost, Route("")]
+        [HttpPost, Route(""), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult Guardar([FromBody] GuardarEvidenciaRequest req)
         {
             if (req == null)
@@ -40,6 +41,8 @@ namespace Calandria.Api.Controllers
                 return BadRequest("La foto no puede estar vacía");
             if (foto.Length > 10 * 1024 * 1024)
                 return BadRequest("La foto no puede superar los 10 MB");
+            if (!Services.ImagenValidacion.EsImagenValida(foto))
+                return BadRequest("El archivo no es una imagen válida (jpg/png/webp)");
 
             double tamanioKB = foto.Length / 1024.0;
 
@@ -177,7 +180,7 @@ ORDER BY FechaCaptura DESC";
         }
 
         /// <summary>POST /api/evidencias/{id}/eliminar · borra la evidencia. Devuelve true si borró.</summary>
-        [HttpPost, Route("{id:int}/eliminar")]
+        [HttpPost, Route("{id:int}/eliminar"), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult Eliminar(int id)
         {
             using (var conn = Db.Abrir())

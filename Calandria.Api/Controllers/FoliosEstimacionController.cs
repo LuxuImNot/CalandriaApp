@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using System.Web.Http;
+using Calandria.Api.Auth;
 using Calandria.Api.Data;
 using Calandria.Api.Models;
 
@@ -14,7 +15,7 @@ namespace Calandria.Api.Controllers
     /// PDFsEstimacion) y guardado de una estimación completa (cabecera + detalle +
     /// PDF) en una transacción. El PDF se genera en el cliente y viaja en base64.
     /// </summary>
-    [RoutePrefix("api/folios-estimacion")]
+    [RoutePrefix("api/folios-estimacion"), RequierePermiso("estimaciones.ver")]
     public class FoliosEstimacionController : ApiController
     {
         /// <summary>
@@ -40,7 +41,7 @@ ELSE
         /// POST /api/folios-estimacion/ensure-tablas · crea las tablas de folios si no
         /// existen (lo usa el cliente antes de abrir el repositorio de PDFs).
         /// </summary>
-        [HttpPost, Route("ensure-tablas")]
+        [HttpPost, Route("ensure-tablas"), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult EnsureTablasEndpoint()
         {
             using (var conn = Db.Abrir())
@@ -53,7 +54,7 @@ ELSE
         /// (FoliosEstimacionDetalle, vinculando IdPresupuestoObra si la columna existe) y
         /// el PDF (PDFsEstimacion) en una transacción. Devuelve el Id del folio.
         /// </summary>
-        [HttpPost, Route("")]
+        [HttpPost, Route(""), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult Guardar([FromBody] GuardarFolioEstimacionRequest req)
         {
             if (req == null || string.IsNullOrWhiteSpace(req.Folio))

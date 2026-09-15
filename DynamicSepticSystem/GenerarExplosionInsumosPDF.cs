@@ -78,7 +78,7 @@ namespace DynamicSepticSystem
                     DynamicSepticSystem.Properties.Resources.Logo.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
                     ms.Position = 0;
                     var logo = XImage.FromStream(ms);
-                    gfx.DrawImage(logo, page.Width - 150, 20, 100, 50);
+                    gfx.DrawImage(logo, page.Width - 150, 20, 100, 89); // alto ajustado a la proporción del logo Pilaris
                 }
             }
             catch

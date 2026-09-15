@@ -22,7 +22,7 @@ namespace DynamicSepticSystem
             this.BackColor = ThemeManager.ColorFondoApp;
             this.ForeColor = ThemeManager.ColorTextoOscuro;
             this.Font = ThemeManager.FuenteRegular;
-            this.Text = "Gestión de Almacén · Calandria Residencial";
+            this.Text = "Gestión de Almacén · Pilaris";
 
             // 2) TabControl con look corporativo (acento café en selección)
             if (TabsControl != null)

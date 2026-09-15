@@ -91,7 +91,7 @@ ORDER BY ipd.Clave;";
             ms.Position = 0;
             using (var logo = XImage.FromStream(ms))
             {
-                gfx.DrawImage(logo, page.Width - 150, 20, 100, 50); // posición y tamaño iguales a antes
+                gfx.DrawImage(logo, page.Width - 150, 20, 100, 89); // alto ajustado a la proporción del logo Pilaris
             }
         }
 

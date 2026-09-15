@@ -24,6 +24,11 @@ namespace DynamicSepticSystem
         /// </summary>
         public static bool EsAdmin =>
             UsuarioActual != null && UsuarioActual.TienePermiso("sistema.administrador");
+
+        /// <summary>True si este usuario es operador de la plataforma (secrets.config -> SuperAdmins
+        /// en el servidor), no un admin normal de un cliente. Controla el menú de Clientes.</summary>
+        public static bool EsSuperAdmin =>
+            UsuarioActual != null && UsuarioActual.EsSuperAdmin;
     }
 
 }

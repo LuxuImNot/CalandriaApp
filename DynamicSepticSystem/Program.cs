@@ -26,18 +26,6 @@ namespace DynamicSepticSystem
             ErrorLogger.Inicializar();
             ThemeManager.InicializarAplicacion();
 
-            // Skip the splash screen when running under the debugger
-            if (!Debugger.IsAttached)
-            {
-                using (var splash = new FormSplash())
-                {
-                    if (splash.ShowDialog() != DialogResult.OK)
-                        return;
-                }
-            }
-
-            var _ = Actualizador.VerificarYActualizarAsync().Result;
-
 #if DEBUG
             // Al DEPURAR (solo build Debug + depurador conectado) se puede saltar el
             // login con un usuario admin local, para no perder tiempo logueándose en
@@ -56,11 +44,13 @@ namespace DynamicSepticSystem
                     Permisos = new List<string>
                     {
                         "sistema.administrador", "sistema.perfiles", "sistema.usuarios",
+                        "sistema.facturacion",
                         "almacen.ver", "almacen.editar", "compras.ver", "compras.editar",
                         "nomina.ver", "nomina.editar", "trabajadores.ver", "trabajadores.editar",
                         "destajos.ver", "destajos.editar", "estimaciones.ver", "estimaciones.editar",
                         "errores.ver"
-                    }
+                    },
+                    EsSuperAdmin = true
                 };
 
                 // Token API para las pantallas ya migradas. Con credenciales de
@@ -99,16 +89,42 @@ namespace DynamicSepticSystem
                 login.LoginExitoso += (s, e) =>
                 {
                     login.Hide();
-                    var seleccion = new FormSeleccionObraWeb();
-                    seleccion.ObraSeleccionada += (s2, e2) => seleccion.Close();
-                    seleccion.FormClosed += (s2, e2) =>
+
+                    void ContinuarConObra()
                     {
-                        if (!seleccion.SeSeleccionoObra) { login.Close(); return; }
-                        var panel = new PanelPrincipal();
-                        panel.FormClosed += (s3, e3) => login.Close();
-                        panel.Show();
-                    };
-                    seleccion.Show();
+                        var seleccion = new FormSeleccionObraWeb();
+                        seleccion.ObraSeleccionada += (s2, e2) => seleccion.Close();
+                        seleccion.FormClosed += (s2, e2) =>
+                        {
+                            if (!seleccion.SeSeleccionoObra) { login.Close(); return; }
+                            var panel = new PanelPrincipal();
+                            panel.FormClosed += (s3, e3) => login.Close();
+                            panel.Show();
+                        };
+                        seleccion.Show();
+                    }
+
+                    // Términos de Uso / Aviso de Privacidad: obligatorios antes de usar
+                    // el sistema (ver TerminosController). Si el API no responde, no se
+                    // bloquea el acceso (el resto de pantallas ya maneja su propia caída
+                    // de conexión); solo se pospone el gate a un siguiente inicio.
+                    bool requiereAceptar;
+                    try
+                    {
+                        requiereAceptar = ApiClient.Get<EstadoTerminosApi>("/api/terminos/estado")?.RequiereAceptar ?? false;
+                    }
+                    catch (Exception ex)
+                    {
+                        ErrorLogger.RegistrarMensaje("Terminos", "No se pudo consultar el estado: " + ex.Message);
+                        requiereAceptar = false;
+                    }
+
+                    if (!requiereAceptar) { ContinuarConObra(); return; }
+
+                    var terminos = new FormTerminosWeb();
+                    terminos.TerminosAceptados += (s2, e2) => { terminos.Close(); ContinuarConObra(); };
+                    terminos.FormClosed += (s2, e2) => { if (!terminos.Aceptado) login.Close(); };
+                    terminos.Show();
                 };
                 Application.Run(login);
             }

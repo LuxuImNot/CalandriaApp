@@ -222,7 +222,7 @@ namespace DynamicSepticSystem
             {
                 PdfDocument documento = new PdfDocument();
                 documento.Info.Title = $"Estimaci�n de Conceptos - M{cmbManzana.SelectedItem} L{cmbLote.SelectedItem}";
-                documento.Info.Author = "Sistema Calandria";
+                documento.Info.Author = "Sistema Pilaris";
 
                 PdfPage pagina = documento.AddPage();
                 pagina.Size = PdfSharp.PageSize.Letter;

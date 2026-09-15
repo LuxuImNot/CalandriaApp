@@ -343,7 +343,7 @@ END";
             pdf.Info.Title = "Vale de Salida de Almacen - " + folio;
             pdf.Info.Author = "Desarrolladora de Casas Camaney";
             pdf.Info.Subject = "Vale de Salida";
-            pdf.Info.Creator = "Sistema Calandria";
+            pdf.Info.Creator = "Sistema Pilaris";
 
             PdfPage page = pdf.AddPage();
             page.Size = PdfSharp.PageSize.Letter;

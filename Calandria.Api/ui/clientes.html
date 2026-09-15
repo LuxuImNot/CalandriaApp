@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilaris · Clientes</title>
+
+<style>
+/* Tokens copiados de login.html/terminos.html (paleta café Calandria). */
+:root {
+  --ink:#221E1B; --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC;
+  --ok:#1F6B4A; --ok-bg:#E2F0E8;
+  --stop:#A31D1D; --stop-bg:#F7E3E3;
+  --shadow-lg:0 18px 46px -18px rgba(34,30,27,.35), 0 2px 6px rgba(34,30,27,.06);
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI Variable Text","Segoe UI",Roboto,sans-serif;
+  --r:8px; --r-2:12px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#F2EEE9; --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+    --rule:#3A322C; --rule-soft:#2C2521;
+    --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+    --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+    --on-ink:#17130C;
+    --ok:#54B183; --ok-bg:#163024;
+    --stop:#DB6B6B; --stop-bg:#331717;
+    --shadow-lg:0 18px 46px -18px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#F2EEE9; --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+  --rule:#3A322C; --rule-soft:#2C2521;
+  --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+  --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+  --on-ink:#17130C; --ok:#54B183; --ok-bg:#163024; --stop:#DB6B6B; --stop-bg:#331717;
+}
+:root[data-theme="light"]{
+  --ink:#221E1B; --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC; --ok:#1F6B4A; --ok-bg:#E2F0E8; --stop:#A31D1D; --stop-bg:#F7E3E3;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--paper); color:var(--text);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1{font-size:20px; margin:0 0 4px}
+h2{font-size:15px; margin:0 0 14px; color:var(--brass-2)}
+p{color:var(--text-2); margin:0}
+:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
+
+.wrap{max-width:920px; margin:0 auto; padding:32px 20px 48px}
+.head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:24px; gap:12px; flex-wrap:wrap}
+.head .sub{font-size:12.5px; color:var(--text-3)}
+.volver{background:none; border:1px solid var(--rule); border-radius:var(--r); padding:8px 14px; font-size:12.5px; color:var(--text-2); cursor:pointer}
+.volver:hover{background:var(--surface-2)}
+
+.card{
+  background:var(--surface); border:1px solid var(--rule-soft); border-radius:var(--r-2);
+  box-shadow:var(--shadow-lg); padding:28px 30px; margin-bottom:24px;
+}
+
+.grid{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+@media (max-width:640px){ .grid{grid-template-columns:1fr} }
+.field{margin-bottom:16px}
+.field label{display:block; font-size:12px; font-weight:600; color:var(--text-2); margin-bottom:6px; letter-spacing:.02em}
+input[type=text], input[type=password], input[type=date]{
+  width:100%; height:42px; padding:0 12px; border:1.5px solid var(--rule); border-radius:var(--r);
+  background:var(--surface); color:var(--text); font-size:14px; font-family:inherit;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+input:focus{outline:none; border-color:var(--brass); box-shadow:0 0 0 3px var(--brass-soft)}
+input[type=file]{font-size:12.5px; color:var(--text-2)}
+
+button{font:inherit; cursor:pointer; border:none; border-radius:var(--r); padding:10px 22px; font-weight:600}
+.btn-primary{background:var(--brass); color:var(--on-ink)}
+.btn-primary:disabled{background:var(--rule); color:var(--text-3); cursor:not-allowed}
+
+table{width:100%; border-collapse:collapse; font-size:13px}
+th, td{text-align:left; padding:10px 8px; border-bottom:1px solid var(--rule-soft)}
+th{color:var(--text-3); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.03em}
+.vacio{color:var(--text-3); font-size:13px; padding:8px 0}
+.badge{display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:600}
+.badge.on{background:var(--ok-bg); color:var(--ok)}
+.badge.off{background:var(--stop-bg); color:var(--stop)}
+
+.toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%); opacity:0;
+  background:var(--ink); color:var(--on-ink); padding:10px 16px; border-radius:var(--r); font-size:12.5px;
+  box-shadow:0 8px 24px rgba(0,0,0,.3); pointer-events:none; z-index:200; max-width:min(480px,80vw);
+  transition:opacity .2s ease;
+}
+.toast.is-error{background:var(--stop)}
+.toast.is-ok{background:var(--ok)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Clientes</h1>
+      <p class="sub">Alta de una empresa nueva: crea su primer perfil, su primera obra y su usuario administrador.</p>
+    </div>
+    <button class="volver" id="btnVolver">Volver</button>
+  </div>
+
+  <div class="card">
+    <h2>Nuevo cliente</h2>
+    <div class="grid">
+      <div class="field"><label for="fNombreCliente">Nombre del cliente (empresa)</label><input type="text" id="fNombreCliente" placeholder="Constructora XYZ"></div>
+      <div class="field"><label for="fNombreObra">Nombre de la primera obra</label><input type="text" id="fNombreObra" placeholder="Fraccionamiento Fase 1"></div>
+      <div class="field"><label for="fUsuario">Usuario del administrador</label><input type="text" id="fUsuario" placeholder="admin.xyz"></div>
+      <div class="field"><label for="fClave">Contraseña</label><input type="password" id="fClave"></div>
+      <div class="field"><label for="fFecha">Fecha de ingreso</label><input type="date" id="fFecha"></div>
+      <div class="field"><label for="fFoto">Foto del administrador</label><input type="file" id="fFoto" accept="image/png,image/jpeg,image/webp"></div>
+    </div>
+    <button class="btn-primary" id="btnCrear">Crear cliente</button>
+  </div>
+
+  <div class="card">
+    <h2>Clientes existentes</h2>
+    <div id="tablaClientes"><p class="vacio">Cargando…</p></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const HOST = window.chrome && window.chrome.webview ? window.chrome.webview : null;
+const el = id => document.getElementById(id);
+
+let _toastTimer = null;
+function toast(msg, tipo){
+  const t = el('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (tipo ? ' is-' + tipo : '');
+  clearTimeout(_toastTimer);
+  t.style.opacity = 1;
+  _toastTimer = setTimeout(()=>{ t.style.opacity = 0; }, 3200);
+}
+
+function alHost(accion, extra){
+  if (!HOST){ toast('Sin aplicación anfitriona: esta acción sólo funciona dentro de Pilaris.', 'error'); return; }
+  HOST.postMessage(Object.assign({ accion }, extra || {}));
+}
+
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1] || '');
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderClientes(lista){
+  const cont = el('tablaClientes');
+  if (!lista || !lista.length){ cont.innerHTML = '<p class="vacio">Todavía no hay clientes dados de alta.</p>'; return; }
+  const filas = lista.map(c => `
+    <tr>
+      <td>${c.nombre}</td>
+      <td><span class="badge ${c.activo ? 'on' : 'off'}">${c.activo ? 'Activo' : 'Inactivo'}</span></td>
+      <td>${c.cantidadObras}</td>
+      <td>${c.cantidadUsuarios}</td>
+      <td>${new Date(c.fechaCreacion).toLocaleDateString('es-MX')}</td>
+    </tr>`).join('');
+  cont.innerHTML = `<table><thead><tr><th>Nombre</th><th>Estado</th><th>Obras</th><th>Usuarios</th><th>Alta</th></tr></thead><tbody>${filas}</tbody></table>`;
+}
+
+el('btnVolver').addEventListener('click', () => alHost('volver'));
+
+el('btnCrear').addEventListener('click', async () => {
+  const nombreCliente = el('fNombreCliente').value.trim();
+  const nombreObra = el('fNombreObra').value.trim();
+  const usuario = el('fUsuario').value.trim();
+  const clave = el('fClave').value;
+  const fecha = el('fFecha').value;
+  const archivo = el('fFoto').files[0];
+
+  if (!nombreCliente || !nombreObra || !usuario || !clave || !fecha || !archivo){
+    toast('Completa todos los campos, incluida la foto.', 'error');
+    return;
+  }
+
+  const btn = el('btnCrear');
+  btn.disabled = true;
+  try {
+    const fotoBase64 = await fileToBase64(archivo);
+    alHost('crear-cliente', {
+      nombreCliente, nombreObra, usuario, clave,
+      fechaAlta: fecha, fotoBase64,
+      extension: (archivo.name.split('.').pop() || 'jpg').toLowerCase()
+    });
+  } catch (e) {
+    toast('No se pudo leer la foto.', 'error');
+    btn.disabled = false;
+  }
+});
+
+if (HOST){
+  HOST.addEventListener('message', (ev) => {
+    const d = ev.data;
+    if (!d || !d.tipo) return;
+    switch (d.tipo){
+      case 'clientes':
+        renderClientes(d.lista || []);
+        break;
+      case 'clienteCreado':
+        el('btnCrear').disabled = false;
+        if (d.ok){
+          toast('Cliente creado correctamente.', 'ok');
+          ['fNombreCliente','fNombreObra','fUsuario','fClave','fFecha'].forEach(id => el(id).value = '');
+          el('fFoto').value = '';
+          alHost('cargar-clientes');
+        } else {
+          toast(d.mensaje || 'No se pudo crear el cliente.', 'error');
+        }
+        break;
+      case 'error':
+        el('btnCrear').disabled = false;
+        toast(d.mensaje || 'Ocurrió un error.', 'error');
+        break;
+    }
+  });
+  alHost('cargar-clientes');
+} else {
+  el('tablaClientes').innerHTML = '<p class="vacio">Abre esta pantalla desde Pilaris.</p>';
+}
+</script>
+
+</body>
+</html>

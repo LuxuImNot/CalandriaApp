@@ -33,7 +33,7 @@ namespace DynamicSepticSystem
 
         private void FormAvanceObra_Load(object sender, EventArgs e)
         {
-            this.Text = "Avance de Obra (Solo Lectura) - Sistema Calandria";
+            this.Text = "Avance de Obra (Solo Lectura) - Sistema Pilaris";
         }
 
         private void ConfigurarTreeListView()

@@ -51,6 +51,13 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Icon.ExtractAssociatedIcon(Application.ExecutablePath) no siempre
+         devuelve el icono real del .exe en ejecucion (cae a uno generico de
+         .NET); se incrusta app.ico como recurso embebido para cargarlo
+         directo (ver ThemeManager.AplicarIconoPorDefecto). -->
+    <EmbeddedResource Include="app.ico" />
+  </ItemGroup>
+  <ItemGroup>
     <Reference Include="BouncyCastle.Crypto, Version=1.8.9.0, Culture=neutral, PublicKeyToken=0e99375e54769942">
       <HintPath>..\packages\BouncyCastle.1.8.9\lib\BouncyCastle.Crypto.dll</HintPath>
     </Reference>
@@ -60,53 +67,11 @@
     <Reference Include="ClosedXML.Parser, Version=1.0.0.0, Culture=neutral, PublicKeyToken=1d5f7376574c51ec, processorArchitecture=MSIL">
       <HintPath>..\packages\ClosedXML.Parser.2.0.0\lib\netstandard2.0\ClosedXML.Parser.dll</HintPath>
     </Reference>
-    <Reference Include="DlhSoft.DataControlLibrary, Version=1.0.0.0, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.GanttChartLibrary.WindowsForms.2.0.0.7\lib\net20\DlhSoft.DataControlLibrary.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.DataFramework, Version=1.0.0.0, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.GanttChartLibrary.WindowsForms.2.0.0.7\lib\net20\DlhSoft.DataFramework.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.HierarchicalData.LightWPF.Controls, Version=4.0.10.4, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.HierarchicalDataLightLibrary.4.0.10.8\lib\net45\DlhSoft.HierarchicalData.LightWPF.Controls.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.OrganizationalChartLibrary.Controls, Version=4.0.8.5, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.HierarchicalDataLightLibrary.4.0.10.8\lib\net45\DlhSoft.OrganizationalChartLibrary.Controls.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.ProjectData.Core, Version=5.0.7.4, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.ProjectManagementFramework.5.0.7.7\lib\net40-client\DlhSoft.ProjectData.Core.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.ProjectData.Core.Imaging, Version=5.0.7.3, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.ProjectManagementFramework.5.0.7.7\lib\net40-client\DlhSoft.ProjectData.Core.Imaging.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.ProjectData.GanttChart.LightWPF.Controls, Version=4.3.49.0, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.GanttChartLibrary.wpf.4.3.49\lib\net45\DlhSoft.ProjectData.GanttChart.LightWPF.Controls.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.ProjectData.PertChart.LightWPF.Controls, Version=4.3.48.1, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.GanttChartLibrary.wpf.4.3.49\lib\net45\DlhSoft.ProjectData.PertChart.LightWPF.Controls.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.ProjectDataControlLibrary, Version=2.2.0.2, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.GanttChartLibrary.WindowsForms.2.0.0.7\lib\net20\DlhSoft.ProjectDataControlLibrary.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.ProjectDataControlLibrary.Extras, Version=1.0.0.0, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.GanttChartLibrary.WindowsForms.2.0.0.7\lib\net20\DlhSoft.ProjectDataControlLibrary.Extras.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.ProjectManagement.ControlLibrary, Version=2.1.0.1, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.ProjectManagementLibrary.WindowsForms.2.0.0.3\lib\net20\DlhSoft.ProjectManagement.ControlLibrary.dll</HintPath>
-    </Reference>
-    <Reference Include="DlhSoft.ProjectManagement.Framework, Version=2.0.0.1, Culture=neutral, PublicKeyToken=6071b28da0134838, processorArchitecture=MSIL">
-      <HintPath>..\packages\DlhSoft.ProjectManagementLibrary.WindowsForms.2.0.0.3\lib\net20\DlhSoft.ProjectManagement.Framework.dll</HintPath>
-    </Reference>
     <Reference Include="DocumentFormat.OpenXml, Version=3.1.1.0, Culture=neutral, PublicKeyToken=8fb06cb64d019a17, processorArchitecture=MSIL">
       <HintPath>..\packages\DocumentFormat.OpenXml.3.1.1\lib\net46\DocumentFormat.OpenXml.dll</HintPath>
     </Reference>
     <Reference Include="DocumentFormat.OpenXml.Framework, Version=3.1.1.0, Culture=neutral, PublicKeyToken=8fb06cb64d019a17, processorArchitecture=MSIL">
       <HintPath>..\packages\DocumentFormat.OpenXml.Framework.3.1.1\lib\net46\DocumentFormat.OpenXml.Framework.dll</HintPath>
-    </Reference>
-    <Reference Include="EPPlus, Version=8.0.5.0, Culture=neutral, PublicKeyToken=ea159fdaa78159a1, processorArchitecture=MSIL">
-      <HintPath>..\packages\EPPlus.8.0.5\lib\net462\EPPlus.dll</HintPath>
-    </Reference>
-    <Reference Include="EPPlus.Interfaces, Version=8.0.0.0, Culture=neutral, PublicKeyToken=a694d7f3b0907a61, processorArchitecture=MSIL">
-      <HintPath>..\packages\EPPlus.Interfaces.8.0.0\lib\net462\EPPlus.Interfaces.dll</HintPath>
     </Reference>
     <Reference Include="ExcelDataReader, Version=3.7.0.0, Culture=neutral, PublicKeyToken=93517dbe6a4012fa, processorArchitecture=MSIL">
       <HintPath>..\packages\ExcelDataReader.3.7.0\lib\net462\ExcelDataReader.dll</HintPath>
@@ -131,9 +96,6 @@
     </Reference>
     <Reference Include="IKVM.Runtime, Version=8.11.2.0, Culture=neutral, PublicKeyToken=13235d27fcbfff58, processorArchitecture=MSIL">
       <HintPath>..\packages\IKVM.8.11.2\lib\net472\IKVM.Runtime.dll</HintPath>
-    </Reference>
-    <Reference Include="itextsharp, Version=5.5.13.3, Culture=neutral, PublicKeyToken=8354ae6d2174ddca, processorArchitecture=MSIL">
-      <HintPath>..\packages\iTextSharp.5.5.13.3\lib\itextsharp.dll</HintPath>
     </Reference>
     <Reference Include="ListViewPrinter, Version=2.7.1.31255, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\ObjectListView.2.7.1.5\lib\ListViewPrinter.dll</HintPath>
@@ -290,8 +252,8 @@
     <Compile Include="FormAdministrativos.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="FormAdministrativos.Designer.cs">
-      <DependentUpon>FormAdministrativos.cs</DependentUpon>
+    <Compile Include="FormAdministrativos.Web.cs">
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="FormAgregarConcepto.cs">
       <SubType>Form</SubType>
@@ -332,10 +294,23 @@
     <Compile Include="FormPerfilesWeb.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="FormFacturacionWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="FormSeleccionObraWeb.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="FormTerminosWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormClientesWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormActualizacionWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="OrdenCompraPdfService.cs" />
+    <Compile Include="FacturacionPdfService.cs" />
     <Compile Include="FormAlmacen_Entradas.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -476,6 +451,12 @@
     <Compile Include="FormHardProgress.Designer.cs">
       <DependentUpon>FormHardProgress.cs</DependentUpon>
     </Compile>
+    <Compile Include="FormAvanceMasivoWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FormSembradoWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="FormMapearCoordenadas.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -524,6 +505,9 @@
     <Compile Include="FormEstimacionConceptoMigrado.Designer.cs">
       <DependentUpon>FormEstimacionConceptoMigrado.cs</DependentUpon>
     </Compile>
+    <Compile Include="FormEvidenciasWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="FormEvidenciasFotograficas.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -538,12 +522,6 @@
       <DependentUpon>FormSeleccionarTitulo.cs</DependentUpon>
     </Compile>
     <Compile Include="GenerarExplosionInsumosPDF.cs" />
-    <Compile Include="FormSplash.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormSplash.Designer.cs">
-      <DependentUpon>FormSplash.cs</DependentUpon>
-    </Compile>
     <Compile Include="GestorEvidencias.cs" />
     <Compile Include="GestorFotosConcepto.cs" />
     <Compile Include="ApiClient.cs" />
@@ -575,12 +553,6 @@
     <Compile Include="PartidaConcepto.cs" />
     <Compile Include="PartidaDinamica.cs" />
     <Compile Include="Reportes.cs" />
-    <Compile Include="FormProgresoActualizacion.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormProgresoActualizacion.Designer.cs">
-      <DependentUpon>FormProgresoActualizacion.cs</DependentUpon>
-    </Compile>
     <Compile Include="InventarioService.cs" />
     <Compile Include="SalidaAlmacenService.cs" />
     <Compile Include="Resizer.cs">
@@ -593,12 +565,6 @@
     </Compile>
     <Compile Include="FormAgregarProveedor.Designer.cs">
       <DependentUpon>FormAgregarProveedor.cs</DependentUpon>
-    </Compile>
-    <Compile Include="FormRegistrarUsuario.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FormRegistrarUsuario.Designer.cs">
-      <DependentUpon>FormRegistrarUsuario.cs</DependentUpon>
     </Compile>
     <Compile Include="FormRegistrarTrabajador.cs">
       <SubType>Form</SubType>
@@ -699,20 +665,11 @@
     <EmbeddedResource Include="FormEvidenciasFotograficas.resx">
       <DependentUpon>FormEvidenciasFotograficas.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="FormProgresoActualizacion.resx">
-      <DependentUpon>FormProgresoActualizacion.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="FormRegistrarUsuario.resx">
-      <DependentUpon>FormRegistrarUsuario.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="FormRegistrarTrabajador.resx">
       <DependentUpon>FormRegistrarTrabajador.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="FormSeleccionarTitulo.resx">
       <DependentUpon>FormSeleccionarTitulo.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="FormSplash.resx">
-      <DependentUpon>FormSplash.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="PromptJustificacion.resx">
       <DependentUpon>PromptJustificacion.cs</DependentUpon>

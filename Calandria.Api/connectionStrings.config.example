@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Plantilla. Copia este archivo a "connectionStrings.config" (gitignorado) y pon los valores reales. -->
+<connectionStrings>
+  <add name="CalandriaConn"
+       connectionString="Server=TU_SERVIDOR;Database=CALANDRIA;User Id=TU_USUARIO;Password=TU_PASSWORD;TrustServerCertificate=true;Encrypt=false;Connect Timeout=30;"
+       providerName="System.Data.SqlClient" />
+  <add name="CalandriaControlConn"
+       connectionString="Server=TU_SERVIDOR;Database=CalandriaControl;User Id=TU_USUARIO;Password=TU_PASSWORD;TrustServerCertificate=true;Encrypt=false;Connect Timeout=30;"
+       providerName="System.Data.SqlClient" />
+</connectionStrings>

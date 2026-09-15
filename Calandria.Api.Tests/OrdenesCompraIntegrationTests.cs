@@ -32,27 +32,26 @@ namespace Calandria.Api.Tests
         }
 
         [Fact]
-        public void GenerarFolio_ConDosOrdenesDelDia_DevuelveElConsecutivo003()
+        public void GenerarFolio_ConDosOrdenesPrevias_DevuelveElConsecutivo000003()
         {
-            string prefijo = "OC-MULTI-";
-            string baseHoy = prefijo + DateTime.Now.ToString("yyyyMMdd") + "-";
-            InsertarOrdenFake(baseHoy + "001");
-            InsertarOrdenFake(baseHoy + "002");
+            string prefijo = "OC-PONYTAIL-DOS-";
+            InsertarOrdenFake(prefijo + "000001");
+            InsertarOrdenFake(prefijo + "000002");
 
             string folio = InvocarGenerarFolio(prefijo);
 
-            Assert.Equal(baseHoy + "003", folio);
+            Assert.Equal(prefijo + "000003", folio);
         }
 
         [Fact]
-        public void GenerarFolio_SinOrdenesDelDia_EmpiezaEn001()
+        public void GenerarFolio_SinOrdenesPrevias_EmpiezaEn000001()
         {
             // Prefijo que no puede colisionar con folios reales de otra prueba/uso.
             string prefijo = "OC-PONYTAIL-VACIO-";
 
             string folio = InvocarGenerarFolio(prefijo);
 
-            Assert.Equal(prefijo + DateTime.Now.ToString("yyyyMMdd") + "-001", folio);
+            Assert.Equal(prefijo + "000001", folio);
         }
 
         private void InsertarOrdenFake(string folio)
@@ -75,6 +74,31 @@ namespace Calandria.Api.Tests
             MethodInfo metodo = typeof(OrdenesCompraController).GetMethod(
                 "GenerarFolio", BindingFlags.NonPublic | BindingFlags.Static);
             return (string)metodo.Invoke(null, new object[] { _conn, _tx, prefijo });
+        }
+
+        // Requiere que la obra de prueba ya tenga la tabla ConciliacionesIaLog
+        // (8_APLICAR_ConciliacionesIaLog.sql) — si no, este test falla hasta que se
+        // corra ese script contra "Prueba_numero_1".
+        [Fact]
+        public void RegistrarConciliacionIaLog_MismoUuidDosVeces_NoDuplica()
+        {
+            string uuid = Guid.NewGuid().ToString();
+
+            InvocarRegistrarConciliacionIaLog(uuid, "OC-TEST-001");
+            InvocarRegistrarConciliacionIaLog(uuid, "OC-TEST-001"); // reintento del mismo CFDI: no debe duplicar
+
+            using (var cmd = new SqlCommand("SELECT COUNT(*) FROM ConciliacionesIaLog WHERE Uuid = @uuid", _conn, _tx))
+            {
+                cmd.Parameters.AddWithValue("@uuid", uuid);
+                Assert.Equal(1, (int)cmd.ExecuteScalar());
+            }
+        }
+
+        private void InvocarRegistrarConciliacionIaLog(string uuid, string folioOC)
+        {
+            MethodInfo metodo = typeof(OrdenesCompraController).GetMethod(
+                "RegistrarConciliacionIaLog", BindingFlags.NonPublic | BindingFlags.Static);
+            metodo.Invoke(null, new object[] { _conn, _tx, uuid, folioOC, "tests" });
         }
     }
 }

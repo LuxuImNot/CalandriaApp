@@ -33,7 +33,7 @@ namespace DynamicSepticSystem
 
         private void FormHardProgress_Load(object sender, EventArgs e)
         {
-            this.Text = "Avance Hard Progress - Sistema Calandria";
+            this.Text = "Avance Hard Progress - Sistema Pilaris";
         }
 
         private void ConfigurarTreeListView()

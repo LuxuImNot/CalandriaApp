@@ -495,7 +495,7 @@
             this.MinimumSize = new System.Drawing.Size(1240, 780);
             this.Name = "FormCompraMulti";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Orden de Compra Múltiple - Sistema Calandria";
+            this.Text = "Orden de Compra Múltiple - Sistema Pilaris";
             this.panelHeader.ResumeLayout(false);
             this.panelHeader.PerformLayout();
             this.panelCasas.ResumeLayout(false);

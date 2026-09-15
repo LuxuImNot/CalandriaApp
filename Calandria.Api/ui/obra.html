@@ -215,11 +215,12 @@ button.primary.is-loading .txt{opacity:.85}
 .modal-overlay{
   position:fixed; inset:0; background:rgba(20,17,15,.45); z-index:50;
   display:flex; align-items:center; justify-content:center; padding:20px;
+  overflow-y:auto;
 }
 .modal-overlay[hidden]{display:none}
 .modal-card{
   width:100%; max-width:420px; background:var(--surface); border-radius:var(--r-2);
-  box-shadow:var(--shadow-lg); padding:24px;
+  box-shadow:var(--shadow-lg); padding:24px; margin:auto;
 }
 .modal-card h3{font-size:17px; margin-bottom:8px}
 .modal-warn{

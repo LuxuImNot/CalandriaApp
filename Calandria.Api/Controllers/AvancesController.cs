@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Web.Http;
+using Calandria.Api.Auth;
 using Calandria.Api.Data;
 using Calandria.Api.Models;
 
@@ -16,7 +17,7 @@ namespace Calandria.Api.Controllers
     /// cliente conserva el armado del árbol y las gráficas. Manzanas/lotes/prototipo
     /// salen de InventarioCasas (todas las casas), no de ActivacionTareasRuta.
     /// </summary>
-    [RoutePrefix("api/avances")]
+    [RoutePrefix("api/avances"), RequierePermiso("estimaciones.ver")]
     public class AvancesController : ApiController
     {
         /// <summary>GET /api/avances/manzanas · todas las manzanas del inventario.</summary>
@@ -147,7 +148,7 @@ ORDER BY Padre, Etapa, Partida";
         /// POST /api/avances/partida · guarda (upsert) el avance de una partida en
         /// AvanceManualObra y recalcula el avance por concepto (AvanceManualConcepto).
         /// </summary>
-        [HttpPost, Route("partida")]
+        [HttpPost, Route("partida"), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult GuardarPartida([FromBody] GuardarAvancePartidaRequest req)
         {
             if (req == null || string.IsNullOrWhiteSpace(req.Manzana) || string.IsNullOrWhiteSpace(req.Lote))
@@ -347,7 +348,7 @@ ORDER BY Padre, Etapa, Partida";
         /// POST /api/avances/concepto · upsert del avance de un concepto en
         /// AvanceManualConcepto (asegura la tabla).
         /// </summary>
-        [HttpPost, Route("concepto")]
+        [HttpPost, Route("concepto"), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult GuardarConcepto([FromBody] GuardarAvanceConceptoRequest req)
         {
             if (req == null || string.IsNullOrWhiteSpace(req.Manzana) || string.IsNullOrWhiteSpace(req.Lote))
@@ -467,7 +468,7 @@ ORDER BY OrdenConcepto";
         /// Estimacion(Concepto) y PresupuestoObra) opcionalmente renumerando los conceptos
         /// posteriores (Codigo &gt;= @codigo), todo en una transacción.
         /// </summary>
-        [HttpPost, Route("concepto-nuevo")]
+        [HttpPost, Route("concepto-nuevo"), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult ConceptoNuevo([FromBody] ConceptoNuevoRequest req)
         {
             if (req == null || string.IsNullOrWhiteSpace(req.Nombre))
@@ -562,7 +563,7 @@ WHERE TRY_CAST(Codigo AS INT) >= @codigoDesde AND TRY_CAST(Codigo AS INT) IS NOT
         /// AvanceManualObra incluyendo MetrosCuadrados y FechaFinalizacion (sondea ambas
         /// columnas). Equivale a GuardarAvancePartidaEnBD del form de estimación.
         /// </summary>
-        [HttpPost, Route("partida-estimacion")]
+        [HttpPost, Route("partida-estimacion"), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult GuardarPartidaEstimacion([FromBody] GuardarAvancePartidaEstimacionRequest req)
         {
             if (req == null || string.IsNullOrWhiteSpace(req.Manzana) || string.IsNullOrWhiteSpace(req.Lote))
@@ -584,7 +585,7 @@ WHERE TRY_CAST(Codigo AS INT) >= @codigoDesde AND TRY_CAST(Codigo AS INT) IS NOT
         /// POST /api/avances/resetear-partida · pone a 0 el avance/monto/m² de una partida
         /// o concepto (FechaFinalizacion a NULL). Equivale a "Resetear Progreso".
         /// </summary>
-        [HttpPost, Route("resetear-partida")]
+        [HttpPost, Route("resetear-partida"), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult ResetearPartida([FromBody] ResetearPartidaRequest req)
         {
             if (req == null || string.IsNullOrWhiteSpace(req.Manzana) || string.IsNullOrWhiteSpace(req.Lote))
@@ -617,7 +618,7 @@ WHERE TRY_CAST(Codigo AS INT) >= @codigoDesde AND TRY_CAST(Codigo AS INT) IS NOT
         /// (ActualizarAvancesA100PorCiento) y para "Terminar sin estimación" (admin). Los
         /// montos y m² vienen ya calculados por el cliente.
         /// </summary>
-        [HttpPost, Route("marcar-completadas")]
+        [HttpPost, Route("marcar-completadas"), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult MarcarCompletadas([FromBody] MarcarCompletadasRequest req)
         {
             if (req == null || string.IsNullOrWhiteSpace(req.Manzana) || string.IsNullOrWhiteSpace(req.Lote))

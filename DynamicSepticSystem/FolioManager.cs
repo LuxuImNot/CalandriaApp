@@ -1,7 +1,7 @@
 ﻿using System;
 using System.ComponentModel;
 using System.IO;
-using OfficeOpenXml;
+using ClosedXML.Excel;
 
 namespace DynamicSepticSystem
 {
@@ -12,37 +12,37 @@ namespace DynamicSepticSystem
 
         public static string GenerarFolioOrdenCompra(string manzana, string lote)
         {
-            ExcelPackage.License.SetNonCommercialOrganization("Ren-O-Franc");
             int nuevoNumero = 1;
             string fecha = DateTime.Now.ToString("yyyyMMdd");
 
             if (!File.Exists(rutaFolios))
             {
-                using (var nuevo = new ExcelPackage())
+                using (var nuevo = new XLWorkbook())
                 {
-                    var ws = nuevo.Workbook.Worksheets.Add(hoja);
-                    ws.Cells[1, 1].Value = "Fecha";
-                    ws.Cells[1, 2].Value = "Folio";
-                    ws.Cells[2, 1].Value = fecha;
-                    ws.Cells[2, 2].Value = nuevoNumero;
-                    nuevo.SaveAs(new FileInfo(rutaFolios));
+                    var ws = nuevo.Worksheets.Add(hoja);
+                    ws.Cell(1, 1).Value = "Fecha";
+                    ws.Cell(1, 2).Value = "Folio";
+                    ws.Cell(2, 1).Value = fecha;
+                    ws.Cell(2, 2).Value = nuevoNumero;
+                    nuevo.SaveAs(rutaFolios);
                 }
             }
             else
             {
-                using (var package = new ExcelPackage(new FileInfo(rutaFolios)))
+                using (var package = new XLWorkbook(rutaFolios))
                 {
-                    var wsFolios = package.Workbook.Worksheets[hoja] ?? package.Workbook.Worksheets.Add(hoja);
-                    int lastRow = wsFolios.Dimension?.End.Row ?? 1;
-                    string ultimaFecha = wsFolios.Cells[lastRow, 1].Text;
+                    if (!package.Worksheets.TryGetWorksheet(hoja, out var wsFolios))
+                        wsFolios = package.Worksheets.Add(hoja);
+                    int lastRow = wsFolios.LastRowUsed()?.RowNumber() ?? 1;
+                    string ultimaFecha = wsFolios.Cell(lastRow, 1).GetString();
 
                     if (ultimaFecha == fecha)
                     {
-                        nuevoNumero = int.Parse(wsFolios.Cells[lastRow, 2].Text) + 1;
+                        nuevoNumero = int.Parse(wsFolios.Cell(lastRow, 2).GetString()) + 1;
                     }
 
-                    wsFolios.Cells[lastRow + 1, 1].Value = fecha;
-                    wsFolios.Cells[lastRow + 1, 2].Value = nuevoNumero;
+                    wsFolios.Cell(lastRow + 1, 1).Value = fecha;
+                    wsFolios.Cell(lastRow + 1, 2).Value = nuevoNumero;
                     package.Save();
                 }
             }

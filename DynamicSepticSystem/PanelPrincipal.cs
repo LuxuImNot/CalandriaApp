@@ -986,6 +986,7 @@ namespace DynamicSepticSystem
 
             // 🔒 HARD PROGRESS - Solo visible para admin
             ToolStripMenuItem miHardProgress = null;
+            ToolStripMenuItem miAvanceMasivo = null;
             bool esAdmin = Global.EsAdmin;
 
             // EDITAR EXPLOSIONES - disponible para todos los usuarios ahora
@@ -1004,7 +1005,14 @@ namespace DynamicSepticSystem
                     ForeColor = Color.FromArgb(231, 76, 60) // Rojo para indicar que es admin
                 };
                 miHardProgress.Click += (s, e) => AbrirFormHardProgress();
-                
+
+                miAvanceMasivo = new ToolStripMenuItem("Avance Masivo [ADMIN]")
+                {
+                    Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                    ForeColor = Color.FromArgb(231, 76, 60)
+                };
+                miAvanceMasivo.Click += (s, e) => AbrirFormAvanceMasivo();
+
                 // 🗺️ MAPEAR COORDENADAS - Solo para admin
                 var miMapearCoordenadas = new ToolStripMenuItem("Mapear Coordenadas [ADMIN]") 
                 { 
@@ -1028,6 +1036,7 @@ namespace DynamicSepticSystem
             if (esAdmin && miHardProgress != null)
             {
                 miObra.DropDownItems.Add(miHardProgress);
+                miObra.DropDownItems.Add(miAvanceMasivo);
             }
             
             miObra.DropDownItems.Add(new ToolStripSeparator());
@@ -1051,22 +1060,17 @@ namespace DynamicSepticSystem
             miActivarTareas.Click += (s, e) => AbrirFormActivarTareasTreeList();
             miObra.DropDownItems.Add(miActivarTareas);
             
-            // 📷 EVIDENCIAS - NUEVO
-            var miEvidencias = new ToolStripMenuItem("📷 EVIDENCIAS")
-            {
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-                ForeColor = ThemeManager.ColorTextoClaro
-            };
-            var miEvidenciasFotograficas = new ToolStripMenuItem("Evidencias Fotográficas")
+            // 📷 Evidencias Fotográficas - dentro de OBRA
+            var miEvidenciasFotograficas = new ToolStripMenuItem("📷 Evidencias Fotográficas")
             {
                 Font = new Font("Segoe UI", 9F, FontStyle.Regular),
                 ForeColor = ThemeManager.ColorTextoOscuro
             };
             miEvidenciasFotograficas.Click += (s, e) => AbrirFormEvidencias();
-            miEvidencias.DropDownItems.Add(miEvidenciasFotograficas);
+            miObra.DropDownItems.Add(miEvidenciasFotograficas);
 
-            // 👷 PERSONAL - Trabajadores y Cuadrillas
-            var miPersonal = new ToolStripMenuItem("PERSONAL")
+            // 👷 NOMINA - Trabajadores y Cuadrillas
+            var miPersonal = new ToolStripMenuItem("NOMINA")
             {
                 Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 ForeColor = ThemeManager.ColorTextoClaro
@@ -1127,7 +1131,33 @@ namespace DynamicSepticSystem
                 miAdministrativos.DropDownItems.Add(miPerfilesPermisos);
             }
 
-            menuStripGeneral.Items.AddRange(new ToolStripItem[] { miCompras, miAlmacen, miObra, miPersonal, miEvidencias, miAdministrativos });
+            // Facturación IA: información de facturación del proveedor del sistema
+            // (Pilaris), no del cliente — permiso propio, no basta con ser admin de obra.
+            if (Global.UsuarioActual?.TienePermiso("sistema.facturacion") == true)
+            {
+                var miFacturacionIa = new ToolStripMenuItem("Facturación IA [ADMIN]")
+                {
+                    Font = new Font("Segoe UI", 9F, FontStyle.Regular),
+                    ForeColor = ThemeManager.ColorTextoOscuro
+                };
+                miFacturacionIa.Click += (s, e) => AbrirFormFacturacionWeb();
+                miAdministrativos.DropDownItems.Add(miFacturacionIa);
+            }
+
+            // Alta de clientes nuevos: solo el operador de la plataforma
+            // (secrets.config -> SuperAdmins en el servidor), nunca el admin de un cliente.
+            if (Global.EsSuperAdmin)
+            {
+                var miClientes = new ToolStripMenuItem("Clientes [SUPERADMIN]")
+                {
+                    Font = new Font("Segoe UI", 9F, FontStyle.Regular),
+                    ForeColor = ThemeManager.ColorTextoOscuro
+                };
+                miClientes.Click += (s, e) => AbrirFormClientesWeb();
+                miAdministrativos.DropDownItems.Add(miClientes);
+            }
+
+            menuStripGeneral.Items.AddRange(new ToolStripItem[] { miCompras, miAlmacen, miObra, miPersonal, miAdministrativos });
 
             menuStripGeneral.Visible = false; // reemplazado por ModernNavBar
 
@@ -1184,31 +1214,6 @@ namespace DynamicSepticSystem
 
         string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
 
-
-        public List<CasaInventario> LeerInventarioCasasSQL()
-        {
-            var casasInv = new List<CasaInventario>();
-            string sql = "SELECT Manzana, Lote, Prototipo FROM dbo.InventarioCasas";
-
-            using (SqlConnection conn = new SqlConnection(connectionString))
-            {
-                conn.Open();
-                using (SqlCommand cmd = new SqlCommand(sql, conn))
-                using (SqlDataReader reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        casasInv.Add(new CasaInventario
-                        {
-                            Manzana = reader["Manzana"].ToString(),
-                            Lote = reader["Lote"].ToString(),
-                            Prototipo = reader["Prototipo"].ToString()
-                        });
-                    }
-                }
-            }
-            return casasInv;
-        }
         public List<TareaRutaCritica> ObtenerTareasLineales(List<TareaRutaCritica> jerarquicas)
         {
             List<TareaRutaCritica> resultado = new List<TareaRutaCritica>();
@@ -1504,6 +1509,7 @@ namespace DynamicSepticSystem
             public string Clave { get; set; }
             public string Perfil { get; set; }
             public List<string> Permisos { get; set; }
+            public bool EsSuperAdmin { get; set; }
 
             public bool TienePermiso(string permiso)
             {
@@ -1568,16 +1574,14 @@ namespace DynamicSepticSystem
 
         private void btnRegistrarUsuario_Click(object sender, EventArgs e)
         {
-            // Deshabilitado tras la migración multi-obra: FormRegistrarUsuario
-            // inserta con SQL directo en la tabla Usuarios de CALANDRIA, que ya
-            // no es la fuente de verdad (los usuarios viven en CalandriaControl,
-            // ver SQL_CrearBDMaestraYMigrar.sql). Un usuario creado aquí
-            // desaparecería silenciosamente del sistema real.
-            MessageBox.Show(
-                "El registro de usuarios se movió a la base de datos maestra.\n\n" +
-                "Por ahora, da de alta usuarios nuevos directamente en CalandriaControl " +
-                "y asígnales perfil y obras desde \"Perfiles y Permisos\".",
-                "Registrar usuario", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            // FormRegistrarUsuario insertaba con SQL directo en la tabla Usuarios
+            // de CALANDRIA, que ya no es la fuente de verdad (los usuarios viven en
+            // CalandriaControl, ver SQL_CrearBDMaestraYMigrar.sql) — un usuario
+            // creado ahí desaparecía silenciosamente del sistema real. El alta de
+            // usuarios ya vive en "Perfiles y Permisos" (crea contra
+            // api/perfiles/usuarios/crear, en la BD correcta), así que este botón
+            // abre lo mismo.
+            AbrirFormPerfilesWeb();
         }
 
         private void btnGestionPerfiles_Click(object sender, EventArgs e)
@@ -1601,6 +1605,36 @@ namespace DynamicSepticSystem
             // principal (también WebView2) cuelga EnsureCoreWebView2Async sin
             // lanzar excepción — ver AbrirFormTrabajadoresWeb.
             new FormPerfilesWeb().Show();
+        }
+
+        private void AbrirFormFacturacionWeb()
+        {
+            foreach (Form form in Application.OpenForms)
+            {
+                if (form is FormFacturacionWeb)
+                {
+                    form.BringToFront();
+                    form.Focus();
+                    return;
+                }
+            }
+
+            new FormFacturacionWeb().Show();
+        }
+
+        private void AbrirFormClientesWeb()
+        {
+            foreach (Form form in Application.OpenForms)
+            {
+                if (form is FormClientesWeb)
+                {
+                    form.BringToFront();
+                    form.Focus();
+                    return;
+                }
+            }
+
+            new FormClientesWeb().Show();
         }
 
         private void btnCambiarTema_Click(object sender, EventArgs e)
@@ -1887,17 +1921,50 @@ namespace DynamicSepticSystem
             }
         }
 
+        /// <summary>
+        /// true = usar FormEvidenciasWeb (galería por casa en una sola UI web);
+        /// false = formulario WinForms clásico, sin recompilar. Ver App.config
+        /// "EvidenciasWeb".
+        /// </summary>
+        private static bool EvidenciasWebActivo
+        {
+            get
+            {
+                var v = ConfigurationManager.AppSettings["EvidenciasWeb"];
+                return string.IsNullOrWhiteSpace(v) || v.Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
         private void AbrirFormEvidencias()
         {
             try
             {
+                if (EvidenciasWebActivo)
+                {
+                    foreach (Form formAbierto in Application.OpenForms)
+                    {
+                        if (formAbierto is FormEvidenciasWeb)
+                        {
+                            formAbierto.BringToFront();
+                            formAbierto.Focus();
+                            return;
+                        }
+                    }
+
+                    // Show(), no ShowDialog(): un WebView2 modal sobre el del panel
+                    // principal (también WebView2) aborta la inicialización con
+                    // COMException E_ABORT — ver reference_webview2_multi_instance.
+                    new FormEvidenciasWeb().Show();
+                    return;
+                }
+
                 // Permitir múltiples ventanas simultáneamente
                 var frm = new FormEvidenciasFotograficas();
                 frm.Show(); // No modal
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al abrir Evidencias Fotográficas:\n\n{ex.Message}", 
+                MessageBox.Show($"Error al abrir Evidencias Fotográficas:\n\n{ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -1955,7 +2022,31 @@ namespace DynamicSepticSystem
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al abrir Hard Progress:\n\n{ex.Message}", 
+                MessageBox.Show($"Error al abrir Hard Progress:\n\n{ex.Message}",
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void AbrirFormAvanceMasivo()
+        {
+            try
+            {
+                foreach (Form form in Application.OpenForms)
+                {
+                    if (form is FormAvanceMasivoWeb)
+                    {
+                        form.BringToFront();
+                        form.Focus();
+                        return;
+                    }
+                }
+
+                var frm = new FormAvanceMasivoWeb();
+                frm.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al abrir Avance Masivo:\n\n{ex.Message}",
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -2135,7 +2226,7 @@ namespace DynamicSepticSystem
                 }
 
                 var frm = new FormAdministrativos();
-                frm.ShowDialog(this);
+                frm.Show(this);
             }
             catch (Exception ex)
             {

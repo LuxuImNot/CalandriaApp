@@ -691,7 +691,7 @@ namespace DynamicSepticSystem
             this.MinimumSize = new System.Drawing.Size(1500, 830);
             this.Name = "PanelPrincipal";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Sistema de Gestión de Obra - Calandria Residencial";
+            this.Text = "Sistema de Gestión de Obra - Pilaris";
             this.Load += new System.EventHandler(this.Form1_Load);
 
             this.panelSidebar.ResumeLayout(false);

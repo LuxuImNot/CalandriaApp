@@ -415,7 +415,7 @@ namespace DynamicSepticSystem
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
             this.Name = "FormMapearCoordenadas";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Mapear Coordenadas - Calandria Residencial";
+            this.Text = "Mapear Coordenadas - Pilaris";
             this.Load += new System.EventHandler(this.FormMapearCoordenadas_Load);
             this.panelTop.ResumeLayout(false);
             this.panelTop.PerformLayout();

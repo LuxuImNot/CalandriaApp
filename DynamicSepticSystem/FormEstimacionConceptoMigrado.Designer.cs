@@ -627,7 +627,7 @@
             this.Controls.Add(this.panelTop);
             this.Name = "FormEstimacionConceptoMigrado";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Estimación por Conceptos - Sistema Calandria";
+            this.Text = "Estimación por Conceptos - Sistema Pilaris";
             this.panelTop.ResumeLayout(false);
             this.panelFiltros.ResumeLayout(false);
             this.panelFiltros.PerformLayout();

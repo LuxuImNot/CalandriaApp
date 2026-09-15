@@ -372,7 +372,7 @@ namespace DynamicSepticSystem
             this.MinimumSize = new System.Drawing.Size(1000, 600);
             this.Name = "FormEvidenciasFotograficas";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Evidencias Fotográficas - Sistema Calandria";
+            this.Text = "Evidencias Fotográficas - Sistema Pilaris";
             this.Load += new System.EventHandler(this.FormEvidenciasFotograficas_Load);
             this.panelSuperior.ResumeLayout(false);
             this.panelControles.ResumeLayout(false);

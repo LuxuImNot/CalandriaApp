@@ -15,7 +15,7 @@ namespace Calandria.Api.Tests
         [Fact]
         public void GenerarYValidar_RoundTrip_ConservaUsuarioRolYPermisos()
         {
-            string token = TokenService.Generar("juan", "Capturista", new[] { "compras.ver", "compras.editar" }, out DateTime expiraUtc);
+            string token = TokenService.Generar("juan", "Capturista", new[] { "compras.ver", "compras.editar" }, 7, out DateTime expiraUtc);
 
             ClaimsPrincipal principal = TokenService.Validar(token);
 
@@ -24,13 +24,14 @@ namespace Calandria.Api.Tests
             Assert.True(principal.IsInRole("Capturista"));
             Assert.True(principal.HasClaim("perm", "compras.ver"));
             Assert.True(principal.HasClaim("perm", "compras.editar"));
+            Assert.Equal(7, ClienteActual.Id(principal));
             Assert.True(expiraUtc > DateTime.UtcNow);
         }
 
         [Fact]
         public void Validar_TokenAlterado_DevuelveNull()
         {
-            string token = TokenService.Generar("juan", "Capturista", null, out _);
+            string token = TokenService.Generar("juan", "Capturista", null, 1, out _);
             // Cambia el último caracter de la firma para invalidarla.
             char ultimo = token[token.Length - 1];
             char reemplazo = ultimo == 'A' ? 'B' : 'A';

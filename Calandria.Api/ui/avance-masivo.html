@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilaris · Avance Masivo</title>
+
+<style>
+/* Tokens copiados de clientes.html/login.html (paleta café Calandria). */
+:root {
+  --ink:#221E1B; --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC;
+  --ok:#1F6B4A; --ok-bg:#E2F0E8;
+  --warn:#C2620A; --warn-bg:#FAEADB;
+  --stop:#A31D1D; --stop-bg:#F7E3E3;
+  --shadow-lg:0 18px 46px -18px rgba(34,30,27,.35), 0 2px 6px rgba(34,30,27,.06);
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI Variable Text","Segoe UI",Roboto,sans-serif;
+  --r:8px; --r-2:12px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#F2EEE9; --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+    --rule:#3A322C; --rule-soft:#2C2521;
+    --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+    --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+    --on-ink:#17130C;
+    --ok:#54B183; --ok-bg:#163024;
+    --warn:#E0913F; --warn-bg:#33240F;
+    --stop:#DB6B6B; --stop-bg:#331717;
+    --shadow-lg:0 18px 46px -18px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#F2EEE9; --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+  --rule:#3A322C; --rule-soft:#2C2521;
+  --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+  --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+  --on-ink:#17130C; --ok:#54B183; --ok-bg:#163024;
+  --warn:#E0913F; --warn-bg:#33240F; --stop:#DB6B6B; --stop-bg:#331717;
+}
+:root[data-theme="light"]{
+  --ink:#221E1B; --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC; --ok:#1F6B4A; --ok-bg:#E2F0E8;
+  --warn:#C2620A; --warn-bg:#FAEADB; --stop:#A31D1D; --stop-bg:#F7E3E3;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--paper); color:var(--text);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1{font-size:20px; margin:0 0 4px}
+h2{font-size:15px; margin:0 0 14px; color:var(--brass-2)}
+p{color:var(--text-2); margin:0}
+:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
+
+.wrap{max-width:920px; margin:0 auto; padding:32px 20px 48px}
+.head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:24px; gap:12px; flex-wrap:wrap}
+.head .sub{font-size:12.5px; color:var(--text-3)}
+.volver{background:none; border:1px solid var(--rule); border-radius:var(--r); padding:8px 14px; font-size:12.5px; color:var(--text-2); cursor:pointer}
+.volver:hover{background:var(--surface-2)}
+
+.aviso{
+  display:flex; gap:10px; background:var(--warn-bg); color:var(--warn); border-radius:var(--r);
+  padding:10px 14px; font-size:12.5px; line-height:1.5; margin-bottom:20px;
+}
+
+.card{
+  background:var(--surface); border:1px solid var(--rule-soft); border-radius:var(--r-2);
+  box-shadow:var(--shadow-lg); padding:28px 30px; margin-bottom:24px;
+}
+
+button{font:inherit; cursor:pointer; border:none; border-radius:var(--r); padding:10px 22px; font-weight:600}
+.btn-primary{background:var(--brass); color:var(--on-ink)}
+.btn-primary:disabled{background:var(--rule); color:var(--text-3); cursor:not-allowed}
+.btn-secundario{background:var(--surface-2); color:var(--text); border:1.5px solid var(--rule) !important}
+
+.toolbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:10px; flex-wrap:wrap}
+.contador{font-size:12.5px; color:var(--text-3)}
+
+.paso-n{
+  display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%;
+  background:var(--brass); color:var(--on-ink); font-size:12px; font-weight:700; margin-right:8px; flex:none;
+}
+h2{display:flex; align-items:center}
+
+.arbol{max-height:360px; overflow-y:auto; border:1px solid var(--rule-soft); border-radius:var(--r)}
+.arbol.deshabilitado{opacity:.45; pointer-events:none}
+.grupo{border-bottom:1px solid var(--rule-soft)}
+.grupo:last-child{border-bottom:none}
+.grupo-cab{
+  display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--surface-2);
+  font-size:12px; font-weight:700; color:var(--text-2); letter-spacing:.02em; cursor:pointer;
+}
+.item-fila{display:flex; align-items:center; gap:10px; padding:7px 12px 7px 30px; font-size:13px}
+.item-fila:hover{background:var(--surface-2)}
+.item-fila .lote{font-weight:600}
+.item-fila .proto{color:var(--text-3); font-size:12px}
+input[type=checkbox]{width:16px; height:16px; accent-color:var(--brass)}
+.badge-hecho, .badge-parcial{margin-left:auto; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; white-space:nowrap}
+.badge-hecho{color:var(--ok); background:var(--ok-bg)}
+.badge-parcial{color:var(--warn); background:var(--warn-bg)}
+
+.hint-bloqueado{color:var(--text-3); font-size:12.5px; margin:0 0 12px}
+
+.vacio{color:var(--text-3); font-size:13px; padding:16px}
+
+.resultado{margin-top:16px; font-size:12.5px; padding:12px 14px; border-radius:var(--r); display:none}
+.resultado.is-ok{display:block; background:var(--ok-bg); color:var(--ok)}
+.resultado.is-warn{display:block; background:var(--warn-bg); color:var(--warn)}
+
+.toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%); opacity:0;
+  background:var(--ink); color:var(--on-ink); padding:10px 16px; border-radius:var(--r); font-size:12.5px;
+  box-shadow:0 8px 24px rgba(0,0,0,.3); pointer-events:none; z-index:200; max-width:min(480px,80vw);
+  transition:opacity .2s ease;
+}
+.toast.is-error{background:var(--stop)}
+.toast.is-ok{background:var(--ok)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Avance Masivo</h1>
+      <p class="sub">Finaliza uno o varios destajos en varias casas al mismo tiempo.</p>
+    </div>
+    <button class="volver" id="btnVolver">Volver</button>
+  </div>
+
+  <div class="aviso">
+    Esto activa y finaliza destajos reales (mueve el Avance de Obra que ves en el mapa) con la cuadrilla genérica "ADMINISTRATIVO". Si un destajo tiene destajos anteriores sin terminar en su categoría, también se finalizan automáticamente para desbloquearlo.
+  </div>
+
+  <div class="card">
+    <h2><span class="paso-n">1</span>Casas a modificar</h2>
+    <div class="toolbar">
+      <span class="contador" id="contadorCasas">0 casas seleccionadas</span>
+      <button class="btn-secundario" id="btnTodasCasas">Seleccionar / deseleccionar todas</button>
+    </div>
+    <div class="arbol" id="listaCasas"><p class="vacio">Cargando…</p></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="paso-n">2</span>Categoría y destajos a marcar</h2>
+    <p class="hint-bloqueado" id="hintDestajos">Selecciona primero una o más casas en el Paso 1.</p>
+    <div class="toolbar">
+      <span class="contador" id="contadorDestajos">0 destajos seleccionados</span>
+      <button class="btn-secundario" id="btnTodasDestajos">Seleccionar / deseleccionar todos</button>
+    </div>
+    <div class="arbol" id="listaDestajos"><p class="vacio">Cargando…</p></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="paso-n">3</span>Marcar como terminado</h2>
+    <button class="btn-primary" id="btnAplicar" disabled>Marcar como terminado</button>
+    <div class="resultado" id="resultado"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const HOST = window.chrome && window.chrome.webview ? window.chrome.webview : null;
+const el = id => document.getElementById(id);
+
+let destajos = [];      // { categoria, destajo, nodoIdTunera, nodoIdCalandra, sel }
+let casas = [];         // { manzana, lote, prototipo, sel }
+let manzanasColapsadas = new Set();
+let categoriasColapsadas = new Set();
+let _estadoTimer = null;
+
+let _toastTimer = null;
+function toast(msg, tipo){
+  const t = el('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (tipo ? ' is-' + tipo : '');
+  clearTimeout(_toastTimer);
+  t.style.opacity = 1;
+  _toastTimer = setTimeout(()=>{ t.style.opacity = 0; }, 3200);
+}
+
+function alHost(accion, extra){
+  if (!HOST){ toast('Sin aplicación anfitriona: esta acción sólo funciona dentro de Pilaris.', 'error'); return; }
+  HOST.postMessage(Object.assign({ accion }, extra || {}));
+}
+
+// Árbol de dos niveles con checkbox tri-estado en el grupo: lo usan tanto
+// "Casas" (Manzana > Lote) como "Categoría y destajos" (Categoría > Destajo).
+// El orden de los grupos es el de primera aparición en `items`, NO alfabético:
+// para destajos eso es el orden real del árbol (igual que editor-tareas), y
+// para casas ya llegan pre-ordenadas por manzana/lote desde el host.
+function renderArbol(cont, items, colapsadas, opts){
+  if (!items.length){ cont.innerHTML = `<p class="vacio">${opts.vacioMsg}</p>`; opts.onChange(); return; }
+
+  const grupos = {};
+  const ordenGrupos = [];
+  items.forEach((it, i) => {
+    const k = opts.groupKey(it);
+    if (!grupos[k]) { grupos[k] = []; ordenGrupos.push(k); }
+    grupos[k].push(i);
+  });
+
+  cont.innerHTML = ordenGrupos.map(k => {
+    const idxs = grupos[k];
+    const todasSel = idxs.every(i => items[i].sel);
+    const colapsada = colapsadas.has(k);
+    const filas = idxs.map(i => `
+      <div class="item-fila">
+        <input type="checkbox" data-idx="${i}" class="chk-item" ${items[i].sel ? 'checked' : ''}>
+        ${opts.itemLabel(items[i])}
+      </div>`).join('');
+    return `
+      <div class="grupo">
+        <div class="grupo-cab" data-k="${k}">
+          <input type="checkbox" class="chk-grupo" data-k="${k}" ${todasSel ? 'checked' : ''}>
+          <span>${opts.groupLabel(k, idxs.length)}</span>
+        </div>
+        <div class="grupo-filas" data-k="${k}" style="${colapsada ? 'display:none' : ''}">${filas}</div>
+      </div>`;
+  }).join('');
+
+  cont.querySelectorAll('.chk-item').forEach(chk => {
+    chk.addEventListener('change', () => {
+      items[Number(chk.dataset.idx)].sel = chk.checked;
+      opts.onChange();
+      // Sólo refleja el estado del check del grupo, sin redibujar todo (evita perder el scroll).
+      const grupo = chk.closest('.grupo');
+      const k = grupo.querySelector('.chk-grupo').dataset.k;
+      const idxs = items.map((it, i) => opts.groupKey(it) === k ? i : -1).filter(i => i >= 0);
+      grupo.querySelector('.chk-grupo').checked = idxs.every(i => items[i].sel);
+    });
+  });
+
+  cont.querySelectorAll('.grupo-cab').forEach(cab => {
+    cab.addEventListener('click', (ev) => {
+      if (ev.target.classList.contains('chk-grupo')) return;
+      const k = cab.dataset.k;
+      if (colapsadas.has(k)) colapsadas.delete(k); else colapsadas.add(k);
+      renderArbol(cont, items, colapsadas, opts);
+    });
+  });
+
+  cont.querySelectorAll('.chk-grupo').forEach(chk => {
+    chk.addEventListener('click', (ev) => ev.stopPropagation());
+    chk.addEventListener('change', () => {
+      const k = chk.dataset.k;
+      items.forEach(it => { if (opts.groupKey(it) === k) it.sel = chk.checked; });
+      renderArbol(cont, items, colapsadas, opts);
+    });
+  });
+
+  opts.onChange();
+}
+
+function renderCasas(){
+  renderArbol(el('listaCasas'), casas, manzanasColapsadas, {
+    groupKey: c => c.manzana,
+    groupLabel: (m, n) => `Manzana ${m} (${n})`,
+    itemLabel: c => `<span class="lote">Lote ${c.lote}</span><span class="proto">${c.prototipo || ''}</span>`,
+    vacioMsg: 'No hay casas en el inventario.',
+    onChange: () => { actualizarEstado(); solicitarEstadoDestajos(); }
+  });
+}
+
+function renderDestajos(){
+  renderArbol(el('listaDestajos'), destajos, categoriasColapsadas, {
+    groupKey: d => d.categoria,
+    groupLabel: (c, n) => `${c} (${n})`,
+    itemLabel: d => {
+      let badge = '';
+      if (d.casasTotal){
+        badge = d.casasCompletas === d.casasTotal
+          ? `<span class="badge-hecho">✓ Hecho</span>`
+          : d.casasCompletas > 0 ? `<span class="badge-parcial">${d.casasCompletas}/${d.casasTotal} casas</span>` : '';
+      }
+      return `<span>${d.destajo}</span>${badge}`;
+    },
+    vacioMsg: 'Sin destajos disponibles.',
+    onChange: actualizarEstado
+  });
+}
+
+// Para las casas seleccionadas en el Paso 1, pregunta al host qué destajos ya
+// están terminados (para marcarlos solos en el Paso 2). Debounced: si el
+// usuario marca varias casas seguidas, sólo se consulta una vez al terminar.
+function solicitarEstadoDestajos(){
+  clearTimeout(_estadoTimer);
+  const seleccionadasCasas = casas.filter(c => c.sel);
+  if (!seleccionadasCasas.length){
+    let cambio = false;
+    destajos.forEach(d => { if (d.casasTotal != null) { delete d.casasCompletas; delete d.casasTotal; cambio = true; } });
+    if (cambio) renderDestajos();
+    return;
+  }
+  _estadoTimer = setTimeout(() => {
+    alHost('consultar-estado', {
+      casas: seleccionadasCasas.map(c => ({ manzana: c.manzana, lote: c.lote, prototipo: c.prototipo }))
+    });
+  }, 300);
+}
+
+function actualizarEstado(){
+  const nCasas = casas.filter(c => c.sel).length;
+  const nDestajos = destajos.filter(d => d.sel).length;
+  el('contadorCasas').textContent = `${nCasas} casa(s) seleccionada(s)`;
+  el('contadorDestajos').textContent = `${nDestajos} destajo(s) seleccionado(s)`;
+
+  // Paso 2 depende del Paso 1: no tiene sentido elegir destajos sin saber a qué casas aplicarán.
+  el('listaDestajos').classList.toggle('deshabilitado', nCasas === 0);
+  el('btnTodasDestajos').disabled = nCasas === 0;
+  el('hintDestajos').textContent = nCasas === 0
+    ? 'Selecciona primero una o más casas en el Paso 1.'
+    : 'Los que ya dicen "✓ Hecho" están terminados en todas las casas elegidas (se marcan solos).';
+
+  el('btnAplicar').disabled = nCasas === 0 || nDestajos === 0;
+}
+
+el('btnTodasCasas').addEventListener('click', () => {
+  const algunaSinSel = casas.some(c => !c.sel);
+  casas.forEach(c => c.sel = algunaSinSel);
+  renderCasas();
+});
+
+el('btnTodasDestajos').addEventListener('click', () => {
+  const algunaSinSel = destajos.some(d => !d.sel);
+  destajos.forEach(d => d.sel = algunaSinSel);
+  renderDestajos();
+});
+
+el('btnVolver').addEventListener('click', () => alHost('volver'));
+
+el('btnAplicar').addEventListener('click', () => {
+  const seleccionadasCasas = casas.filter(c => c.sel);
+  if (!seleccionadasCasas.length){ toast('Selecciona al menos una casa (manzana/lote).', 'error'); return; }
+
+  const seleccionadosDestajos = destajos.filter(d => d.sel);
+  if (!seleccionadosDestajos.length){ toast('Selecciona al menos un destajo.', 'error'); return; }
+
+  const resumenDestajos = seleccionadosDestajos.length === 1
+    ? `"${seleccionadosDestajos[0].destajo}"`
+    : `${seleccionadosDestajos.length} destajos`;
+  const ok = confirm(`Se marcará ${resumenDestajos} como terminado en ${seleccionadasCasas.length} casa(s), con la cuadrilla genérica "ADMINISTRATIVO".\n\nSi alguno tiene destajos anteriores sin terminar en su categoría, también se finalizan para desbloquearlo.\n\n¿Continuar?`);
+  if (!ok) return;
+
+  el('btnAplicar').disabled = true;
+  el('resultado').className = 'resultado';
+  alHost('aplicar-avance', {
+    destajos: seleccionadosDestajos.map(d => ({ nodoIdTunera: d.nodoIdTunera, nodoIdCalandra: d.nodoIdCalandra })),
+    casas: seleccionadasCasas.map(c => ({ manzana: c.manzana, lote: c.lote, prototipo: c.prototipo }))
+  });
+});
+
+if (HOST){
+  HOST.addEventListener('message', (ev) => {
+    const d = ev.data;
+    if (!d || !d.tipo) return;
+    switch (d.tipo){
+      case 'datos':
+        destajos = (d.destajos || []).map(x => Object.assign({ sel: false }, x));
+        casas = (d.casas || []).map(c => Object.assign({ sel: false }, c));
+        renderCasas();
+        renderDestajos();
+        break;
+      case 'estado':
+        {
+          const porKey = {};
+          (d.estados || []).forEach(e => { porKey[e.categoria + '||' + e.destajo] = e; });
+          destajos.forEach(item => {
+            const e = porKey[item.categoria + '||' + item.destajo];
+            if (!e || !e.casasTotal){ delete item.casasCompletas; delete item.casasTotal; return; }
+            item.casasCompletas = e.casasCompletas;
+            item.casasTotal = e.casasTotal;
+            if (e.casasCompletas === e.casasTotal) item.sel = true;
+          });
+          renderDestajos();
+        }
+        break;
+      case 'resultado':
+        el('btnAplicar').disabled = false;
+        actualizarEstado();
+        solicitarEstadoDestajos(); // refleja los "✓ Hecho" nuevos sin tener que re-marcar casas
+        const box = el('resultado');
+        box.className = 'resultado ' + (d.errores && d.errores.length ? 'is-warn' : 'is-ok');
+        box.textContent = (d.errores && d.errores.length)
+          ? `${d.ok} destajo(s) x casa terminados. ${d.errores.length} con error: ${d.errores.slice(0,5).join(' | ')}`
+          : `Listo: ${d.ok} destajo(s) x casa terminados.`;
+        toast(d.errores && d.errores.length ? 'Se aplicó con algunos errores.' : 'Avance aplicado.', d.errores && d.errores.length ? 'error' : 'ok');
+        break;
+      case 'error':
+        el('btnAplicar').disabled = false;
+        toast(d.mensaje || 'Ocurrió un error.', 'error');
+        break;
+    }
+  });
+  alHost('cargar-datos');
+} else {
+  el('listaCasas').innerHTML = '<p class="vacio">Abre esta pantalla desde Pilaris.</p>';
+}
+</script>
+
+</body>
+</html>

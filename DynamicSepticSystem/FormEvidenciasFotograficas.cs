@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Data;
-using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -15,7 +13,6 @@ namespace DynamicSepticSystem
 {
     public partial class FormEvidenciasFotograficas : Form
     {
-        private string connectionString;
         private GestorEvidencias gestorEvidencias;
         private Image imagenSeleccionada;
         private byte[] imagenBytes;
@@ -23,9 +20,8 @@ namespace DynamicSepticSystem
         public FormEvidenciasFotograficas()
         {
             InitializeComponent();
-            connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
-            gestorEvidencias = new GestorEvidencias(connectionString);
-            
+            gestorEvidencias = new GestorEvidencias();
+
             // Aplicar tema
             ThemeManager.AplicarTema(this);
         }
@@ -33,9 +29,8 @@ namespace DynamicSepticSystem
         public FormEvidenciasFotograficas(string manzana, string lote)
         {
             InitializeComponent();
-            connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
-            gestorEvidencias = new GestorEvidencias(connectionString);
-            
+            gestorEvidencias = new GestorEvidencias();
+
             // Aplicar tema
             ThemeManager.AplicarTema(this);
             
@@ -69,25 +64,13 @@ namespace DynamicSepticSystem
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Manzana FROM InventarioCasas ORDER BY Manzana";
-                    
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        cmbManzana.Items.Clear();
-                        while (reader.Read())
-                        {
-                            cmbManzana.Items.Add(reader["Manzana"].ToString());
-                        }
-                    }
-                }
+                var manzanas = ApiClient.Get<List<string>>("/api/avances/manzanas") ?? new List<string>();
+                cmbManzana.Items.Clear();
+                foreach (var m in manzanas) cmbManzana.Items.Add(m);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al cargar manzanas: {ex.Message}", "Error", 
+                MessageBox.Show($"Error al cargar manzanas: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -102,27 +85,12 @@ namespace DynamicSepticSystem
                 if (string.IsNullOrEmpty(manzana))
                     return;
 
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Lote FROM InventarioCasas WHERE Manzana = @m ORDER BY Lote";
-                    
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                cmbLote.Items.Add(reader["Lote"].ToString());
-                            }
-                        }
-                    }
-                }
+                var lotes = ApiClient.Get<List<string>>("/api/avances/lotes?manzana=" + Uri.EscapeDataString(manzana)) ?? new List<string>();
+                foreach (var l in lotes) cmbLote.Items.Add(l);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al cargar lotes: {ex.Message}", "Error", 
+                MessageBox.Show($"Error al cargar lotes: {ex.Message}", "Error",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

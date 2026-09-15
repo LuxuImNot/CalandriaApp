@@ -13,8 +13,7 @@ namespace Calandria.Updater
     internal static class Program
     {
         // Tunables: ajustar si los reintentos son muchos
-        private const int CopyRetries = 5; // número de intentos para copiar cada archivo
-        private const int TryWaitTimeoutMs = 1500; // tiempo máximo para esperar a que un archivo quede libre
+        private const int CopyRetries = 5; // nï¿½mero de intentos para copiar cada archivo
 
         [STAThread]
         static int Main(string[] args)
@@ -35,7 +34,7 @@ namespace Calandria.Updater
                 }
                 else
                 {
-                    // intentar detección automática si no se pasaron argumentos
+                    // intentar detecciï¿½n automï¿½tica si no se pasaron argumentos
                     carpetaLocal = Environment.CurrentDirectory;
 
                     try
@@ -108,14 +107,14 @@ namespace Calandria.Updater
                 // If we were able to auto-detect necessary info, continue; otherwise return error
                 if (string.IsNullOrEmpty(carpetaTemp) || string.IsNullOrEmpty(exePrincipal) || string.IsNullOrEmpty(carpetaLocal))
                 {
-                    try { File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ERROR: No se pudo detectar automáticamente carpetaTemp/carpetaLocal/exePrincipal\n"); } catch { }
+                    try { File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ERROR: No se pudo detectar automï¿½ticamente carpetaTemp/carpetaLocal/exePrincipal\n"); } catch { }
                     return 2;
                 }
             }
 
             try
             {
-                // Auto-elevación si hace falta (Program Files, etc.)
+                // Auto-elevaciï¿½n si hace falta (Program Files, etc.)
                 if (!IsAdmin())
                 {
                     try
@@ -127,7 +126,7 @@ namespace Calandria.Updater
                             Verb = "runas", // UAC
                             UseShellExecute = true
                         };
-                        File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Intentando auto-elevación UAC\n");
+                        File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Intentando auto-elevaciï¿½n UAC\n");
                         Process.Start(psi);
                         return 0;
                     }
@@ -139,7 +138,12 @@ namespace Calandria.Updater
                     }
                 }
 
-                EsperarCierreExe(carpetaLocal, exePrincipal, TimeSpan.FromSeconds(120));
+                // Para cuando Updater arranca (tras aprobar el UAC), la app principal
+                // ya llamï¿½ Environment.Exit(0) hace rato: este espera es solo un
+                // colchï¿½n de seguridad, no el mecanismo real anti-bloqueo (eso lo
+                // hace el reintento con backoff en CopiarRecursivoConLog). 120s aquï¿½
+                // solo alargaba la espera en equipos lentos sin ganar nada.
+                EsperarCierreExe(carpetaLocal, exePrincipal, TimeSpan.FromSeconds(15));
 
                 Log(carpetaLocal, $"Iniciando copia desde TEMP: {carpetaTemp} -> {carpetaLocal}");
                 File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Copiando archivos...\n");
@@ -158,9 +162,9 @@ namespace Calandria.Updater
 
                 if (archivosCopiados == 0)
                 {
-                    Log(carpetaLocal, "No se copió ningún archivo.");
-                    File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] No se copió ningún archivo\n");
-                    MessageBox.Show("No se copió ningún archivo. Verifica permisos y rutas.", "Updater", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Log(carpetaLocal, "No se copiï¿½ ningï¿½n archivo.");
+                    File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] No se copiï¿½ ningï¿½n archivo\n");
+                    MessageBox.Show("No se copiï¿½ ningï¿½n archivo. Verifica permisos y rutas.", "Updater", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
 
                 // Limpieza: eliminar carpeta temporal SOLO si se copiaron archivos
@@ -173,8 +177,8 @@ namespace Calandria.Updater
                     }
                     else
                     {
-                        // Mantener carpeta temp para diagnóstico si no se copió nada
-                        File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] INFO: carpeta temp preservada para diagnóstico: {carpetaTemp}\n");
+                        // Mantener carpeta temp para diagnï¿½stico si no se copiï¿½ nada
+                        File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] INFO: carpeta temp preservada para diagnï¿½stico: {carpetaTemp}\n");
                     }
                 }
                 catch { }
@@ -183,8 +187,8 @@ namespace Calandria.Updater
                 bool lanzado = LanzarAplicacionRobusto(exePath, carpetaLocal, out string detalle);
 
                 Log(carpetaLocal, lanzado
-                    ? $"Actualización aplicada. Relanzado OK: {exePath}"
-                    : $"Actualización aplicada, pero NO se pudo relanzar. Detalle: {detalle}");
+                    ? $"Actualizaciï¿½n aplicada. Relanzado OK: {exePath}"
+                    : $"Actualizaciï¿½n aplicada, pero NO se pudo relanzar. Detalle: {detalle}");
                 File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Lanzar app: {exePath} -> {lanzado} Detalle: {detalle}\n");
 
                 if (!lanzado)
@@ -192,10 +196,10 @@ namespace Calandria.Updater
                     try
                     {
                         MessageBox.Show(
-                            "Se aplicó la actualización, pero no se pudo reabrir automáticamente.\n" +
-                            "Por favor, abre la aplicación manualmente desde:\n" + exePath +
+                            "Se aplicï¿½ la actualizaciï¿½n, pero no se pudo reabrir automï¿½ticamente.\n" +
+                            "Por favor, abre la aplicaciï¿½n manualmente desde:\n" + exePath +
                             "\n\nDetalle: " + detalle,
-                            "Actualización aplicada", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            "Actualizaciï¿½n aplicada", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch { }
                 }
@@ -207,7 +211,7 @@ namespace Calandria.Updater
                 Log(carpetaLocal, "ERROR: " + ex);
                 try
                 {
-                    MessageBox.Show("Error al aplicar actualización:\n" + ex.Message,
+                    MessageBox.Show("Error al aplicar actualizaciï¿½n:\n" + ex.Message,
                                     "Updater", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 catch { }
@@ -231,7 +235,7 @@ namespace Calandria.Updater
                 var destino = Path.Combine(dst, rel);
                 var dirdest = Path.GetDirectoryName(destino) ?? dst;
                 Directory.CreateDirectory(dirdest);
-                // intentos para copiar (reintentos si el archivo está en uso por otro proceso)
+                // intentos para copiar (reintentos si el archivo estï¿½ en uso por otro proceso)
                 // If the destination is this running Updater exe, skip copying it to avoid "file in use" errors
                 try
                 {
@@ -247,21 +251,20 @@ namespace Calandria.Updater
                  {
                     try
                     {
-                        // Antes de copiar, esperar brevemente a que el origen/destino no estén bloqueados
-                        if (File.Exists(destino))
-                        {
-                            File.SetAttributes(destino, FileAttributes.Normal);
-                            // esperar que el destino quede libre para escritura
-                            TryWaitForFile(destino, TryWaitTimeoutMs);
-                        }
-                        // asegurar que el origen sea legible
-                        TryWaitForFile(file, TryWaitTimeoutMs, readOnly: true);
+                        // File.Copy ya intenta abrir origen/destino; si alguno estï¿½
+                        // bloqueado lanza IOException/UnauthorizedAccessException y el
+                        // catch de abajo reintenta con backoff. Antes se probaba abrir
+                        // cada archivo por separado ANTES de copiarlo (hasta 3 aperturas
+                        // por archivo): en equipos con antivirus que reescanea cada
+                        // apertura, eso triplicaba la latencia por archivo sin aportar
+                        // nada en el caso normal (sin bloqueo).
+                        if (File.Exists(destino)) File.SetAttributes(destino, FileAttributes.Normal);
 
                         File.Copy(file, destino, true);
                         File.SetLastWriteTimeUtc(destino, File.GetLastWriteTimeUtc(file));
                         copiados++;
                         File.AppendAllText(logBoot, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Copiado: {file} -> {destino}\n");
-                        break; // éxito
+                        break; // ï¿½xito
                     }
                     catch (IOException ex)
                     {
@@ -285,33 +288,6 @@ namespace Calandria.Updater
                  }
              }
              return copiados;
-         }
-
-        // Intenta abrir el archivo para determinar si está libre. Si readOnly=true, abre en modo lectura.
-        // Devuelve true si pudo abrirlo dentro del timeout; false si no.
-        static bool TryWaitForFile(string path, int timeoutMs, bool readOnly = false)
-         {
-             var sw = Stopwatch.StartNew();
-             while (sw.ElapsedMilliseconds < timeoutMs)
-             {
-                 try
-                 {
-                     if (!File.Exists(path)) return true; // nada que bloquear
-                     using (var fs = new FileStream(path,
-                         readOnly ? FileMode.Open : FileMode.OpenOrCreate,
-                         readOnly ? FileAccess.Read : FileAccess.ReadWrite,
-                         FileShare.None))
-                     {
-                         // si pudimos abrir con FileShare.None entonces está libre
-                     }
-                     return true;
-                 }
-                 catch
-                 {
-                    Thread.Sleep(100);
-                 }
-             }
-             return false;
          }
 
         static void EsperarCierreExe(string carpetaLocal, string exePrincipal, TimeSpan max)
@@ -389,7 +365,7 @@ namespace Calandria.Updater
                 }
                 catch (Exception e2)
                 {
-                    detalle = "Intento2 (cmd start) falló: " + e2.Message;
+                    detalle = "Intento2 (cmd start) fallï¿½: " + e2.Message;
                 }
 
                 // Intento 3: sin shell, directo
@@ -405,13 +381,13 @@ namespace Calandria.Updater
                 }
                 catch (Exception e3)
                 {
-                    detalle = "Intento3 directo falló: " + e3.Message;
+                    detalle = "Intento3 directo fallï¿½: " + e3.Message;
                     return false;
                 }
             }
             catch (Exception e)
             {
-                detalle = "Excepción general en relanzar: " + e.Message;
+                detalle = "Excepciï¿½n general en relanzar: " + e.Message;
                 return false;
             }
         }

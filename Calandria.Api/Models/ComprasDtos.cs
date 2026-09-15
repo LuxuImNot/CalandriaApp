@@ -8,6 +8,7 @@ namespace Calandria.Api.Models
     /// </summary>
     public sealed class ProveedorDto
     {
+        public string Folio { get; set; }
         public string ClaveUnica { get; set; }
         public string Nombre { get; set; }
         public string Rfc { get; set; }
@@ -23,6 +24,12 @@ namespace Calandria.Api.Models
         public string Rfc { get; set; }
         public string Direccion { get; set; }
         public string Telefono { get; set; }
+    }
+
+    /// <summary>Respuesta al crear un proveedor: el folio autogenerado (PROV-NNNN).</summary>
+    public sealed class ProveedorCreadoResponse
+    {
+        public string Folio { get; set; }
     }
 
     // ---- Órdenes de compra ----
@@ -70,6 +77,73 @@ namespace Calandria.Api.Models
         public string FolioOC { get; set; }
     }
 
+    // ---- Conciliación de factura (CFDI) contra la OC ----
+
+    /// <summary>Petición: el XML del CFDI (base64) y el folio de la OC a conciliar.</summary>
+    public sealed class ConciliarFacturaRequest
+    {
+        public string FolioOC { get; set; }
+        public string XmlBase64 { get; set; }
+    }
+
+    /// <summary>Un concepto leído del CFDI (datos exactos del XML).</summary>
+    public sealed class FacturaConceptoDto
+    {
+        public string NoIdentificacion { get; set; }
+        public string ClaveProdServ { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public decimal ValorUnitario { get; set; }
+        public decimal Importe { get; set; }
+    }
+
+    /// <summary>
+    /// Una línea de la OC ya conciliada contra la factura: cuánto se compró vs cuánto
+    /// se facturó y de dónde salió el emparejamiento (clave / nombre / automático / sin match).
+    /// </summary>
+    public sealed class LineaConciliacionDto
+    {
+        public int IdDetalle { get; set; }
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal CantidadOC { get; set; }
+        public decimal CantidadFacturada { get; set; }
+        public decimal Diferencia { get; set; }          // facturada - OC (negativo = faltante/parcial)
+        public string DescripcionFactura { get; set; }   // texto del concepto emparejado
+        public string Origen { get; set; }               // "Clave" | "Nombre" | "Auto" | "SinMatch"
+        public double Confianza { get; set; }            // 0..1 (1 = exacta por clave)
+    }
+
+    /// <summary>Resultado de conciliar un CFDI contra una OC.</summary>
+    public sealed class ConciliarFacturaResponse
+    {
+        public string FolioOC { get; set; }
+        public string Emisor { get; set; }
+        public string Rfc { get; set; }
+        public string Uuid { get; set; }
+        public decimal TotalFactura { get; set; }
+        public bool UsoIA { get; set; }
+        public string Aviso { get; set; }
+        public System.Collections.Generic.List<LineaConciliacionDto> Lineas { get; set; }
+            = new System.Collections.Generic.List<LineaConciliacionDto>();
+        // Conceptos de la factura que no se pudieron asignar a ninguna línea de la OC.
+        public System.Collections.Generic.List<FacturaConceptoDto> SinAsignar { get; set; }
+            = new System.Collections.Generic.List<FacturaConceptoDto>();
+    }
+
+    /// <summary>
+    /// Resumen para facturar el add-on de "Conciliación de factura con IA" (Pilaris):
+    /// cuántas facturas se conciliaron con el emparejador automático en el rango y el
+    /// monto a cobrar ($18 MXN/factura, mínimo $500 MXN/mes por obra).
+    /// </summary>
+    public sealed class ConciliacionesIaResumenDto
+    {
+        public int Conteo { get; set; }
+        public decimal MontoACobrar { get; set; }
+    }
+
     // ---- Catálogos de material (COMPRASCALANDRA / COMPRASTUNERA, por prototipo) ----
 
     /// <summary>Fila del catálogo de explosión de un prototipo.</summary>
@@ -81,6 +155,13 @@ namespace Calandria.Api.Models
         public decimal Cantidad { get; set; }
         public string Familia { get; set; }
         public decimal Precio { get; set; }
+
+        /// <summary>
+        /// true si el insumo tiene clave de almacén (del árbol o resuelta por catálogo);
+        /// false si quedó sin clave (se rastreará por nombre). Solo lo usa el catálogo de
+        /// destajos; en el catálogo plano por prototipo todas las filas traen clave.
+        /// </summary>
+        public bool ClaveResuelta { get; set; }
     }
 
     /// <summary>Cantidad pendiente de surtir de un insumo en una casa.</summary>

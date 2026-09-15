@@ -265,7 +265,7 @@ namespace DynamicSepticSystem
             this.MinimumSize = new System.Drawing.Size(1000, 600);
             this.Name = "FormHardProgress";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Avance Hard Progress - Sistema Calandria";
+            this.Text = "Avance Hard Progress - Sistema Pilaris";
             this.Resize += new System.EventHandler(this.FormHardProgress_Resize);
             this.panelTop.ResumeLayout(false);
             this.panelTop.PerformLayout();

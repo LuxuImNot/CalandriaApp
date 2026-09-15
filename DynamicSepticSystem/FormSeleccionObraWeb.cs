@@ -42,11 +42,12 @@ namespace DynamicSepticSystem
 
         public FormSeleccionObraWeb()
         {
-            Text = "Selección de obra - Sistema Calandria";
+            Text = "Selección de obra - Sistema Pilaris";
             StartPosition = FormStartPosition.CenterScreen;
             Size = new Size(1100, 720);
             MinimumSize = new Size(900, 600);
             BackColor = Color.White;
+            ThemeManager.AplicarIconoPorDefecto(this);
 
             webObra = new WebView2 { Dock = DockStyle.Fill, BackColor = Color.White };
             Controls.Add(webObra);
@@ -74,7 +75,7 @@ namespace DynamicSepticSystem
             {
                 ErrorLogger.RegistrarMensaje("SeleccionObra", "WebView2 no pudo iniciar: " + ex.Message);
                 MessageBox.Show("No se pudo iniciar la pantalla de selección de obra:\n\n" + ex.Message,
-                    "Calandria", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Pilaris", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -83,7 +84,7 @@ namespace DynamicSepticSystem
             if (!e.IsSuccess)
             {
                 ErrorLogger.RegistrarMensaje("SeleccionObra", "WebView2 no inicializó: " + e.InitializationException);
-                MessageBox.Show("No se pudo iniciar la pantalla de selección de obra.", "Calandria",
+                MessageBox.Show("No se pudo iniciar la pantalla de selección de obra.", "Pilaris",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -109,7 +110,7 @@ namespace DynamicSepticSystem
             {
                 MessageBox.Show(
                     "No se pudo descargar la interfaz de selección de obra.\n\nVerifica la conexión con el servidor.",
-                    "Calandria", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Pilaris", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             webObra.CoreWebView2.NavigateToString(html);

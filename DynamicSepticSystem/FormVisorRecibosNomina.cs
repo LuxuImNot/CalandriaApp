@@ -529,7 +529,7 @@ namespace DynamicSepticSystem
                     new XRect(mIzq, y, ancho, 50));
                 gfx.DrawString("RECIBO DE NÓMINA", fontTit, XBrushes.White,
                     new XRect(mIzq + 12, y + 14, ancho - 24, 30), XStringFormats.TopLeft);
-                gfx.DrawString("Calandria Residencial", fontSub, XBrushes.LightGray,
+                gfx.DrawString("Pilaris", fontSub, XBrushes.LightGray,
                     new XRect(mIzq + 12, y + 32, ancho - 24, 16), XStringFormats.TopLeft);
                 y += 64;
 

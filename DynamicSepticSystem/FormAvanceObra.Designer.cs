@@ -229,7 +229,7 @@ namespace DynamicSepticSystem
             this.MinimumSize = new System.Drawing.Size(800, 600);
             this.Name = "FormAvanceObra";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Avance de Obra - Sistema Calandria";
+            this.Text = "Avance de Obra - Sistema Pilaris";
             this.Resize += new System.EventHandler(this.FormAvanceObra_Resize);
             ((System.ComponentModel.ISupportInitialize)(this.olvAvance)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBoxGrafica)).EndInit();

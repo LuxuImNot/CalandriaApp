@@ -346,7 +346,7 @@
             this.MinimumSize = new System.Drawing.Size(1100, 850);
             this.Name = "FormCompraIndirecta";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Orden de Compra Indirecta - Sistema Calandria";
+            this.Text = "Orden de Compra Indirecta - Sistema Pilaris";
             this.panelHeader.ResumeLayout(false);
             this.panelHeader.PerformLayout();
             this.panelBusqueda.ResumeLayout(false);

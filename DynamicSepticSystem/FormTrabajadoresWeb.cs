@@ -47,12 +47,13 @@ namespace DynamicSepticSystem
         {
             _vistaInicial = vistaInicial;
 
-            Text = "Trabajadores - Sistema Calandria";
+            Text = "Trabajadores - Sistema Pilaris";
             StartPosition = FormStartPosition.CenterScreen;
             Size = new Size(1280, 800);
             MinimumSize = new Size(1024, 640);
             WindowState = FormWindowState.Maximized;
             BackColor = Color.White;
+            ThemeManager.AplicarIconoPorDefecto(this);
 
             webTrabajadores = new WebView2 { Dock = DockStyle.Fill, BackColor = Color.White };
             Controls.Add(webTrabajadores);

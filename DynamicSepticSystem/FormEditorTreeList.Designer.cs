@@ -525,7 +525,7 @@ namespace DynamicSepticSystem
             this.MinimumSize = new System.Drawing.Size(900, 600);
             this.Name = "FormEditorTreeList";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
-            this.Text = "Editor de TreeList - Calandria Residencial";
+            this.Text = "Editor de TreeList - Pilaris";
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FormEditorTreeList_FormClosing);
             this.panelSidebar.ResumeLayout(false);
             this.groupBoxAcciones.ResumeLayout(false);

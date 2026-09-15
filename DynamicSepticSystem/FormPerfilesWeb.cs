@@ -38,12 +38,13 @@ namespace DynamicSepticSystem
         public FormPerfilesWeb()
         {
             Log("Constructor: iniciando");
-            Text = "Perfiles y Permisos - Sistema Calandria";
+            Text = "Perfiles y Permisos - Sistema Pilaris";
             StartPosition = FormStartPosition.CenterScreen;
             Size = new System.Drawing.Size(1180, 760);
             MinimumSize = new System.Drawing.Size(960, 600);
             WindowState = FormWindowState.Maximized;
             BackColor = System.Drawing.Color.White;
+            ThemeManager.AplicarIconoPorDefecto(this);
 
             webPerfiles = new WebView2 { Dock = DockStyle.Fill, BackColor = System.Drawing.Color.White };
             Controls.Add(webPerfiles);

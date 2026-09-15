@@ -26,6 +26,7 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+using ClosedXML.Excel;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 
@@ -312,6 +313,8 @@ namespace DynamicSepticSystem
             public string desde;
             public string hasta;
             public string cuadrilla;
+            public string formato;
+            public int[] ids;
             public ReciboMsgDto recibo;
         }
 
@@ -393,6 +396,8 @@ namespace DynamicSepticSystem
                     case "reporte-recibos-abrir":       if (m.recibo != null) ReciboAbrirWeb(m.recibo);       break;
                     case "reporte-recibos-reimprimir":  if (m.recibo != null) ReciboReimprimirWeb(m.recibo);  break;
                     case "reporte-recibos-guardar":     if (m.recibo != null) ReciboGuardarComoWeb(m.recibo); break;
+                    case "reporte-casa-datos":       ReporteCasaDatosWeb();                           break;
+                    case "reporte-casa-excel":       ReporteCasaExcelWeb(m.formato, m.ids);           break;
                     case "repositorio-pdfs":    RepositorioPdfsWeb();                                  break;
                     case "volver":              RestaurarPanelClasico();                                break;
 
@@ -1400,7 +1405,7 @@ namespace DynamicSepticSystem
                 gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(41, 60, 88)), new XRect(mIzq, y, ancho, 50));
                 gfx.DrawString("RECIBO DE NÃ“MINA", fontTit, XBrushes.White,
                     new XRect(mIzq + 12, y + 14, ancho - 24, 30), XStringFormats.TopLeft);
-                gfx.DrawString("Calandria Residencial", fontSub, XBrushes.LightGray,
+                gfx.DrawString("Pilaris", fontSub, XBrushes.LightGray,
                     new XRect(mIzq + 12, y + 32, ancho - 24, 16), XStringFormats.TopLeft);
                 y += 64;
 
@@ -1513,6 +1518,273 @@ namespace DynamicSepticSystem
                 };
                 dlg.Controls.Add(grid);
                 dlg.ShowDialog(this);
+            }
+        }
+
+
+        // ------------------------------------------------------------------
+        // Documentos: explosion de insumos y precios por destajo
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Una fila por destajo (Nivel 1) de la casa cargada: sus insumos Material
+        /// y el importe de Mano de Obra. Las dos vistas de "Documentos" (explosion
+        /// y precios) se pintan con este mismo payload -- sale del arbol que ya esta
+        /// en memoria (itemsTareas), sin volver a pegarle al API.
+        /// </summary>
+        private class DestajoCasaReporte
+        {
+            public int Id { get; set; }
+            public string Categoria { get; set; }
+            public string Destajo { get; set; }
+            public string Cuadrilla { get; set; }
+            public string Estado { get; set; }
+            public decimal Material { get; set; }
+            public decimal ManoObra { get; set; }
+            public List<InsumoCasaReporte> Insumos { get; set; }
+        }
+
+        private class InsumoCasaReporte
+        {
+            public string Clave { get; set; }
+            public string Nombre { get; set; }
+            public string Unidad { get; set; }
+            public decimal Cantidad { get; set; }
+            public decimal PrecioUnitario { get; set; }
+            public decimal Importe { get; set; }
+        }
+
+        private List<DestajoCasaReporte> ArmarReporteCasaWeb()
+        {
+            if (itemsTareas == null) return new List<DestajoCasaReporte>();
+
+            var categorias = itemsTareas.Where(i => i.Nivel == 0)
+                .GroupBy(i => i.ID)
+                .ToDictionary(g => g.Key, g => g.First().Nombre);
+
+            return itemsTareas
+                .Where(d => d.Nivel == 1)
+                .Select(d =>
+                {
+                    var hijos = itemsTareas.Where(i => i.ParentId == d.ID).ToList();
+                    var materiales = hijos.Where(i => i.TipoTareaEnum == TipoTarea.Material).ToList();
+                    return new DestajoCasaReporte
+                    {
+                        Id = d.ID,
+                        Categoria = categorias.TryGetValue(d.ParentId, out string cat) ? cat : "(sin categoría)",
+                        Destajo = d.Nombre ?? "",
+                        Cuadrilla = d.CuadrillaAsignada ?? "",
+                        Estado = d.Finalizado ? "Finalizado" : d.DesatajoActivado ? "Activado" : "Pendiente",
+                        Material = materiales.Sum(i => i.Total),
+                        ManoObra = hijos.Where(i => i.TipoTareaEnum == TipoTarea.ManoDeObra).Sum(i => i.Total),
+                        Insumos = materiales.Select(i => new InsumoCasaReporte
+                        {
+                            Clave = i.Clave ?? "",
+                            Nombre = i.Nombre ?? "",
+                            Unidad = i.Unidad ?? "",
+                            Cantidad = i.Cantidad,
+                            PrecioUnitario = i.PrecioUnitario,
+                            Importe = i.Total
+                        }).ToList()
+                    };
+                })
+                .ToList();
+        }
+
+        private void ReporteCasaDatosWeb()
+        {
+            PushReporte("reporte-casa-destajos", ArmarReporteCasaWeb());
+        }
+
+        /// <summary>
+        /// ids: los destajos marcados en la pagina (la vista de precios deja elegir
+        /// categorias y destajos). Null o vacio = toda la casa.
+        /// </summary>
+        private void ReporteCasaExcelWeb(string formato, int[] ids)
+        {
+            var datos = ArmarReporteCasaWeb();
+            int total = datos.Count;
+            if (ids != null && ids.Length > 0)
+            {
+                var marcados = new HashSet<int>(ids);
+                datos = datos.Where(d => marcados.Contains(d.Id)).ToList();
+            }
+            if (datos.Count == 0)
+            {
+                MessageBox.Show(total == 0
+                        ? "Carga una manzana y lote para exportar el reporte."
+                        : "No hay ningun destajo seleccionado.",
+                    "Exportar a Excel", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            string nota = datos.Count < total
+                ? "Seleccion parcial: " + datos.Count + " de " + total + " destajos"
+                : "";
+
+            bool precios = formato == "precios";
+            string casa = string.IsNullOrEmpty(manzanaActual) ? "" : "_M" + manzanaActual + "-L" + loteActual;
+            using (var dlg = new SaveFileDialog
+            {
+                Filter = "Archivo Excel (*.xlsx)|*.xlsx",
+                FileName = (precios ? "PreciosPorDestajo" : "ExplosionInsumos") + casa +
+                           DateTime.Now.ToString("_yyyyMMdd_HHmm") + ".xlsx",
+                Title = precios ? "Guardar reporte de precios" : "Guardar explosión de insumos"
+            })
+            {
+                if (dlg.ShowDialog(this) != DialogResult.OK) return;
+                try
+                {
+                    if (precios) EscribirPreciosExcel(dlg.FileName, datos, nota);
+                    else EscribirExplosionExcel(dlg.FileName, datos, nota);
+                }
+                catch (Exception ex)
+                {
+                    ErrorLogger.Registrar(ex, "FormActivarTareasTreeList.ReporteCasaExcelWeb");
+                    MessageBox.Show("No se pudo guardar el archivo:" + Environment.NewLine + Environment.NewLine + ex.Message,
+                        "Exportar a Excel", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+                if (MessageBox.Show("Archivo guardado:" + Environment.NewLine + Environment.NewLine + dlg.FileName +
+                        Environment.NewLine + Environment.NewLine + "¿Abrirlo ahora?",
+                        "Exportar a Excel", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                    Process.Start(dlg.FileName);
+            }
+        }
+
+        /// <summary>Titulo + casa + fecha, comun a las dos hojas. Devuelve la fila del encabezado de columnas.</summary>
+        private int EncabezadoHojaExcel(IXLWorksheet hoja, string titulo, int columnas, string nota)
+        {
+            hoja.Cell(1, 1).Value = titulo;
+            hoja.Cell(1, 1).Style.Font.Bold = true;
+            hoja.Cell(1, 1).Style.Font.FontSize = 14;
+            hoja.Cell(1, 1).Style.Fill.BackgroundColor = XLColor.FromArgb(179, 108, 46);
+            hoja.Cell(1, 1).Style.Font.FontColor = XLColor.White;
+            hoja.Range(1, 1, 1, columnas).Merge();
+
+            string casa = string.IsNullOrEmpty(manzanaActual)
+                ? "Sin casa cargada"
+                : "Manzana " + manzanaActual + " · Lote " + loteActual;
+            hoja.Cell(2, 1).Value = casa + "  —  generado " + DateTime.Now.ToString("dd/MM/yyyy HH:mm")
+                + (string.IsNullOrEmpty(nota) ? "" : "  -  " + nota);
+            hoja.Cell(2, 1).Style.Font.Italic = true;
+            hoja.Range(2, 1, 2, columnas).Merge();
+            return 4;
+        }
+
+        private static void EncabezadosColumnas(IXLWorksheet hoja, int fila, string[] titulos)
+        {
+            for (int c = 0; c < titulos.Length; c++)
+            {
+                var celda = hoja.Cell(fila, c + 1);
+                celda.Value = titulos[c];
+                celda.Style.Font.Bold = true;
+                celda.Style.Fill.BackgroundColor = XLColor.LightGray;
+                celda.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            }
+        }
+
+        /// <summary>
+        /// Explosion: una fila por insumo, repitiendo categoria/destajo. Plana a
+        /// proposito -- asi se filtra y se pivotea en Excel; el agrupado por destajo
+        /// ya lo muestra la pagina.
+        /// </summary>
+        private void EscribirExplosionExcel(string ruta, List<DestajoCasaReporte> datos, string nota)
+        {
+            using (var libro = new XLWorkbook())
+            {
+                var hoja = libro.Worksheets.Add("Explosion");
+                int fila = EncabezadoHojaExcel(hoja, "EXPLOSIÓN DE INSUMOS POR DESTAJO", 10, nota);
+                EncabezadosColumnas(hoja, fila, new[]
+                {
+                    "Categoría", "Destajo", "Cuadrilla", "Estado",
+                    "Clave", "Insumo", "Unidad", "Cantidad", "P.U.", "Importe"
+                });
+
+                int primera = fila + 1;
+                fila = primera;
+                foreach (var d in datos)
+                {
+                    foreach (var i in d.Insumos)
+                    {
+                        hoja.Cell(fila, 1).Value = d.Categoria;
+                        hoja.Cell(fila, 2).Value = d.Destajo;
+                        hoja.Cell(fila, 3).Value = d.Cuadrilla;
+                        hoja.Cell(fila, 4).Value = d.Estado;
+                        hoja.Cell(fila, 5).Value = i.Clave;
+                        hoja.Cell(fila, 6).Value = i.Nombre;
+                        hoja.Cell(fila, 7).Value = i.Unidad;
+                        hoja.Cell(fila, 8).Value = (double)i.Cantidad;
+                        hoja.Cell(fila, 9).Value = (double)i.PrecioUnitario;
+                        hoja.Cell(fila, 10).Value = (double)i.Importe;
+                        fila++;
+                    }
+                }
+
+                if (fila > primera)
+                {
+                    hoja.Range(primera - 1, 1, fila - 1, 10).SetAutoFilter();
+                    hoja.Cell(fila, 6).Value = "TOTAL MATERIAL";
+                    hoja.Cell(fila, 6).Style.Font.Bold = true;
+                    hoja.Cell(fila, 10).FormulaA1 = "SUM(J" + primera + ":J" + (fila - 1) + ")";
+                    hoja.Cell(fila, 10).Style.Font.Bold = true;
+                }
+
+                hoja.Column(8).Style.NumberFormat.Format = "0.00";
+                hoja.Column(9).Style.NumberFormat.Format = "$#,##0.00";
+                hoja.Column(10).Style.NumberFormat.Format = "$#,##0.00";
+                hoja.Columns().AdjustToContents();
+                libro.SaveAs(ruta);
+            }
+        }
+
+        /// <summary>Precios: un renglon por destajo agrupado por categoria, con subtotales y total.</summary>
+        private void EscribirPreciosExcel(string ruta, List<DestajoCasaReporte> datos, string nota)
+        {
+            using (var libro = new XLWorkbook())
+            {
+                var hoja = libro.Worksheets.Add("Precios");
+                int fila = EncabezadoHojaExcel(hoja, "PRECIOS POR DESTAJO", 6, nota);
+                EncabezadosColumnas(hoja, fila, new[] { "Destajo", "Cuadrilla", "Estado", "Material", "Mano de obra", "Total" });
+                fila++;
+
+                foreach (var grupo in datos.GroupBy(d => d.Categoria))
+                {
+                    hoja.Cell(fila, 1).Value = grupo.Key;
+                    hoja.Range(fila, 1, fila, 6).Style.Font.Bold = true;
+                    hoja.Range(fila, 1, fila, 6).Style.Fill.BackgroundColor = XLColor.FromArgb(245, 238, 228);
+                    fila++;
+
+                    foreach (var d in grupo)
+                    {
+                        hoja.Cell(fila, 1).Value = d.Destajo;
+                        hoja.Cell(fila, 2).Value = d.Cuadrilla;
+                        hoja.Cell(fila, 3).Value = d.Estado;
+                        hoja.Cell(fila, 4).Value = (double)d.Material;
+                        hoja.Cell(fila, 5).Value = (double)d.ManoObra;
+                        hoja.Cell(fila, 6).Value = (double)(d.Material + d.ManoObra);
+                        fila++;
+                    }
+
+                    hoja.Cell(fila, 1).Value = "Total " + grupo.Key;
+                    hoja.Cell(fila, 4).Value = (double)grupo.Sum(d => d.Material);
+                    hoja.Cell(fila, 5).Value = (double)grupo.Sum(d => d.ManoObra);
+                    hoja.Cell(fila, 6).Value = (double)grupo.Sum(d => d.Material + d.ManoObra);
+                    hoja.Range(fila, 1, fila, 6).Style.Font.Bold = true;
+                    hoja.Range(fila, 1, fila, 6).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+                    fila += 2;
+                }
+
+                hoja.Cell(fila, 1).Value = "TOTAL DE LA CASA";
+                hoja.Cell(fila, 4).Value = (double)datos.Sum(d => d.Material);
+                hoja.Cell(fila, 5).Value = (double)datos.Sum(d => d.ManoObra);
+                hoja.Cell(fila, 6).Value = (double)datos.Sum(d => d.Material + d.ManoObra);
+                hoja.Range(fila, 1, fila, 6).Style.Font.Bold = true;
+                hoja.Range(fila, 1, fila, 6).Style.Fill.BackgroundColor = XLColor.FromArgb(179, 108, 46);
+                hoja.Range(fila, 1, fila, 6).Style.Font.FontColor = XLColor.White;
+
+                hoja.Columns(4, 6).Style.NumberFormat.Format = "$#,##0.00";
+                hoja.Columns().AdjustToContents();
+                libro.SaveAs(ruta);
             }
         }
 

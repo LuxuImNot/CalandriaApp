@@ -59,6 +59,19 @@ namespace Calandria.Api.Models
         public List<LineaAsignacionNomina> Lineas { get; set; }
     }
 
+    /// <summary>
+    /// Cuerpo de POST /api/nomina/asignacion/eliminar. Borra la asignación de
+    /// nómina de los nodos de mano de obra indicados (al reabrir un destajo
+    /// finalizado). No toca los recibos ya emitidos.
+    /// </summary>
+    public sealed class EliminarAsignacionRequest
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Ruta { get; set; }
+        public List<int> NodoIds { get; set; }
+    }
+
     // ---- Reporte y recibos de nómina ----
 
     /// <summary>

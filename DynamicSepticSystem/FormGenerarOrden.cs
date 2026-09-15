@@ -10,7 +10,6 @@ using ClosedXML.Excel;
 using System.Drawing; // para usar imágenes
 using PdfSharp.Pdf;
 using DynamicSepticSystem;
-using OfficeOpenXml;
 using System.ComponentModel;
 using System.Windows.Media.Media3D;
 using Newtonsoft.Json;
@@ -126,31 +125,29 @@ public partial class FormGenerarOrden : Form
     string manzana, string lote, string folioOC, List<Material> materiales,
     string proveedor, string usuario, string detalles, string rutaExcel)
     {
-        ExcelPackage.License.SetNonCommercialOrganization("Ren-O-Franc");
-
-        using (var package = new ExcelPackage())
+        using (var package = new XLWorkbook())
         {
-            var ws = package.Workbook.Worksheets.Add("Compras");
+            var ws = package.Worksheets.Add("Compras");
             string[] headers = { "Folio OC", "Fecha", "Clave", "Descripción", "Unidad", "Cantidad", "Proveedor", "Usuario", "Detalles" };
             for (int i = 0; i < headers.Length; i++)
-                ws.Cells[1, i + 1].Value = headers[i];
+                ws.Cell(1, i + 1).Value = headers[i];
 
             int fila = 2;
             foreach (var mat in materiales)
             {
-                ws.Cells[fila, 1].Value = folioOC;
-                ws.Cells[fila, 2].Value = DateTime.Now;
-                ws.Cells[fila, 3].Value = mat.Clave;
-                ws.Cells[fila, 4].Value = mat.Descripcion;
-                ws.Cells[fila, 5].Value = mat.Unidad;
-                ws.Cells[fila, 6].Value = mat.Cantidad;
-                ws.Cells[fila, 7].Value = proveedor;
-                ws.Cells[fila, 8].Value = usuario;
-                ws.Cells[fila, 9].Value = detalles;
+                ws.Cell(fila, 1).Value = folioOC;
+                ws.Cell(fila, 2).Value = DateTime.Now;
+                ws.Cell(fila, 3).Value = mat.Clave;
+                ws.Cell(fila, 4).Value = mat.Descripcion;
+                ws.Cell(fila, 5).Value = mat.Unidad;
+                ws.Cell(fila, 6).Value = mat.Cantidad;
+                ws.Cell(fila, 7).Value = proveedor;
+                ws.Cell(fila, 8).Value = usuario;
+                ws.Cell(fila, 9).Value = detalles;
                 fila++;
             }
 
-            package.SaveAs(new FileInfo(rutaExcel));
+            package.SaveAs(rutaExcel);
         }
     }
 
@@ -235,7 +232,7 @@ public partial class FormGenerarOrden : Form
             ms.Position = 0;
             using (var logo = XImage.FromStream(ms))
             {
-                gfx.DrawImage(logo, page.Width - 150, 20, 100, 50); // posición y tamaño iguales a antes
+                gfx.DrawImage(logo, page.Width - 150, 20, 100, 89); // alto ajustado a la proporción del logo Pilaris
             }
         }
 

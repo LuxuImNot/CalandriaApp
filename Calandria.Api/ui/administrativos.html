@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilaris · Consulta por Casa (Dinero)</title>
+
+<style>
+/* ============================================================
+   TOKENS — copiados tal cual de panel.html/almacen.html/facturacion.html
+   (paleta café Calandria), para que se vea como un mismo sistema.
+   ============================================================ */
+:root {
+  --ink:#221E1B; --ink-2:#2F2825; --ink-3:#3C3430;
+  --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC; --on-ink-2:#A2978C;
+  --ok:#1F6B4A;   --ok-bg:#E2F0E8;
+  --warn:#C2620A; --warn-bg:#FAEADB;
+  --stop:#A31D1D; --stop-bg:#F7E3E3;
+  --info:#2B5C8A; --info-bg:#E2ECF5;
+  --idle:#6B655F; --idle-bg:#E9E6E1;
+  --grid:rgba(34,30,27,.07);
+  --shadow:0 1px 2px rgba(34,30,27,.06);
+  --mono:ui-monospace,"Cascadia Mono","Segoe UI Mono","SF Mono",Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI Variable Text","Segoe UI",Roboto,sans-serif;
+  --r:8px; --r-2:10px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#100E0C; --ink-2:#191512; --ink-3:#241E1A;
+    --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+    --rule:#3A322C; --rule-soft:#2C2521;
+    --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+    --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+    --on-ink:#F2EEE9; --on-ink-2:#948A80;
+    --ok:#54B183;   --ok-bg:#163024;
+    --warn:#E0913F; --warn-bg:#33240F;
+    --stop:#DB6B6B; --stop-bg:#331717;
+    --info:#6FA3D8; --info-bg:#182838;
+    --idle:#948C83; --idle-bg:#262119;
+    --grid:rgba(242,238,233,.06);
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#100E0C; --ink-2:#191512; --ink-3:#241E1A;
+  --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+  --rule:#3A322C; --rule-soft:#2C2521;
+  --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+  --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+  --on-ink:#F2EEE9; --on-ink-2:#948A80;
+  --ok:#54B183;   --ok-bg:#163024;
+  --warn:#E0913F; --warn-bg:#33240F;
+  --stop:#DB6B6B; --stop-bg:#331717;
+  --info:#6FA3D8; --info-bg:#182838;
+  --idle:#948C83; --idle-bg:#262119;
+  --grid:rgba(242,238,233,.06);
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}
+:root[data-theme="light"]{
+  --ink:#221E1B; --ink-2:#2F2825; --ink-3:#3C3430;
+  --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC; --on-ink-2:#A2978C;
+  --ok:#1F6B4A;   --ok-bg:#E2F0E8;
+  --warn:#C2620A; --warn-bg:#FAEADB;
+  --stop:#A31D1D; --stop-bg:#F7E3E3;
+  --info:#2B5C8A; --info-bg:#E2ECF5;
+  --idle:#6B655F; --idle-bg:#E9E6E1;
+  --grid:rgba(34,30,27,.07);
+  --shadow:0 1px 2px rgba(34,30,27,.06);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--text);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{margin:0; text-wrap:balance; font-weight:600; letter-spacing:-.01em}
+button{font:inherit; color:inherit; cursor:pointer; background:none; border:0}
+select{font:inherit; color:inherit}
+:focus-visible{outline:2px solid var(--brass); outline-offset:2px; border-radius:3px}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.eyebrow{
+  font-size:10px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--text-3);
+}
+
+/* ================= SHELL (sin rail: formulario independiente) ================= */
+.app{display:flex; flex-direction:column; height:100dvh; overflow:hidden}
+
+.titleblock{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:12px 20px; background:var(--surface);
+  border-bottom:1px solid var(--rule); flex:none;
+}
+.tb-title{display:flex; flex-direction:column; gap:2px; min-width:0}
+.tb-spacer{flex:1}
+.pill{
+  display:inline-flex; align-items:center; gap:6px; flex:none;
+  font-size:11.5px; padding:5px 9px; border-radius:100px;
+  border:1px solid var(--rule); background:var(--surface-2); color:var(--text-2);
+}
+.icon-btn{
+  width:36px; height:36px; display:grid; place-items:center; flex:none;
+  border:1px solid var(--rule); border-radius:var(--r-2);
+  background:var(--surface-2); color:var(--text-2);
+  transition:border-color .16s ease, color .16s ease;
+}
+.icon-btn:hover{border-color:var(--brass); color:var(--brass)}
+.icon-btn svg{width:16px; height:16px; stroke-width:1.7}
+
+/* ================= TOOLBAR ================= */
+.toolbar{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:12px 20px; background:var(--surface); border-bottom:1px solid var(--rule); flex:none;
+}
+.toolbar select{
+  min-height:36px; border-radius:var(--r); border:1px solid var(--rule);
+  background:var(--surface-2); color:var(--text); padding:0 10px; font-size:12.5px;
+}
+
+.btn{
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  min-height:36px; padding:8px 14px; border-radius:var(--r-2);
+  border:1px solid var(--rule); background:var(--surface-2); color:var(--text);
+  font-size:12.5px; font-weight:500; white-space:nowrap;
+  transition:border-color .16s ease, background .16s ease, color .16s ease;
+}
+.btn:hover{border-color:var(--brass); color:var(--brass)}
+.btn:disabled{opacity:.5; cursor:default; border-color:var(--rule); color:var(--text-3)}
+.btn-primary{background:var(--ink); color:var(--on-ink); border-color:var(--ink)}
+.btn-primary:hover{background:var(--ink-2); border-color:var(--ink-2); color:var(--on-ink)}
+.btn-primary:disabled{background:var(--surface-2); color:var(--text-3); border-color:var(--rule)}
+
+/* ================= BODY / PANELS ================= */
+.view-body{flex:1; min-height:0; overflow-y:auto; padding:18px 20px 32px}
+.empty{
+  margin:auto; padding:44px 24px; text-align:center; display:flex; flex-direction:column;
+  align-items:center; gap:9px; color:var(--text-3); max-width:420px;
+}
+.empty[hidden]{display:none}
+.empty svg{width:30px; height:30px; stroke-width:1.3; color:var(--rule)}
+.empty p{margin:0; font-size:12.75px; max-width:34ch; line-height:1.55}
+.empty strong{color:var(--text-2); font-weight:600; display:block; font-size:13.5px}
+
+/* ================= DASHBOARD: secciones con rótulo ================= */
+.section-label{
+  display:flex; align-items:baseline; gap:8px; margin:0 0 8px; padding-top:2px;
+}
+.section-label .eyebrow{color:var(--text-3)}
+.section-label .hint{font-size:11.5px; color:var(--text-3)}
+.section-label:not(:first-child){margin-top:4px}
+
+/* ================= KPI STRIP (tarjetas espaciadas y coloreadas por tipo) ================= */
+.kpis{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr));
+  gap:10px; margin-bottom:18px;
+}
+.kpi{
+  background:var(--surface); border:1px solid var(--rule); border-top:3px solid var(--rule);
+  border-radius:var(--r-2); box-shadow:var(--shadow);
+  padding:12px 15px 12px; display:flex; flex-direction:column; gap:7px;
+}
+.kpi.is-headline .kpi-val{font-size:23px}
+.kpi-top{display:flex; align-items:center; justify-content:space-between; gap:8px}
+.kpi-val{font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:19px; font-weight:600; letter-spacing:-.02em; line-height:1; color:var(--text)}
+.kpi-meta{font-size:11.5px; color:var(--text-2)}
+
+/* Colores semánticos: dorado = total/hero, verde = M.O./reconocido, rojo = material,
+   ámbar = compras, azul = almacén, dorado suave = nómina, gris = referencia/aparte. */
+.kpi.c-brass{border-top-color:var(--brass)}
+.kpi.c-brass .kpi-val{color:var(--brass)}
+.kpi.c-brass2{border-top-color:var(--brass-2)}
+.kpi.c-brass2 .kpi-val{color:var(--brass-2)}
+.kpi.c-ok{border-top-color:var(--ok)}
+.kpi.c-ok .kpi-val{color:var(--ok)}
+.kpi.c-stop{border-top-color:var(--stop)}
+.kpi.c-stop .kpi-val{color:var(--stop)}
+.kpi.c-warn{border-top-color:var(--warn)}
+.kpi.c-warn .kpi-val{color:var(--warn)}
+.kpi.c-info{border-top-color:var(--info)}
+.kpi.c-info .kpi-val{color:var(--info)}
+.kpi.c-idle{border-top-color:var(--idle)}
+.kpi.c-idle .kpi-val{color:var(--text-2)}
+
+/* ================= DESGLOSE M.O. / MATERIAL (barras comprometido vs gastado) ================= */
+.gasto-grid{
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:12px; margin-bottom:20px;
+}
+.gasto-card{
+  background:var(--surface); border:1px solid var(--rule); border-top:3px solid var(--rule); border-radius:var(--r-2);
+  padding:14px 16px 13px; box-shadow:var(--shadow);
+}
+.gasto-card.is-mo{border-top-color:var(--ok)}
+.gasto-card.is-mat{border-top-color:var(--stop)}
+.gasto-card .gc-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:2px}
+.gasto-card .gc-label{display:flex; align-items:center; gap:7px; font-size:12px; font-weight:700; color:var(--text-2)}
+.gasto-card .gc-dot{width:9px; height:9px; border-radius:50%; flex:none}
+.gasto-card .gc-dot.is-mo{background:var(--ok)}
+.gasto-card .gc-dot.is-mat{background:var(--stop)}
+.gasto-card .gc-pct{font-family:var(--mono); font-size:12px; font-weight:700; color:var(--text-2)}
+.gasto-card .gc-val{font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:22px; font-weight:600; margin:4px 0 9px}
+.gasto-card .gc-val small{font-size:12px; font-weight:500; color:var(--text-3)}
+.bar-track{height:7px; border-radius:100px; background:var(--rule-soft); overflow:hidden}
+.bar-fill{height:100%; border-radius:100px; width:0%; transition:width .3s ease}
+.bar-fill.is-mo{background:var(--ok)}
+.bar-fill.is-mat{background:var(--stop)}
+.gasto-card .gc-sub{margin-top:8px; font-size:11.5px; color:var(--text-3)}
+
+.panel-block{
+  background:var(--surface); border:1px solid var(--rule); border-left:4px solid var(--rule); border-radius:var(--r-2);
+  box-shadow:var(--shadow); margin-bottom:16px; overflow:hidden;
+}
+.panel-head{
+  display:flex; align-items:center; gap:8px; padding:11px 14px;
+  border-bottom:1px solid var(--rule-soft); background:var(--surface-2);
+}
+.panel-head .title{font-size:12.5px; font-weight:700; letter-spacing:.02em; color:var(--text-2); flex:1}
+.panel-head .subtotal{font-family:var(--mono); font-size:12.5px; font-weight:700; color:var(--ok)}
+
+/* Acento de color por sección — misma paleta que las tarjetas KPI de arriba. */
+.panel-block.c-brass{border-left-color:var(--brass)}
+.panel-block.c-brass .panel-head{background:color-mix(in srgb, var(--brass) 9%, var(--surface-2))}
+.panel-block.c-warn{border-left-color:var(--warn)}
+.panel-block.c-warn .panel-head{background:color-mix(in srgb, var(--warn) 9%, var(--surface-2))}
+.panel-block.c-info{border-left-color:var(--info)}
+.panel-block.c-info .panel-head{background:color-mix(in srgb, var(--info) 9%, var(--surface-2))}
+.panel-block.c-brass2{border-left-color:var(--brass-2)}
+.panel-block.c-brass2 .panel-head{background:color-mix(in srgb, var(--brass-2) 9%, var(--surface-2))}
+.panel-block.c-idle{border-left-color:var(--idle)}
+
+/* ---- <details> usado para Estimaciones: cerrado por defecto, se abre a pedido ---- */
+details.panel-block > summary{
+  display:flex; align-items:center; gap:8px; padding:11px 14px;
+  border-bottom:1px solid var(--rule-soft); background:var(--surface-2);
+  cursor:pointer; list-style:none;
+}
+details.panel-block > summary::-webkit-details-marker{display:none}
+details.panel-block > summary .chev{width:14px; height:14px; stroke-width:2; color:var(--text-3); transition:transform .16s ease; flex:none}
+details.panel-block[open] > summary .chev{transform:rotate(90deg)}
+details.panel-block:not([open]) > summary{border-bottom:0}
+details.panel-block > summary:hover .title{color:var(--brass)}
+
+.table-wrap{overflow:auto}
+table.grid{width:100%; border-collapse:collapse; font-size:12.25px}
+table.grid th, table.grid td{padding:8px 12px; border-bottom:1px solid var(--rule-soft); text-align:left; white-space:nowrap}
+table.grid th{
+  position:sticky; top:0; background:var(--surface-2); z-index:1;
+  font-size:10.25px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-3); font-weight:700;
+}
+table.grid td.num, table.grid th.num{font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right}
+table.grid tr.group-row td{
+  background:var(--brass-soft); color:var(--brass); font-weight:700; font-size:11.5px;
+  position:sticky; top:26px; z-index:1;
+}
+table.grid tr.is-gastado td{background:color-mix(in srgb, var(--ok) 8%, var(--surface))}
+.table-empty{padding:22px; text-align:center; color:var(--text-3); font-size:12.5px}
+
+.badge{
+  display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600;
+  padding:3px 8px; border-radius:100px; border:1px solid; white-space:nowrap; flex:none;
+}
+.b-ok{color:var(--ok); background:var(--ok-bg); border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+.b-warn{color:var(--warn); background:var(--warn-bg); border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
+.b-idle{color:var(--idle); background:var(--idle-bg); border-color:var(--rule)}
+.b-brass{color:var(--brass); background:var(--brass-soft); border-color:color-mix(in srgb,var(--brass) 35%,transparent)}
+
+.toast{
+  position:fixed; left:50%; bottom:22px; transform:translate(-50%,14px);
+  background:var(--ink); color:var(--on-ink); border:1px solid var(--ink-3);
+  border-radius:var(--r-2); padding:9px 14px; font-size:12.5px;
+  box-shadow:0 6px 22px rgba(0,0,0,.28); z-index:80;
+  opacity:0; pointer-events:none; transition:opacity .18s ease, transform .18s ease;
+}
+.toast.is-on{opacity:1; transform:translate(-50%,0)}
+.toast.is-warn{background:var(--stop); border-color:var(--stop); color:#fff}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="titleblock">
+    <div class="tb-title">
+      <span class="eyebrow">Administrativos</span>
+      <h1 id="tbTitulo">Consulta por Casa · Dinero</h1>
+    </div>
+    <span class="pill" id="pillCasa" hidden></span>
+    <div class="tb-spacer"></div>
+    <button class="icon-btn" id="btnVolver" title="Volver al panel clásico">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+    </button>
+  </header>
+
+  <div class="toolbar">
+    <span class="eyebrow">Casa</span>
+    <select id="selManzana" aria-label="Manzana"><option value="">Manzana…</option></select>
+    <select id="selLote" aria-label="Lote" disabled><option value="">Lote…</option></select>
+    <button class="btn btn-primary" id="btnConsultar" disabled>Consultar</button>
+    <div class="tb-spacer"></div>
+    <button class="btn" id="btnExportarPdf" disabled>Exportar PDF</button>
+  </div>
+
+  <div class="view-body">
+    <div class="empty" id="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>
+      <p><strong>Ninguna casa consultada</strong>Elige manzana y lote, luego pulsa «Consultar».</p>
+    </div>
+
+    <div id="contenido" hidden>
+      <div class="section-label"><span class="eyebrow">Resumen</span><span class="hint">Panorama financiero de la casa</span></div>
+      <section class="kpis" aria-label="Resumen financiero">
+        <div class="kpi is-headline c-brass">
+          <div class="kpi-top"><span class="eyebrow">Gran total</span></div>
+          <div class="kpi-val" id="kGranTotal">—</div>
+          <div class="kpi-meta">Estimaciones + gasto reconocido de destajos</div>
+        </div>
+        <div class="kpi is-headline c-idle">
+          <div class="kpi-top"><span class="eyebrow">Comprometido en destajos</span></div>
+          <div class="kpi-val" id="kComprometido">—</div>
+          <div class="kpi-meta" id="kComprometidoInfo">Sin consultar</div>
+        </div>
+        <div class="kpi is-headline c-ok">
+          <div class="kpi-top"><span class="eyebrow">Gastado reconocido</span></div>
+          <div class="kpi-val" id="kGastado">—</div>
+          <div class="kpi-meta" id="kGastadoInfo">Sin consultar</div>
+        </div>
+        <div class="kpi c-idle">
+          <div class="kpi-top"><span class="eyebrow">Estimaciones</span></div>
+          <div class="kpi-val" id="kEstimaciones">—</div>
+          <div class="kpi-meta" id="kEstimacionesInfo">Sin consultar</div>
+        </div>
+      </section>
+
+      <div class="section-label"><span class="eyebrow">Destajos</span><span class="hint">Comprometido vs. gastado reconocido, por tipo</span></div>
+      <section class="gasto-grid" aria-label="Desglose de gasto en destajos">
+        <div class="gasto-card is-mo">
+          <div class="gc-head">
+            <span class="gc-label"><span class="gc-dot is-mo"></span>Mano de obra</span>
+            <span class="gc-pct" id="gcMOPct">0%</span>
+          </div>
+          <div class="gc-val" id="gcMOValor">$0.00 <small id="gcMODeComprometido">de $0.00 comprometido</small></div>
+          <div class="bar-track"><div class="bar-fill is-mo" id="gcMOBar"></div></div>
+          <div class="gc-sub" id="gcMOSub">Sin consultar</div>
+        </div>
+        <div class="gasto-card is-mat">
+          <div class="gc-head">
+            <span class="gc-label"><span class="gc-dot is-mat"></span>Material</span>
+            <span class="gc-pct" id="gcMatPct">0%</span>
+          </div>
+          <div class="gc-val" id="gcMatValor">$0.00 <small id="gcMatDeComprometido">de $0.00 comprometido</small></div>
+          <div class="bar-track"><div class="bar-fill is-mat" id="gcMatBar"></div></div>
+          <div class="gc-sub" id="gcMatSub">Sin consultar</div>
+        </div>
+      </section>
+
+      <div class="panel-block c-brass">
+        <div class="panel-head"><span class="title">DESTAJOS — por Categoría (M.O. gastado al asignar nómina · Material gastado al finalizar)</span></div>
+        <div class="table-wrap">
+          <table class="grid" id="tblDestajos">
+            <thead><tr><th>ID</th><th>Tipo</th><th>Destajo</th><th class="num">Cant.</th><th>Unid.</th><th class="num">P. Unit.</th><th class="num">Importe</th><th class="num">Gastado</th><th>Cuadrilla</th><th>Estado</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section-label"><span class="eyebrow">Otras fuentes de gasto</span><span class="hint">Compras, almacén y nómina ligados a esta casa</span></div>
+      <section class="kpis" aria-label="Otras fuentes de gasto">
+        <div class="kpi c-warn">
+          <div class="kpi-top"><span class="eyebrow">Compras</span></div>
+          <div class="kpi-val" id="kCompras">—</div>
+          <div class="kpi-meta" id="kComprasInfo">Sin consultar</div>
+        </div>
+        <div class="kpi c-info">
+          <div class="kpi-top"><span class="eyebrow">Salidas de almacén</span></div>
+          <div class="kpi-val" id="kSalidas">—</div>
+          <div class="kpi-meta" id="kSalidasInfo">Sin consultar</div>
+        </div>
+        <div class="kpi c-brass2">
+          <div class="kpi-top"><span class="eyebrow">Nómina asignada</span></div>
+          <div class="kpi-val" id="kNomina">—</div>
+          <div class="kpi-meta" id="kNominaInfo">Sin consultar</div>
+        </div>
+      </section>
+
+      <div class="panel-block c-warn">
+        <div class="panel-head"><span class="title">COMPRAS LIGADAS A LA CASA</span><span class="subtotal" id="subCompras"></span></div>
+        <div class="table-wrap">
+          <table class="grid" id="tblCompras">
+            <thead><tr><th>Folio OC</th><th>Fecha</th><th>Tipo</th><th>Orden</th><th>Proveedor</th><th class="num">Partidas</th><th class="num">Importe</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel-block c-info">
+        <div class="panel-head"><span class="title">SALIDAS DE ALMACÉN</span><span class="subtotal" id="subSalidas"></span></div>
+        <div class="table-wrap">
+          <table class="grid" id="tblSalidas">
+            <thead><tr><th>Clave</th><th>Descripción</th><th>Unidad</th><th class="num">Cantidad</th><th class="num">P. Unit.</th><th class="num">Importe</th><th>Fecha</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel-block c-brass2">
+        <div class="panel-head"><span class="title">NÓMINA DETALLADA</span><span class="subtotal" id="subNomina"></span></div>
+        <div class="table-wrap">
+          <table class="grid" id="tblNomina">
+            <thead><tr><th>Tarea</th><th>Cuadrilla</th><th>Trabajador</th><th>Rol</th><th class="num">Monto</th><th>Actualizado</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="section-label"><span class="eyebrow">Aparte</span><span class="hint">Las estimaciones se administran por concepto individual</span></div>
+      <details class="panel-block c-idle" id="detEstimaciones">
+        <summary>
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          <span class="title">ESTIMACIONES — por Etapa (clic para ver el detalle por concepto)</span>
+        </summary>
+        <div class="table-wrap">
+          <table class="grid" id="tblEstimaciones">
+            <thead><tr><th>WBS</th><th>Código</th><th>Partida</th><th class="num">Avance %</th><th class="num">Monto Ejec.</th><th>Fecha Fin</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = sel => document.querySelector(sel);
+  const mx = n => "$" + (+n || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pct = n => (Number.isFinite(n) ? n : 0).toFixed(1) + "%";
+  const fechaDia = iso => { if (!iso) return "—"; try { return new Date(iso).toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" }); } catch { return "—"; } };
+  function esc(s) { return (s == null ? "" : String(s)).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+  // ==========================================================================
+  // PUENTE CON EL HOST WinForms (WebView2) — mismo patrón que almacen.html
+  // ==========================================================================
+  const HOST = window.chrome && window.chrome.webview ? window.chrome.webview : null;
+
+  const toastEl = $("#toast");
+  let toastT = null;
+  function aviso(txt, warn) {
+    toastEl.textContent = txt;
+    toastEl.classList.toggle("is-warn", !!warn);
+    toastEl.classList.add("is-on");
+    clearTimeout(toastT);
+    toastT = setTimeout(() => toastEl.classList.remove("is-on"), warn ? 3400 : 2000);
+  }
+
+  function alHost(accion, extra) {
+    if (!HOST) { aviso("Sin aplicación anfitriona: esta acción sólo funciona dentro de Pilaris.", true); return; }
+    HOST.postMessage(Object.assign({ accion }, extra || {}));
+  }
+
+  $("#btnVolver").addEventListener("click", () => alHost("volver"));
+
+  function poblarSelect(sel, lista, placeholder) {
+    sel.innerHTML = `<option value="">${placeholder}</option>` + (lista || []).map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+    sel.disabled = !(lista && lista.length);
+  }
+
+  const selManzana = $("#selManzana");
+  const selLote = $("#selLote");
+  const btnConsultar = $("#btnConsultar");
+  const btnExportarPdf = $("#btnExportarPdf");
+
+  selManzana.addEventListener("change", () => {
+    selLote.innerHTML = '<option value="">Lote…</option>'; selLote.disabled = true;
+    btnConsultar.disabled = true;
+    if (!selManzana.value) return;
+    alHost("cargar-lotes", { manzana: selManzana.value });
+  });
+  selLote.addEventListener("change", () => { btnConsultar.disabled = !selLote.value; });
+  btnConsultar.addEventListener("click", () => {
+    if (!selManzana.value || !selLote.value) return;
+    alHost("cargar-consolidado", { manzana: selManzana.value, lote: selLote.value });
+  });
+  btnExportarPdf.addEventListener("click", () => {
+    if (!selManzana.value || !selLote.value) return;
+    alHost("exportar-pdf", { manzana: selManzana.value, lote: selLote.value });
+  });
+
+  // ==========================================================================
+  // RENDER
+  // ==========================================================================
+  const empty = $("#empty");
+  const contenido = $("#contenido");
+  const detEstimaciones = $("#detEstimaciones");
+
+  function agrupar(lista, clave) {
+    const grupos = new Map();
+    (lista || []).forEach(item => {
+      const k = item[clave] || "(Sin dato)";
+      if (!grupos.has(k)) grupos.set(k, []);
+      grupos.get(k).push(item);
+    });
+    return grupos;
+  }
+
+  function renderEstimaciones(lista) {
+    const tbody = $("#tblEstimaciones tbody");
+    tbody.innerHTML = "";
+    if (!lista || !lista.length) { tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Sin estimaciones para esta casa.</td></tr>'; return; }
+    const grupos = agrupar(lista, "etapa");
+    grupos.forEach((items, etapa) => {
+      const subtotal = items.reduce((s, r) => s + (r.montoEjecutado || 0), 0);
+      tbody.insertAdjacentHTML("beforeend", `<tr class="group-row"><td colspan="6">${esc(etapa)} · ${items.length} concepto(s) · Subtotal: ${mx(subtotal)}</td></tr>`);
+      items.forEach(r => {
+        tbody.insertAdjacentHTML("beforeend", `<tr>
+          <td>${esc(r.wbs)}</td><td>${esc(r.codigo)}</td><td>${esc(r.partida)}</td>
+          <td class="num">${(+r.avancePorcentaje || 0).toFixed(2)} %</td>
+          <td class="num">${mx(r.montoEjecutado)}</td>
+          <td>${fechaDia(r.fechaFinalizacion)}</td>
+        </tr>`);
+      });
+    });
+  }
+
+  function renderDestajos(lista) {
+    const tbody = $("#tblDestajos tbody");
+    tbody.innerHTML = "";
+    if (!lista || !lista.length) { tbody.innerHTML = '<tr><td colspan="10" class="table-empty">Sin destajos activados para esta casa.</td></tr>'; return; }
+    const grupos = agrupar(lista, "categoria");
+    grupos.forEach((items, categoria) => {
+      const subMO = items.filter(r => r.tipo === "M. de Obra").reduce((s, r) => s + (r.montoGastado || 0), 0);
+      const subMat = items.filter(r => r.tipo === "Material").reduce((s, r) => s + (r.montoGastado || 0), 0);
+      tbody.insertAdjacentHTML("beforeend", `<tr class="group-row"><td colspan="10">${esc(categoria)} · ${items.length} destajo(s) · M.O.: ${mx(subMO)} · Material: ${mx(subMat)}</td></tr>`);
+      items.forEach(r => {
+        tbody.insertAdjacentHTML("beforeend", `<tr class="${r.montoGastado > 0 ? "is-gastado" : ""}">
+          <td class="num">${r.nodoId}</td><td>${esc(r.tipo)}</td><td>${esc(r.nombre)}</td>
+          <td class="num">${(+r.cantidad || 0).toFixed(2)}</td><td>${esc(r.unidad)}</td>
+          <td class="num">${mx(r.precioUnitario)}</td><td class="num">${mx(r.importe)}</td>
+          <td class="num">${r.montoGastado ? mx(r.montoGastado) : "—"}</td>
+          <td>${esc(r.cuadrilla)}</td><td>${esc(r.estado)}</td>
+        </tr>`);
+      });
+    });
+  }
+
+  function renderCompras(lista) {
+    const tbody = $("#tblCompras tbody");
+    tbody.innerHTML = "";
+    const total = (lista || []).reduce((s, r) => s + (r.importe || 0), 0);
+    $("#subCompras").textContent = lista && lista.length ? mx(total) : "";
+    if (!lista || !lista.length) { tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Sin órdenes de compra ligadas a esta casa.</td></tr>'; return; }
+    lista.forEach(r => {
+      tbody.insertAdjacentHTML("beforeend", `<tr>
+        <td class="num">${esc(r.folioOC)}</td><td>${fechaDia(r.fecha)}</td><td>${esc(r.tipoOrden)}</td>
+        <td>${esc(r.nombreOrden)}</td><td>${esc(r.proveedor)}</td>
+        <td class="num">${r.numPartidas}</td><td class="num">${mx(r.importe)}</td>
+      </tr>`);
+    });
+  }
+
+  function renderSalidas(lista) {
+    const tbody = $("#tblSalidas tbody");
+    tbody.innerHTML = "";
+    const total = (lista || []).reduce((s, r) => s + (r.importe || 0), 0);
+    $("#subSalidas").textContent = lista && lista.length ? mx(total) : "";
+    if (!lista || !lista.length) { tbody.innerHTML = '<tr><td colspan="7" class="table-empty">Sin salidas de Almacén registradas para esta casa.</td></tr>'; return; }
+    lista.forEach(r => {
+      tbody.insertAdjacentHTML("beforeend", `<tr>
+        <td class="num">${esc(r.clave)}</td><td>${esc(r.descripcion)}</td><td>${esc(r.unidad)}</td>
+        <td class="num">${(+r.cantidad || 0).toFixed(2)}</td><td class="num">${mx(r.precioUnitario)}</td>
+        <td class="num">${mx(r.importe)}</td><td>${fechaDia(r.fechaSalida)}</td>
+      </tr>`);
+    });
+  }
+
+  function renderNomina(lista) {
+    const tbody = $("#tblNomina tbody");
+    tbody.innerHTML = "";
+    const total = (lista || []).reduce((s, r) => s + (r.monto || 0), 0);
+    $("#subNomina").textContent = lista && lista.length ? mx(total) : "";
+    if (!lista || !lista.length) { tbody.innerHTML = '<tr><td colspan="6" class="table-empty">Sin nómina asignada a destajos de esta casa.</td></tr>'; return; }
+    lista.forEach(r => {
+      tbody.insertAdjacentHTML("beforeend", `<tr>
+        <td>${esc(r.nombreTarea)}</td><td>${esc(r.codigoCuadrilla)}</td>
+        <td>${esc(r.nombreTrabajador)}${r.esJefe ? ' <span class="badge b-brass">Jefe</span>' : ""}</td>
+        <td>${esc(r.rol)}</td><td class="num">${mx(r.monto)}</td><td>${fechaDia(r.fechaActualizacion)}</td>
+      </tr>`);
+    });
+  }
+
+  function renderConsolidado(d) {
+    empty.hidden = true;
+    contenido.hidden = false;
+    btnExportarPdf.disabled = false;
+    detEstimaciones.open = false; // las estimaciones se manejan por concepto individual: cerradas hasta que se pidan
+
+    const pill = $("#pillCasa");
+    pill.hidden = false;
+    pill.textContent = `Mz ${d.manzana} · Lt ${d.lote}` + (d.prototipo ? ` · ${d.prototipo}` : "");
+
+    const destajos = d.destajos || [];
+    const compras = d.compras || [];
+    const salidas = d.salidasAlmacen || [];
+    const nomina = d.nomina || [];
+
+    // ---- Resumen (headline) ----
+    $("#kGranTotal").textContent = mx(d.granTotal);
+
+    $("#kComprometido").textContent = mx(d.totalDestajosComprometido);
+    $("#kComprometidoInfo").textContent = `${destajos.length} destajo(s) activado(s)`;
+
+    const totalGastado = (d.totalManoObraGastado || 0) + (d.totalMaterialGastado || 0);
+    const pctAvanceGasto = d.totalDestajosComprometido ? (totalGastado / d.totalDestajosComprometido) * 100 : 0;
+    $("#kGastado").textContent = mx(totalGastado);
+    $("#kGastadoInfo").textContent = `${pct(pctAvanceGasto)} de lo comprometido`;
+
+    $("#kEstimaciones").textContent = mx(d.totalEstimaciones);
+    const etapas = new Set((d.estimaciones || []).map(e => e.etapa || "(Sin etapa)")).size;
+    $("#kEstimacionesInfo").textContent = `${(d.estimaciones || []).length} concepto(s) en ${etapas} etapa(s)`;
+
+    // ---- Desglose M.O. / Material (comprometido vs. gastado) ----
+    const destajosMO = destajos.filter(x => x.tipo === "M. de Obra");
+    const destajosMat = destajos.filter(x => x.tipo === "Material");
+    const comprometidoMO = destajosMO.reduce((s, r) => s + (r.importe || 0), 0);
+    const comprometidoMat = destajosMat.reduce((s, r) => s + (r.importe || 0), 0);
+    const conMOAsignada = destajosMO.filter(r => (r.montoGastado || 0) > 0).length;
+    const matFinalizados = destajosMat.filter(r => r.finalizado).length;
+    const pctMO = comprometidoMO ? ((d.totalManoObraGastado || 0) / comprometidoMO) * 100 : 0;
+    const pctMat = comprometidoMat ? ((d.totalMaterialGastado || 0) / comprometidoMat) * 100 : 0;
+
+    $("#gcMOPct").textContent = pct(pctMO);
+    $("#gcMOValor").innerHTML = `${mx(d.totalManoObraGastado)} <small id="gcMODeComprometido">de ${mx(comprometidoMO)} comprometido</small>`;
+    $("#gcMOBar").style.width = Math.max(0, Math.min(100, pctMO)) + "%";
+    $("#gcMOSub").textContent = `${conMOAsignada}/${destajosMO.length} destajo(s) con nómina asignada`;
+
+    $("#gcMatPct").textContent = pct(pctMat);
+    $("#gcMatValor").innerHTML = `${mx(d.totalMaterialGastado)} <small id="gcMatDeComprometido">de ${mx(comprometidoMat)} comprometido</small>`;
+    $("#gcMatBar").style.width = Math.max(0, Math.min(100, pctMat)) + "%";
+    $("#gcMatSub").textContent = `${matFinalizados}/${destajosMat.length} destajo(s) finalizado(s)`;
+
+    // ---- Otras fuentes de gasto ----
+    const proveedores = new Set(compras.map(c => c.proveedor).filter(Boolean)).size;
+    $("#kCompras").textContent = mx(d.totalCompras);
+    $("#kComprasInfo").textContent = compras.length ? `${compras.length} orden(es) · ${proveedores} proveedor(es)` : "Sin órdenes ligadas";
+
+    $("#kSalidas").textContent = mx(d.totalSalidasAlmacen);
+    $("#kSalidasInfo").textContent = salidas.length ? `${salidas.length} movimiento(s) de almacén` : "Sin salidas registradas";
+
+    const trabajadores = new Set(nomina.map(n => n.nombreTrabajador).filter(Boolean)).size;
+    $("#kNomina").textContent = mx(d.totalNomina);
+    $("#kNominaInfo").textContent = nomina.length ? `${nomina.length} pago(s) · ${trabajadores} trabajador(es)` : "Sin nómina asignada";
+
+    renderEstimaciones(d.estimaciones);
+    renderDestajos(destajos);
+    renderCompras(compras);
+    renderSalidas(salidas);
+    renderNomina(nomina);
+  }
+
+  // ==========================================================================
+  // MENSAJES DEL HOST
+  // ==========================================================================
+  if (HOST) {
+    HOST.addEventListener("message", ev => {
+      const d = ev.data;
+      if (!d || !d.tipo) return;
+      switch (d.tipo) {
+        case "manzanas": poblarSelect(selManzana, d.lista, "Manzana…"); break;
+        case "lotes": poblarSelect(selLote, d.lista, "Lote…"); break;
+        case "consolidado": renderConsolidado(d); break;
+        case "pdfExportado": aviso(d.mensaje || (d.ok ? "PDF generado." : "No se pudo generar el PDF."), !d.ok); break;
+        case "error": aviso(d.mensaje || "Ocurrió un error.", true); break;
+      }
+    });
+    alHost("cargar-manzanas");
+  } else {
+    poblarSelect(selManzana, ["A", "B", "C"], "Manzana…");
+  }
+})();
+</script>
+</body>
+</html>

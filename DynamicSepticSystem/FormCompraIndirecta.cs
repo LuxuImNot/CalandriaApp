@@ -518,7 +518,7 @@ namespace DynamicSepticSystem
             pdf.Info.Title = "Orden de Compra - " + folioOC;
             pdf.Info.Author = "Desarrolladora de Casas Camaney";
             pdf.Info.Subject = "Orden de Compra";
-            pdf.Info.Creator = "Sistema Calandria";
+            pdf.Info.Creator = "Sistema Pilaris";
 
             PdfPage page = pdf.AddPage();
             page.Size = PdfSharp.PageSize.Letter;
@@ -565,7 +565,7 @@ namespace DynamicSepticSystem
                     using (var logo = XImage.FromStream(ms))
                     {
                         int logoWidth = 120;
-                        int logoHeight = 80;
+                        int logoHeight = 107; // proporción del logo Pilaris
                         int logoX = (int)page.Width - margin - logoWidth;
                         gfx.DrawImage(logo, logoX, margin - 5, logoWidth, logoHeight);
                     }

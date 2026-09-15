@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Web.Http;
+using Calandria.Api.Auth;
 using Calandria.Api.Data;
 using Calandria.Api.Models;
 
@@ -19,11 +20,11 @@ namespace Calandria.Api.Controllers
     /// FormRepositorioPDFsOrdenesCompra y FormDetalleOrdenCompra. El PDF viaja en
     /// base64 al guardar y como binario al consultar.
     /// </summary>
-    [RoutePrefix("api/repositorio-ordenes")]
+    [RoutePrefix("api/repositorio-ordenes"), RequierePermiso("compras.ver")]
     public class RepositorioOrdenesController : ApiController
     {
         /// <summary>POST /api/repositorio-ordenes/multiple · guarda una orden múltiple/individual.</summary>
-        [HttpPost, Route("multiple")]
+        [HttpPost, Route("multiple"), RequierePermiso("compras.editar")]
         public IHttpActionResult GuardarMultiple([FromBody] GuardarRepoMultipleRequest req)
         {
             if (req == null || req.Detalles == null || req.Detalles.Count == 0)
@@ -91,7 +92,7 @@ namespace Calandria.Api.Controllers
         }
 
         /// <summary>POST /api/repositorio-ordenes/indirecta · guarda una orden indirecta/administrativa.</summary>
-        [HttpPost, Route("indirecta")]
+        [HttpPost, Route("indirecta"), RequierePermiso("compras.editar")]
         public IHttpActionResult GuardarIndirecta([FromBody] GuardarRepoIndirectaRequest req)
         {
             if (req == null || req.Detalles == null || req.Detalles.Count == 0)
@@ -313,7 +314,7 @@ FROM FoliosOrdenCompraDetalle WHERE FolioId = @id ORDER BY Clave", conn))
         }
 
         /// <summary>POST /api/repositorio-ordenes/{folioId}/eliminar · borra el folio (cascada).</summary>
-        [HttpPost, Route("{folioId:int}/eliminar")]
+        [HttpPost, Route("{folioId:int}/eliminar"), RequierePermiso("compras.editar")]
         public IHttpActionResult Eliminar(int folioId)
         {
             int filas;

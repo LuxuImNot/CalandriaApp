@@ -193,6 +193,7 @@ namespace DynamicSepticSystem
         public string Rol { get; set; }
         public List<string> Permisos { get; set; }
         public DateTime ExpiraUtc { get; set; }
+        public bool EsSuperAdmin { get; set; }
     }
 
     /// <summary>Si el usuario autenticado ya aceptó la versión vigente de Términos/Privacidad (api/terminos/estado).</summary>
@@ -266,11 +267,17 @@ namespace DynamicSepticSystem
 
     public sealed class ProveedorApi
     {
+        public string Folio { get; set; }
         public string ClaveUnica { get; set; }
         public string Nombre { get; set; }
         public string Rfc { get; set; }
         public string Direccion { get; set; }
         public string Telefono { get; set; }
+    }
+
+    public sealed class ProveedorCreadoApi
+    {
+        public string Folio { get; set; }
     }
 
     // ---- Compras · Órdenes de compra ----
@@ -740,6 +747,33 @@ namespace DynamicSepticSystem
         public DateTime? UltimaActualizacion { get; set; }
     }
 
+    /// <summary>Un destajo fusionado entre rutas (api/destajos/catalogo-avance-masivo), para FormAvanceMasivoWeb.</summary>
+    public sealed class CatalogoDestajoMasivoApi
+    {
+        public string Categoria { get; set; }
+        public string Destajo { get; set; }
+        public int? NodoIdTunera { get; set; }
+        public int? NodoIdCalandra { get; set; }
+    }
+
+    /// <summary>Resultado de api/destajos/avance-masivo.</summary>
+    public sealed class AvanceMasivoResultadoApi
+    {
+        public int Ok { get; set; }
+        public List<string> Errores { get; set; } = new List<string>();
+    }
+
+    /// <summary>Estado de un destajo frente a un conjunto de casas (api/destajos/estado-avance-masivo).</summary>
+    public sealed class EstadoDestajoMasivoApi
+    {
+        public string Categoria { get; set; }
+        public string Destajo { get; set; }
+        public int? NodoIdTunera { get; set; }
+        public int? NodoIdCalandra { get; set; }
+        public int CasasCompletas { get; set; }
+        public int CasasTotal { get; set; }
+    }
+
     public sealed class CuadrillaDestajoApi
     {
         public string Codigo { get; set; }
@@ -1175,5 +1209,89 @@ namespace DynamicSepticSystem
         public string NombreArchivo { get; set; }
         public DateTime FechaGeneracion { get; set; }
         public string Usuario { get; set; }
+    }
+
+    // ---- Administrativos · consulta por casa (api/administrativos) ----
+
+    public sealed class EstimacionItemApi
+    {
+        public string Wbs { get; set; }
+        public string Codigo { get; set; }
+        public string Etapa { get; set; }
+        public string Partida { get; set; }
+        public decimal AvancePorcentaje { get; set; }
+        public decimal MontoEjecutado { get; set; }
+        public DateTime? FechaFinalizacion { get; set; }
+    }
+
+    public sealed class DestajoItemApi
+    {
+        public int NodoId { get; set; }
+        public string Tipo { get; set; }
+        public string Nombre { get; set; }
+        public string Categoria { get; set; }
+        public decimal Cantidad { get; set; }
+        public string Unidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+        public decimal Importe { get; set; }
+        public decimal MontoGastado { get; set; }
+        public string Cuadrilla { get; set; }
+        public bool Finalizado { get; set; }
+        public string Estado { get; set; }
+    }
+
+    public sealed class CompraCasaApi
+    {
+        public string FolioOC { get; set; }
+        public DateTime? Fecha { get; set; }
+        public string TipoOrden { get; set; }
+        public string NombreOrden { get; set; }
+        public string Proveedor { get; set; }
+        public int NumPartidas { get; set; }
+        public decimal Importe { get; set; }
+    }
+
+    public sealed class SalidaAlmacenCasaApi
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Cantidad { get; set; }
+        public decimal PrecioUnitario { get; set; }
+        public decimal Importe { get; set; }
+        public DateTime? FechaSalida { get; set; }
+        public string Justificacion { get; set; }
+    }
+
+    public sealed class NominaCasaApi
+    {
+        public string NombreTarea { get; set; }
+        public string CodigoCuadrilla { get; set; }
+        public string NombreTrabajador { get; set; }
+        public string Rol { get; set; }
+        public bool EsJefe { get; set; }
+        public decimal Monto { get; set; }
+        public DateTime? FechaActualizacion { get; set; }
+    }
+
+    /// <summary>Concentrado financiero completo de una casa (api/administrativos/consolidado).</summary>
+    public sealed class ConsolidadoCasaApi
+    {
+        public string Manzana { get; set; }
+        public string Lote { get; set; }
+        public string Prototipo { get; set; }
+        public List<EstimacionItemApi> Estimaciones { get; set; } = new List<EstimacionItemApi>();
+        public List<DestajoItemApi> Destajos { get; set; } = new List<DestajoItemApi>();
+        public List<CompraCasaApi> Compras { get; set; } = new List<CompraCasaApi>();
+        public List<SalidaAlmacenCasaApi> SalidasAlmacen { get; set; } = new List<SalidaAlmacenCasaApi>();
+        public List<NominaCasaApi> Nomina { get; set; } = new List<NominaCasaApi>();
+        public decimal TotalEstimaciones { get; set; }
+        public decimal TotalDestajosComprometido { get; set; }
+        public decimal TotalManoObraGastado { get; set; }
+        public decimal TotalMaterialGastado { get; set; }
+        public decimal TotalCompras { get; set; }
+        public decimal TotalSalidasAlmacen { get; set; }
+        public decimal TotalNomina { get; set; }
+        public decimal GranTotal { get; set; }
     }
 }

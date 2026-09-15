@@ -243,7 +243,7 @@ namespace DynamicSepticSystem
             this.MinimizeBox = false;
             this.Name = "FormAgregarInsumoCarrito";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
-            this.Text = "Agregar Insumo al Carrito - Sistema Calandria";
+            this.Text = "Agregar Insumo al Carrito - Sistema Pilaris";
             this.panelHeader.ResumeLayout(false);
             this.panelHeader.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numCantidad)).EndInit();

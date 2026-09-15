@@ -1,29 +1,29 @@
-using BrightIdeasSoftware;
-using PdfSharp.Drawing;
-using PdfSharp.Pdf;
 using System;
 using System.Collections.Generic;
-using System.Configuration;
-using System.Data.SqlClient;
-using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using PdfSharp.Drawing;
+using PdfSharp.Pdf;
 
 namespace DynamicSepticSystem
 {
     /// <summary>
-    /// Consolidado financiero por casa. Layout HUD: detalle (tabs) a la izquierda
-    /// y panel-resumen con tarjetas Estimaciones / Destajos (M.O. + Material) a la derecha.
+    /// Consulta por Casa (Dinero): ventana dedicada que hospeda en WebView2 la
+    /// página Calandria.Api/ui/administrativos.html (Estimaciones, Destajos,
+    /// Compras, Salidas de Almacén y Nómina detallada de una casa) — ver
+    /// FormAdministrativos.Web.cs, mismo patrón que FormPerfilesWeb.cs /
+    /// FormTrabajadoresWeb.cs. Ya no tiene interfaz WinForms clásica: la
+    /// migración se completó y no hay panel al que volver si WebView2 falla.
+    ///
+    /// Lo que queda en este archivo es lo que el puente web todavía necesita:
+    /// los campos de estado de la última consulta y la generación del PDF con
+    /// PdfSharp (que no depende de WinForms, sólo dibuja lo que ya está en
+    /// memoria — ver FormAdministrativos.Web.cs § Exportar PDF).
     /// </summary>
     public partial class FormAdministrativos : Form
     {
-        private readonly string connectionString =
-            ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
-
         private readonly CultureInfo culturaMx = CultureInfo.GetCultureInfo("es-MX");
 
         private string manzanaActual = "";
@@ -34,7 +34,6 @@ namespace DynamicSepticSystem
         private readonly List<RegistroDestajo> registrosDestajo = new List<RegistroDestajo>();
 
         private decimal totalEstimaciones = 0m;
-        private decimal totalDestajos = 0m;
         private decimal totalManoObra = 0m;
         private decimal totalMaterial = 0m;
         private int conteoMO = 0;
@@ -42,943 +41,18 @@ namespace DynamicSepticSystem
 
         public FormAdministrativos()
         {
-            InitializeComponent();
+            Text = "Administrativos — Consulta por Casa";
+            StartPosition = FormStartPosition.CenterScreen;
+            ClientSize = new Size(1200, 702);
+            MinimumSize = new Size(1000, 650);
+            WindowState = FormWindowState.Maximized;
+            BackColor = Color.White;
+            Font = new Font("Segoe UI", 9F);
             ThemeManager.AplicarTema(this);
-            ConfigurarOlvEstimaciones();
-            ConfigurarOlvDestajos();
-            this.Load += FormAdministrativos_Load;
-            this.cmbManzana.SelectedIndexChanged += CmbManzana_SelectedIndexChanged;
+            InicializarPanelWeb();
         }
 
-        private void FormAdministrativos_Load(object sender, EventArgs e)
-        {
-            CargarManzanas();
-            ResetBarrasMOMat();
-        }
-
-        #region UI helpers (borde de tarjetas + barras)
-
-        private void PintarBordeCard(object sender, PaintEventArgs e)
-        {
-            var p = sender as Panel;
-            if (p == null) return;
-            var rect = new Rectangle(0, 0, p.Width - 1, p.Height - 1);
-            using (var pen = new Pen(Color.FromArgb(220, 210, 195)))
-            {
-                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                e.Graphics.DrawRectangle(pen, rect);
-            }
-            // Acento café arriba
-            using (var brush = new SolidBrush(Color.FromArgb(179, 108, 46)))
-            {
-                e.Graphics.FillRectangle(brush, 0, 0, p.Width, 3);
-            }
-        }
-
-        private void PintarBordeSubcardVerde(object sender, PaintEventArgs e)
-        {
-            PintarBordeColor(sender, e, Color.FromArgb(176, 220, 184));
-        }
-
-        private void PintarBordeSubcardRojo(object sender, PaintEventArgs e)
-        {
-            PintarBordeColor(sender, e, Color.FromArgb(235, 195, 190));
-        }
-
-        private void PintarBordeColor(object sender, PaintEventArgs e, Color color)
-        {
-            var p = sender as Panel;
-            if (p == null) return;
-            using (var pen = new Pen(color))
-            {
-                e.Graphics.DrawRectangle(pen, 0, 0, p.Width - 1, p.Height - 1);
-            }
-        }
-
-        private void ResetBarrasMOMat()
-        {
-            // Barras horizontales proporcionales: por defecto ambas al 50/50 vacías
-            barraMO.Width = (int)((cardMO.ClientSize.Width - cardMO.Padding.Horizontal) * 0.5);
-            barraMat.Width = (int)((cardMat.ClientSize.Width - cardMat.Padding.Horizontal) * 0.5);
-        }
-
-        // -- Stepper del proceso de destajo (6 pasos) -----------------------
-        // Refuerza visualmente que cada destajo recorre un flujo:
-        //   1 Identificar · 2 Clasificar · 3 Cuantificar · 4 Asignar · 5 Ejecutar · 6 Cerrar
-        // Las columnas del OLV de destajos están numeradas con el mismo orden.
-        //   Columnas (qué se muestra)
-        //   Disparador (cuándo se llena)
-        //   Regla    (cómo se computa el dinero)
-        private static readonly (string Titulo, string Columnas, string Disparador, string Regla)[] PasosDestajo =
-        {
-            ("IDENTIFICAR",
-             "ID · Destajo / Tarea",
-             "Al activar la tarea en la ruta crítica",
-             "ActivacionTareasRuta + Ruta(Tunera/Calandra)"),
-
-            ("CLASIFICAR",
-             "Tipo: M.O. o Material",
-             "Definido al crear el nodo en FormEditorTreeList",
-             "Determina la regla de gasto reconocido"),
-
-            ("CUANTIFICAR",
-             "Cant. × P. Unit. = Importe",
-             "Capturado en columnas personalizadas del nodo",
-             "Importe = compromiso económico del destajo"),
-
-            ("ASIGNAR",
-             "Cuadrilla responsable",
-             "Desde FormAsignarCuadrilla",
-             "Habilita el pago de M.O. vía nómina"),
-
-            ("EJECUTAR",
-             "Gastado vs. comprometido",
-             "M.O.: al asignar nómina · Material: al finalizar",
-             "Suma NominaTareasAsignada / Importe finalizado"),
-
-            ("CERRAR",
-             "Estado: Activado → Con cuadrilla → Finalizado",
-             "Al marcar Finalizado y registrar Fecha Fin.",
-             "Material: libera el gasto del Importe"),
-        };
-
-        private void panelStepperDestajos_Resize(object sender, EventArgs e)
-        {
-            panelStepperDestajos.Invalidate();
-        }
-
-        private void PintarStepperDestajos(object sender, PaintEventArgs e)
-        {
-            var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-
-            var p = (Panel)sender;
-            var area = new Rectangle(
-                p.Padding.Left, p.Padding.Top,
-                p.ClientSize.Width  - p.Padding.Horizontal,
-                p.ClientSize.Height - p.Padding.Vertical);
-
-            var brushCafeOscuro = new SolidBrush(Color.FromArgb(88, 53, 23));
-            var brushCafe       = new SolidBrush(Color.FromArgb(179, 108, 46));
-            var brushBlanco     = Brushes.White;
-            var brushTitulo     = new SolidBrush(Color.FromArgb(60, 36, 15));
-            var brushColumnas   = new SolidBrush(Color.FromArgb(88, 53, 23));
-            var brushDisparador = new SolidBrush(Color.FromArgb(117, 117, 117));
-            var brushRegla      = new SolidBrush(Color.FromArgb(155, 110, 70));
-            var brushHeader     = new SolidBrush(Color.FromArgb(60, 36, 15));
-            var brushHeaderSub  = new SolidBrush(Color.FromArgb(117, 117, 117));
-            var penConector     = new Pen(Color.FromArgb(200, 175, 140), 2f);
-            var penSeparador    = new Pen(Color.FromArgb(220, 210, 195), 1f);
-
-            var fontHeader     = new Font("Segoe UI Semibold", 9.5F, FontStyle.Bold);
-            var fontHeaderSub  = new Font("Segoe UI", 8F, FontStyle.Italic);
-            var fontNum        = new Font("Segoe UI Semibold", 11F, FontStyle.Bold);
-            var fontTitulo     = new Font("Segoe UI Semibold", 8.5F, FontStyle.Bold);
-            var fontColumnas   = new Font("Segoe UI Semibold", 7.5F, FontStyle.Bold);
-            var fontDisparador = new Font("Segoe UI", 7.25F);
-            var fontRegla      = new Font("Segoe UI", 7.25F, FontStyle.Italic);
-            var sfCentro       = new StringFormat
-            {
-                Alignment = StringAlignment.Center,
-                LineAlignment = StringAlignment.Center,
-                Trimming = StringTrimming.EllipsisCharacter,
-                FormatFlags = StringFormatFlags.NoWrap
-            };
-            var sfIzquierda    = new StringFormat
-            {
-                Alignment = StringAlignment.Near,
-                LineAlignment = StringAlignment.Center
-            };
-
-            try
-            {
-                // === Header del stepper ===
-                var rectHeader = new RectangleF(area.Left, area.Top, area.Width, 16);
-                g.DrawString("CICLO DE VIDA DE UN DESTAJO",
-                    fontHeader, brushHeader, rectHeader, sfIzquierda);
-
-                var rectHeaderSub = new RectangleF(area.Left, area.Top + 16, area.Width, 14);
-                g.DrawString("De la activación de la tarea al gasto reconocido y cierre — el mismo orden se refleja en las columnas (1·…6·)",
-                    fontHeaderSub, brushHeaderSub, rectHeaderSub, sfIzquierda);
-
-                int yPasos = area.Top + 34;
-                g.DrawLine(penSeparador, area.Left, yPasos - 4, area.Right, yPasos - 4);
-
-                // === Pasos ===
-                int n = PasosDestajo.Length;
-                float slot = (float)area.Width / n;
-                const int circuloDiam = 26;
-                int yCirculo = yPasos;
-
-                for (int i = 0; i < n; i++)
-                {
-                    float cx = area.Left + slot * (i + 0.5f);
-                    int xCirculo = (int)cx - circuloDiam / 2;
-
-                    // Conector hacia el siguiente paso
-                    if (i < n - 1)
-                    {
-                        float xIni = cx + circuloDiam / 2f + 4;
-                        float xFin = area.Left + slot * (i + 1.5f) - circuloDiam / 2f - 4;
-                        float yLin = yCirculo + circuloDiam / 2f;
-                        g.DrawLine(penConector, xIni, yLin, xFin - 8, yLin);
-                        var flecha = new[]
-                        {
-                            new PointF(xFin, yLin),
-                            new PointF(xFin - 8, yLin - 4),
-                            new PointF(xFin - 8, yLin + 4),
-                        };
-                        g.FillPolygon(brushCafe, flecha);
-                    }
-
-                    // Círculo numerado
-                    var rectCirc = new Rectangle(xCirculo, yCirculo, circuloDiam, circuloDiam);
-                    g.FillEllipse(brushCafeOscuro, rectCirc);
-                    g.DrawString((i + 1).ToString(), fontNum, brushBlanco, rectCirc, sfCentro);
-
-                    // Título del paso
-                    float yTexto = yCirculo + circuloDiam + 2;
-                    var rectTit = new RectangleF(area.Left + slot * i, yTexto, slot, 13);
-                    g.DrawString(PasosDestajo[i].Titulo, fontTitulo, brushTitulo, rectTit, sfCentro);
-
-                    // Columnas asociadas
-                    var rectCol = new RectangleF(area.Left + slot * i, yTexto + 13, slot, 12);
-                    g.DrawString(PasosDestajo[i].Columnas, fontColumnas, brushColumnas, rectCol, sfCentro);
-
-                    // Disparador (cuándo)
-                    var rectDisp = new RectangleF(area.Left + slot * i, yTexto + 25, slot, 12);
-                    g.DrawString(PasosDestajo[i].Disparador, fontDisparador, brushDisparador, rectDisp, sfCentro);
-
-                    // Regla (cómo)
-                    var rectReg = new RectangleF(area.Left + slot * i, yTexto + 37, slot, 12);
-                    g.DrawString(PasosDestajo[i].Regla, fontRegla, brushRegla, rectReg, sfCentro);
-                }
-            }
-            finally
-            {
-                brushCafeOscuro.Dispose();
-                brushCafe.Dispose();
-                brushTitulo.Dispose();
-                brushColumnas.Dispose();
-                brushDisparador.Dispose();
-                brushRegla.Dispose();
-                brushHeader.Dispose();
-                brushHeaderSub.Dispose();
-                penConector.Dispose();
-                penSeparador.Dispose();
-                fontHeader.Dispose();
-                fontHeaderSub.Dispose();
-                fontNum.Dispose();
-                fontTitulo.Dispose();
-                fontColumnas.Dispose();
-                fontDisparador.Dispose();
-                fontRegla.Dispose();
-                sfCentro.Dispose();
-                sfIzquierda.Dispose();
-            }
-        }
-
-        #endregion
-
-        #region Configuración de ObjectListView (Estimaciones agrupado por Etapa)
-
-        private void ConfigurarOlvEstimaciones()
-        {
-            olvEstimaciones.UseCellFormatEvents = true;
-            olvEstimaciones.FormatRow += OlvEstimaciones_FormatRow;
-            olvEstimaciones.FormatCell += OlvEstimaciones_FormatCell;
-
-            // Agrupar por Etapa
-            olvEstimaciones.AlwaysGroupByColumn = colEtapa;
-            olvEstimaciones.ShowGroups = true;
-
-            // Desactivar el sort interno: respetamos el orden con que vienen los datos
-            olvEstimaciones.Sorting = System.Windows.Forms.SortOrder.None;
-            olvEstimaciones.SortGroupItemsByPrimaryColumn = false;
-            olvEstimaciones.ShowSortIndicators = false;
-            olvEstimaciones.CustomSorter = (col, order) => { /* no-op */ };
-
-            // Group key SIEMPRE string no nulo
-            colEtapa.GroupKeyGetter = (object rowObject) =>
-            {
-                var r = rowObject as RegistroEstimacion;
-                if (r == null) return "(Sin etapa)";
-                return string.IsNullOrEmpty(r.Etapa) ? "(Sin etapa)" : r.Etapa;
-            };
-            colEtapa.GroupKeyToTitleConverter = (object groupKey) =>
-            {
-                string etapa = groupKey == null ? "(Sin etapa)" : groupKey.ToString();
-                if (string.IsNullOrEmpty(etapa)) etapa = "(Sin etapa)";
-                int conteo = 0;
-                decimal subtotal = 0m;
-                foreach (var r in registrosEstimacion)
-                {
-                    string clave = string.IsNullOrEmpty(r.Etapa) ? "(Sin etapa)" : r.Etapa;
-                    if (clave == etapa)
-                    {
-                        conteo++;
-                        subtotal += r.MontoEjecutado;
-                    }
-                }
-                return $"{etapa}   ·   {conteo} concepto(s)   ·   Subtotal: {subtotal.ToString("C2", culturaMx)}";
-            };
-
-            // AspectGetters: NUNCA null y SIEMPRE el mismo tipo por columna
-            colWBS.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroEstimacion;
-                return r == null ? "" : (r.WBS ?? "");
-            };
-            colCodigo.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroEstimacion;
-                return r == null ? "" : (r.Codigo ?? "");
-            };
-            colPartida.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroEstimacion;
-                return r == null ? "" : (r.Partida ?? "");
-            };
-            colAvance.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroEstimacion;
-                return r == null ? 0m : r.AvancePorcentaje;
-            };
-            colAvance.AspectToStringConverter = (cellValue) =>
-            {
-                if (cellValue is decimal d) return d.ToString("N2") + " %";
-                return cellValue == null ? "" : cellValue.ToString();
-            };
-            colMontoEjecutado.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroEstimacion;
-                return r == null ? 0m : r.MontoEjecutado;
-            };
-            colMontoEjecutado.AspectToStringConverter = (cellValue) =>
-            {
-                if (cellValue is decimal d) return d.ToString("C2", culturaMx);
-                return cellValue == null ? "" : cellValue.ToString();
-            };
-            // Devolvemos siempre string para evitar líos de comparación con DateTime?
-            colFechaFin.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroEstimacion;
-                if (r == null || !r.FechaFinalizacion.HasValue) return "—";
-                return r.FechaFinalizacion.Value.ToString("dd/MM/yyyy");
-            };
-
-            // Header style
-            var headerStyle = new HeaderFormatStyle();
-            headerStyle.Normal.BackColor = Color.FromArgb(88, 53, 23);
-            headerStyle.Normal.ForeColor = Color.White;
-            headerStyle.Normal.Font = new Font("Segoe UI Semibold", 9.5F, FontStyle.Bold);
-            headerStyle.Hot.BackColor = Color.FromArgb(120, 75, 35);
-            headerStyle.Hot.ForeColor = Color.White;
-            olvEstimaciones.HeaderFormatStyle = headerStyle;
-            olvEstimaciones.HeaderUsesThemes = false;
-        }
-
-        private void OlvEstimaciones_FormatRow(object sender, FormatRowEventArgs e)
-        {
-            var reg = e.Model as RegistroEstimacion;
-            if (reg == null) return;
-            if (reg.AvancePorcentaje >= 100m)
-            {
-                e.Item.BackColor = Color.FromArgb(232, 245, 233);
-            }
-        }
-
-        private void OlvEstimaciones_FormatCell(object sender, FormatCellEventArgs e)
-        {
-            if (e.Column == colMontoEjecutado)
-            {
-                e.SubItem.ForeColor = Color.FromArgb(46, 134, 75);
-                e.SubItem.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
-            }
-        }
-
-        #endregion
-
-        #region Configuración del ObjectListView (Destajos agrupado por Categoría)
-
-        private void ConfigurarOlvDestajos()
-        {
-            olvDestajos.UseCellFormatEvents = true;
-            olvDestajos.FormatRow += OlvDestajos_FormatRow;
-            olvDestajos.FormatCell += OlvDestajos_FormatCell;
-
-            olvDestajos.AlwaysGroupByColumn = colDesCategoria;
-            olvDestajos.ShowGroups = true;
-            olvDestajos.Sorting = System.Windows.Forms.SortOrder.None;
-            olvDestajos.SortGroupItemsByPrimaryColumn = false;
-            olvDestajos.ShowSortIndicators = false;
-            olvDestajos.CustomSorter = (col, order) => { /* no-op */ };
-
-            colDesCategoria.GroupKeyGetter = (object rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                if (r == null) return "(Sin categoría)";
-                return string.IsNullOrEmpty(r.Categoria) ? "(Sin categoría)" : r.Categoria;
-            };
-            colDesCategoria.GroupKeyToTitleConverter = (object groupKey) =>
-            {
-                string cat = groupKey == null ? "(Sin categoría)" : groupKey.ToString();
-                if (string.IsNullOrEmpty(cat)) cat = "(Sin categoría)";
-
-                int conteoMO_ = 0, conteoMat_ = 0;
-                decimal gastoMO = 0m, gastoMat = 0m, total = 0m;
-                foreach (var r in registrosDestajo)
-                {
-                    string clave = string.IsNullOrEmpty(r.Categoria) ? "(Sin categoría)" : r.Categoria;
-                    if (clave != cat) continue;
-                    total += r.Importe;
-                    if (r.Tipo == TipoTarea.ManoDeObra)
-                    {
-                        conteoMO_++;
-                        gastoMO += r.MontoGastado;
-                    }
-                    else if (r.Tipo == TipoTarea.Material)
-                    {
-                        conteoMat_++;
-                        if (r.Finalizado) gastoMat += r.Importe;
-                    }
-                }
-                return $"{cat}   ·   M.O.: {gastoMO.ToString("C2", culturaMx)} ({conteoMO_})   ·   Material: {gastoMat.ToString("C2", culturaMx)} ({conteoMat_})";
-            };
-
-            // AspectGetters no-null y de tipo consistente
-            colDesID.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                return r == null ? 0 : r.NodoID;
-            };
-            colDesTipo.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                return r == null ? "" : TipoTareaTexto(r.Tipo);
-            };
-            colDesTarea.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                return r == null ? "" : (r.Nombre ?? "");
-            };
-            colDesCantidad.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                return r == null ? 0m : r.Cantidad;
-            };
-            colDesCantidad.AspectToStringConverter = (cv) =>
-            {
-                if (cv is decimal d) return d.ToString("N2");
-                return cv == null ? "" : cv.ToString();
-            };
-            colDesUnidad.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                return r == null ? "" : (r.Unidad ?? "");
-            };
-            colDesPrecioUnitario.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                return r == null ? 0m : r.PrecioUnitario;
-            };
-            colDesPrecioUnitario.AspectToStringConverter = (cv) =>
-            {
-                if (cv is decimal d) return d.ToString("C2", culturaMx);
-                return cv == null ? "" : cv.ToString();
-            };
-            colDesImporte.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                return r == null ? 0m : r.Importe;
-            };
-            colDesImporte.AspectToStringConverter = (cv) =>
-            {
-                if (cv is decimal d) return d.ToString("C2", culturaMx);
-                return cv == null ? "" : cv.ToString();
-            };
-            colDesGastado.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                return r == null ? 0m : r.MontoGastado;
-            };
-            colDesGastado.AspectToStringConverter = (cv) =>
-            {
-                if (cv is decimal d) return d == 0m ? "—" : d.ToString("C2", culturaMx);
-                return cv == null ? "—" : cv.ToString();
-            };
-            colDesCuadrilla.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                return r == null ? "" : (r.Cuadrilla ?? "");
-            };
-            colDesEstado.AspectGetter = (rowObject) =>
-            {
-                var r = rowObject as RegistroDestajo;
-                if (r == null) return "";
-                return r.EstadoTexto;
-            };
-
-            var headerStyle = new HeaderFormatStyle();
-            headerStyle.Normal.BackColor = Color.FromArgb(88, 53, 23);
-            headerStyle.Normal.ForeColor = Color.White;
-            headerStyle.Normal.Font = new Font("Segoe UI Semibold", 9.5F, FontStyle.Bold);
-            headerStyle.Hot.BackColor = Color.FromArgb(120, 75, 35);
-            headerStyle.Hot.ForeColor = Color.White;
-            olvDestajos.HeaderFormatStyle = headerStyle;
-            olvDestajos.HeaderUsesThemes = false;
-        }
-
-        private void OlvDestajos_FormatRow(object sender, FormatRowEventArgs e)
-        {
-            var r = e.Model as RegistroDestajo;
-            if (r == null) return;
-
-            // Resalta filas con gasto computado (M.O. con nómina o Material finalizado)
-            if (r.GastoComputado)
-                e.Item.BackColor = Color.FromArgb(232, 245, 233);
-            else if (r.Finalizado)
-                e.Item.BackColor = Color.FromArgb(248, 252, 248);
-            else
-                e.Item.BackColor = Color.FromArgb(255, 250, 230);
-        }
-
-        private void OlvDestajos_FormatCell(object sender, FormatCellEventArgs e)
-        {
-            var r = e.Model as RegistroDestajo;
-            if (r == null) return;
-
-            if (e.Column == colDesTipo)
-            {
-                if (r.Tipo == TipoTarea.ManoDeObra)
-                {
-                    e.SubItem.ForeColor = Color.FromArgb(33, 99, 50);
-                    e.SubItem.BackColor = Color.FromArgb(216, 239, 219);
-                    e.SubItem.Font = new Font("Segoe UI Semibold", 8.5F, FontStyle.Bold);
-                }
-                else if (r.Tipo == TipoTarea.Material)
-                {
-                    e.SubItem.ForeColor = Color.FromArgb(155, 41, 28);
-                    e.SubItem.BackColor = Color.FromArgb(248, 220, 215);
-                    e.SubItem.Font = new Font("Segoe UI Semibold", 8.5F, FontStyle.Bold);
-                }
-                else
-                {
-                    e.SubItem.ForeColor = Color.FromArgb(117, 117, 117);
-                }
-            }
-            else if (e.Column == colDesImporte)
-            {
-                e.SubItem.ForeColor = Color.FromArgb(46, 134, 75);
-                e.SubItem.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
-            }
-            else if (e.Column == colDesGastado)
-            {
-                if (r.GastoComputado)
-                {
-                    e.SubItem.ForeColor = Color.FromArgb(46, 134, 75);
-                    e.SubItem.Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold);
-                }
-                else
-                {
-                    e.SubItem.ForeColor = Color.FromArgb(170, 170, 170);
-                }
-            }
-            else if (e.Column == colDesEstado)
-            {
-                if (r.Finalizado)
-                {
-                    e.SubItem.ForeColor = Color.FromArgb(33, 99, 50);
-                    e.SubItem.Font = new Font("Segoe UI Semibold", 8.5F, FontStyle.Bold);
-                }
-                else if (!string.IsNullOrEmpty(r.Cuadrilla))
-                {
-                    e.SubItem.ForeColor = Color.FromArgb(179, 108, 46);
-                }
-                else
-                {
-                    e.SubItem.ForeColor = Color.FromArgb(117, 117, 117);
-                }
-            }
-        }
-
-        #endregion
-
-        #region Carga de filtros
-
-        private void CargarManzanas()
-        {
-            try
-            {
-                cmbManzana.Items.Clear();
-                cmbLote.Items.Clear();
-
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (var cmd = new SqlCommand("SELECT DISTINCT Manzana FROM InventarioCasas ORDER BY Manzana", conn))
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                            cmbManzana.Items.Add(reader["Manzana"].ToString());
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("No fue posible cargar Manzanas: " + ex.Message,
-                    "Administrativos", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void CmbManzana_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            cmbLote.Items.Clear();
-            if (cmbManzana.SelectedItem == null) return;
-
-            try
-            {
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(
-                        "SELECT DISTINCT Lote FROM InventarioCasas WHERE Manzana = @m ORDER BY Lote", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                                cmbLote.Items.Add(reader["Lote"].ToString());
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("No fue posible cargar Lotes: " + ex.Message,
-                    "Administrativos", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        #endregion
-
-        #region Consulta
-
-        private void btnConsultar_Click(object sender, EventArgs e)
-        {
-            if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null)
-            {
-                MessageBox.Show("Seleccione Manzana y Lote para consultar.",
-                    "Administrativos", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            manzanaActual = cmbManzana.SelectedItem.ToString();
-            loteActual = cmbLote.SelectedItem.ToString();
-            prototipoActual = ObtenerPrototipo(manzanaActual, loteActual);
-
-            lblCasaInfo.Text = string.IsNullOrEmpty(prototipoActual)
-                ? $"Casa: Mz {manzanaActual} · Lt {loteActual}"
-                : $"Casa: Mz {manzanaActual} · Lt {loteActual}  ·  Prototipo: {prototipoActual}";
-
-            Cursor = Cursors.WaitCursor;
-            try
-            {
-                CargarEstimaciones();
-                CargarDestajos();
-                RefrescarHUD();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error al consultar: " + ex.Message,
-                    "Administrativos", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                Cursor = Cursors.Default;
-            }
-        }
-
-        private string ObtenerPrototipo(string manzana, string lote)
-        {
-            try
-            {
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(
-                        "SELECT Prototipo FROM InventarioCasas WHERE Manzana = @m AND Lote = @l", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        cmd.Parameters.AddWithValue("@l", lote);
-                        var r = cmd.ExecuteScalar();
-                        return r == null || r == DBNull.Value ? "" : r.ToString();
-                    }
-                }
-            }
-            catch { return ""; }
-        }
-
-        private void CargarEstimaciones()
-        {
-            registrosEstimacion.Clear();
-
-            using (var conn = new SqlConnection(connectionString))
-            {
-                conn.Open();
-
-                var colsAvance = LeerColumnas(conn, "AvanceManualObra");
-                bool tieneFecha = colsAvance.Contains("FechaFinalizacion");
-
-                var colsPres = LeerColumnas(conn, "PresupuestoObra");
-                bool tieneCodigo = colsPres.Contains("Codigo");
-                bool tieneEtapa = colsPres.Contains("Etapa");
-                bool tienePartida = colsPres.Contains("Partida");
-
-                var sb = new System.Text.StringBuilder();
-                sb.Append("SELECT a.WBS, a.AvancePorcentaje, a.MontoEjecutado");
-                if (tieneFecha) sb.Append(", a.FechaFinalizacion");
-                if (tieneCodigo) sb.Append(", p.Codigo");
-                if (tieneEtapa) sb.Append(", p.Etapa");
-                if (tienePartida) sb.Append(", p.Partida");
-                sb.Append(" FROM AvanceManualObra a ");
-                sb.Append(" LEFT JOIN PresupuestoObra p ON TRY_CAST(a.WBS AS INT) = p.WBS_Correcto ");
-                sb.Append(" WHERE a.Manzana = @m AND a.Lote = @l ");
-                sb.Append(" ORDER BY ");
-                if (tieneEtapa) sb.Append("p.Etapa, ");
-                sb.Append("a.WBS");
-
-                using (var cmd = new SqlCommand(sb.ToString(), conn))
-                {
-                    cmd.Parameters.AddWithValue("@m", manzanaActual);
-                    cmd.Parameters.AddWithValue("@l", loteActual);
-
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            var reg = new RegistroEstimacion
-                            {
-                                WBS = reader["WBS"]?.ToString() ?? "",
-                                Codigo = tieneCodigo && reader["Codigo"] != DBNull.Value ? reader["Codigo"].ToString() : "",
-                                Etapa = tieneEtapa && reader["Etapa"] != DBNull.Value ? reader["Etapa"].ToString() : "",
-                                Partida = tienePartida && reader["Partida"] != DBNull.Value ? reader["Partida"].ToString() : "",
-                                AvancePorcentaje = LeerDecimalSeguro(reader, "AvancePorcentaje"),
-                                MontoEjecutado = LeerDecimalSeguro(reader, "MontoEjecutado"),
-                                FechaFinalizacion = tieneFecha && reader["FechaFinalizacion"] != DBNull.Value
-                                    ? (DateTime?)Convert.ToDateTime(reader["FechaFinalizacion"]) : null
-                            };
-                            registrosEstimacion.Add(reg);
-                        }
-                    }
-                }
-            }
-
-            totalEstimaciones = registrosEstimacion.Sum(r => r.MontoEjecutado);
-
-            olvEstimaciones.SetObjects(registrosEstimacion);
-        }
-
-        private void CargarDestajos()
-        {
-            registrosDestajo.Clear();
-            totalDestajos = 0m;
-            totalManoObra = 0m;
-            totalMaterial = 0m;
-            conteoMO = 0;
-            conteoMat = 0;
-
-            string ruta = !string.IsNullOrEmpty(prototipoActual) &&
-                          prototipoActual.ToUpper().Contains("CALANDRA")
-                ? "RutaCalandraDestajo"
-                : "RutaTuneraDestajo";
-
-            // 1) Cargar montos asignados de nómina por NodoID
-            var nominaPorNodo = CargarMontosNomina(ruta);
-
-            using (var conn = new SqlConnection(connectionString))
-            {
-                conn.Open();
-                if (!ExisteTabla(conn, "ActivacionTareasRuta")) return;
-                if (!ExisteTabla(conn, ruta)) return;
-                bool existeColumnasRuta = ExisteTabla(conn, ruta + "_Columnas");
-
-                var colsRuta = LeerColumnas(conn, ruta);
-                bool tieneTipoTarea = colsRuta.Contains("TipoTarea");
-
-                var colsAct = LeerColumnas(conn, "ActivacionTareasRuta");
-                bool tieneActFinalizado = colsAct.Contains("Finalizado");
-                bool tieneActFechaFin = colsAct.Contains("FechaFinalizacion");
-                bool tieneActCuadrilla = colsAct.Contains("CuadrillaAsignada");
-
-                string tipoSelect = tieneTipoTarea ? "ISNULL(r.TipoTarea, 0) AS TipoTarea" : "0 AS TipoTarea";
-                string tipoGroup = tieneTipoTarea ? ", r.TipoTarea" : "";
-                string finSelect = tieneActFinalizado ? "ISNULL(a.Finalizado, 0) AS Finalizado" : "0 AS Finalizado";
-                string fechaFinSelect = tieneActFechaFin ? "a.FechaFinalizacion" : "CAST(NULL AS DATETIME) AS FechaFinalizacion";
-                string cuadrillaSelect = tieneActCuadrilla ? "a.CuadrillaAsignada" : "CAST(NULL AS NVARCHAR(20)) AS CuadrillaAsignada";
-
-                string columnasJoin;
-                string cantidadSelect, unidadSelect, precioSelect;
-                if (existeColumnasRuta)
-                {
-                    columnasJoin = $"LEFT JOIN {ruta}_Columnas c ON r.ID = c.NodoID";
-                    cantidadSelect = "ISNULL(MAX(CASE WHEN c.NombreColumna = 'Cantidad' THEN c.Valor END), '0') AS Cantidad";
-                    unidadSelect = "ISNULL(MAX(CASE WHEN c.NombreColumna = 'Unidad'   THEN c.Valor END), '')  AS Unidad";
-                    precioSelect = "ISNULL(MAX(CASE WHEN c.NombreColumna = 'Precio'   THEN c.Valor END), '0') AS PrecioUnitario";
-                }
-                else
-                {
-                    columnasJoin = "";
-                    cantidadSelect = "'0' AS Cantidad";
-                    unidadSelect = "'' AS Unidad";
-                    precioSelect = "'0' AS PrecioUnitario";
-                }
-
-                string groupBy = existeColumnasRuta
-                    ? $@"GROUP BY a.NodoID, a.DesatajoActivado,
-                                 {(tieneActFinalizado ? "a.Finalizado," : "")}
-                                 {(tieneActCuadrilla ? "a.CuadrillaAsignada," : "")}
-                                 {(tieneActFechaFin ? "a.FechaFinalizacion," : "")}
-                                 r.Nombre, r.Descripcion{tipoGroup}"
-                    : "";
-
-                // Categoría = nombre del nodo padre (Sub-Padre) en la ruta
-                bool tieneParent = colsRuta.Contains("ParentId");
-                string categoriaSelect = tieneParent
-                    ? "ISNULL(p_parent.Nombre, '') AS Categoria"
-                    : "'' AS Categoria";
-                string parentJoin = tieneParent
-                    ? $"LEFT JOIN {ruta} p_parent ON p_parent.ID = r.ParentId"
-                    : "";
-                string categoriaGroup = tieneParent ? ", p_parent.Nombre" : "";
-
-                string sql = $@"
-                    SELECT  a.NodoID,
-                            a.DesatajoActivado,
-                            {finSelect},
-                            {cuadrillaSelect},
-                            {fechaFinSelect},
-                            r.Nombre,
-                            r.Descripcion,
-                            {categoriaSelect},
-                            {tipoSelect},
-                            {cantidadSelect},
-                            {unidadSelect},
-                            {precioSelect}
-                    FROM ActivacionTareasRuta a
-                    INNER JOIN {ruta} r ON a.NodoID = r.ID
-                    {parentJoin}
-                    {columnasJoin}
-                    WHERE a.Manzana = @m
-                      AND a.Lote    = @l
-                      AND a.Ruta    = @ruta
-                      AND ISNULL(a.DesatajoActivado, 0) = 1
-                    {(existeColumnasRuta ? groupBy + categoriaGroup : "")}
-                    ORDER BY {(tieneParent ? "p_parent.Nombre, " : "")}r.Nombre";
-
-                using (var cmd = new SqlCommand(sql, conn))
-                {
-                    cmd.Parameters.AddWithValue("@m", manzanaActual);
-                    cmd.Parameters.AddWithValue("@l", loteActual);
-                    cmd.Parameters.AddWithValue("@ruta", ruta);
-
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            decimal cantidad = ParseDecimalSeguro(reader["Cantidad"]?.ToString());
-                            decimal precio = ParseDecimalSeguro(reader["PrecioUnitario"]?.ToString());
-                            bool finalizado = reader["Finalizado"] != DBNull.Value && Convert.ToBoolean(reader["Finalizado"]);
-                            TipoTarea tipo = TipoTarea.Ninguno;
-                            if (reader["TipoTarea"] != DBNull.Value)
-                                tipo = (TipoTarea)Convert.ToInt32(reader["TipoTarea"]);
-
-                            int nodoId = reader["NodoID"] != DBNull.Value ? Convert.ToInt32(reader["NodoID"]) : 0;
-                            decimal nominaMonto = 0m;
-                            nominaPorNodo.TryGetValue(nodoId, out nominaMonto);
-
-                            string categoria = "";
-                            try { categoria = reader["Categoria"]?.ToString() ?? ""; }
-                            catch { categoria = ""; }
-
-                            var reg = new RegistroDestajo
-                            {
-                                NodoID = nodoId,
-                                Nombre = reader["Nombre"]?.ToString() ?? "",
-                                Descripcion = reader["Descripcion"] != DBNull.Value ? reader["Descripcion"].ToString() : "",
-                                Categoria = categoria,
-                                Cantidad = cantidad,
-                                Unidad = reader["Unidad"]?.ToString() ?? "",
-                                PrecioUnitario = precio,
-                                Cuadrilla = reader["CuadrillaAsignada"] != DBNull.Value ? reader["CuadrillaAsignada"].ToString() : "",
-                                Finalizado = finalizado,
-                                FechaFinalizacion = reader["FechaFinalizacion"] != DBNull.Value
-                                    ? (DateTime?)Convert.ToDateTime(reader["FechaFinalizacion"]) : null,
-                                Tipo = tipo,
-                                NominaAsignada = nominaMonto
-                            };
-                            registrosDestajo.Add(reg);
-                        }
-                    }
-                }
-            }
-
-            foreach (var r in registrosDestajo)
-            {
-                totalDestajos += r.Importe;
-                if (r.Tipo == TipoTarea.ManoDeObra)
-                {
-                    conteoMO++;
-                    // M.O. se considera gastado al asignar nómina
-                    totalManoObra += r.MontoGastado;
-                }
-                else if (r.Tipo == TipoTarea.Material)
-                {
-                    conteoMat++;
-                    // Material se considera gastado al finalizar el destajo
-                    if (r.Finalizado) totalMaterial += r.Importe;
-                }
-            }
-
-            olvDestajos.SetObjects(registrosDestajo);
-        }
-
-        private Dictionary<int, decimal> CargarMontosNomina(string ruta)
-        {
-            var resultado = new Dictionary<int, decimal>();
-            try
-            {
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    if (!ExisteTabla(conn, "NominaTareasAsignada")) return resultado;
-
-                    string sql = @"
-                        SELECT NodoID, SUM(ISNULL(Monto, 0)) AS MontoTotal
-                        FROM NominaTareasAsignada
-                        WHERE Manzana = @m AND Lote = @l AND Ruta = @r
-                        GROUP BY NodoID";
-                    using (var cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzanaActual);
-                        cmd.Parameters.AddWithValue("@l", loteActual);
-                        cmd.Parameters.AddWithValue("@r", ruta);
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                int nodoId = Convert.ToInt32(reader["NodoID"]);
-                                decimal monto = LeerDecimalSeguro(reader, "MontoTotal");
-                                resultado[nodoId] = monto;
-                            }
-                        }
-                    }
-                }
-            }
-            catch { /* tabla puede no existir aún */ }
-            return resultado;
-        }
+        #region Exportación PDF
 
         private string TipoTareaTexto(TipoTarea t)
         {
@@ -990,169 +64,15 @@ namespace DynamicSepticSystem
             }
         }
 
-        private void RefrescarHUD()
-        {
-            // Estimaciones
-            lblCardEstValor.Text = totalEstimaciones.ToString("C2", culturaMx);
-            int conceptos = registrosEstimacion.Count;
-            int finalizadosEst = registrosEstimacion.Count(r => r.AvancePorcentaje >= 100m);
-            int etapas = registrosEstimacion
-                .Select(r => string.IsNullOrEmpty(r.Etapa) ? "(Sin etapa)" : r.Etapa)
-                .Distinct().Count();
-            lblCardEstInfo.Text = $"{conceptos} concepto(s) en {etapas} etapa(s) · {finalizadosEst} al 100%";
-
-            // Destajos: el gasto reconocido sale de las dos reglas (M.O. nómina + Material finalizado)
-            decimal totalGastadoDestajos = totalManoObra + totalMaterial;
-            lblCardDesValor.Text = totalGastadoDestajos.ToString("C2", culturaMx);
-            int finalizadosDes = registrosDestajo.Count(r => r.Finalizado);
-            int conMO_asignada = registrosDestajo.Count(r => r.Tipo == TipoTarea.ManoDeObra && r.NominaAsignada > 0);
-            lblCardDesInfo.Text =
-                $"Gastado de {totalDestajos.ToString("C2", culturaMx)} comprometido · " +
-                $"{registrosDestajo.Count} act. · {finalizadosDes} fin. · {conMO_asignada} c/nómina";
-
-            // M.O. — se considera gastado al asignar nómina
-            lblMOValor.Text = totalManoObra.ToString("C2", culturaMx);
-            decimal importeMOComprometido = registrosDestajo
-                .Where(r => r.Tipo == TipoTarea.ManoDeObra).Sum(r => r.Importe);
-            decimal pctMO = importeMOComprometido == 0 ? 0 : (totalManoObra / importeMOComprometido) * 100m;
-            lblMOInfo.Text = $"{conMO_asignada}/{conteoMO} con nómina  ·  {pctMO:N1}% comprometido";
-
-            // Material — se considera gastado al finalizar el destajo
-            lblMatValor.Text = totalMaterial.ToString("C2", culturaMx);
-            int matFinalizados = registrosDestajo.Count(r => r.Tipo == TipoTarea.Material && r.Finalizado);
-            decimal importeMatComprometido = registrosDestajo
-                .Where(r => r.Tipo == TipoTarea.Material).Sum(r => r.Importe);
-            decimal pctMat = importeMatComprometido == 0 ? 0 : (totalMaterial / importeMatComprometido) * 100m;
-            lblMatInfo.Text = $"{matFinalizados}/{conteoMat} finalizados  ·  {pctMat:N1}% comprometido";
-
-            // Barras proporcionales al % gastado de su propio compromiso (M.O. y Material por separado)
-            int anchoCard = Math.Max(50, cardMO.ClientSize.Width);
-            barraMO.Width = Math.Max(2, (int)(anchoCard * (double)(pctMO / 100m)));
-            barraMat.Width = Math.Max(2, (int)(anchoCard * (double)(pctMat / 100m)));
-
-            // Gran total = ejecutado estimaciones + gasto reconocido destajos
-            lblGranTotal.Text = (totalEstimaciones + totalGastadoDestajos).ToString("C2", culturaMx);
-        }
-
-        #endregion
-
-        #region Utilidades SQL
-
-        private System.Collections.Generic.HashSet<string> LeerColumnas(SqlConnection conn, string tabla)
-        {
-            var set = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            using (var cmd = new SqlCommand(
-                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = @t", conn))
-            {
-                cmd.Parameters.AddWithValue("@t", tabla);
-                using (var r = cmd.ExecuteReader())
-                {
-                    while (r.Read()) set.Add(r.GetString(0));
-                }
-            }
-            return set;
-        }
-
-        private bool ExisteTabla(SqlConnection conn, string tabla)
-        {
-            using (var cmd = new SqlCommand(
-                "SELECT COUNT(1) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = @t", conn))
-            {
-                cmd.Parameters.AddWithValue("@t", tabla);
-                return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
-            }
-        }
-
-        private decimal LeerDecimalSeguro(System.Data.IDataReader reader, string columna)
-        {
-            try
-            {
-                int idx = reader.GetOrdinal(columna);
-                if (reader.IsDBNull(idx)) return 0m;
-                object v = reader.GetValue(idx);
-                if (v == null) return 0m;
-                if (v is decimal d) return d;
-                if (v is double dbl)
-                {
-                    if (double.IsNaN(dbl) || double.IsInfinity(dbl)) return 0m;
-                    return (decimal)dbl;
-                }
-                if (v is float f)
-                {
-                    if (float.IsNaN(f) || float.IsInfinity(f)) return 0m;
-                    return (decimal)f;
-                }
-                if (v is int i) return i;
-                if (v is long l) return l;
-                return ParseDecimalSeguro(v.ToString());
-            }
-            catch { return 0m; }
-        }
-
-        private decimal ParseDecimalSeguro(string valor)
-        {
-            if (string.IsNullOrWhiteSpace(valor)) return 0m;
-            decimal d;
-            if (decimal.TryParse(valor, NumberStyles.Any, CultureInfo.InvariantCulture, out d)) return d;
-            if (decimal.TryParse(valor, NumberStyles.Any, culturaMx, out d)) return d;
-            if (decimal.TryParse(valor, out d)) return d;
-            return 0m;
-        }
-
-        #endregion
-
-        #region Exportación PDF
-
-        private void btnExportarPDF_Click(object sender, EventArgs e)
-        {
-            if (string.IsNullOrEmpty(manzanaActual) || string.IsNullOrEmpty(loteActual))
-            {
-                MessageBox.Show("Primero consulte una casa (Manzana / Lote).",
-                    "Administrativos", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            try
-            {
-                string carpeta = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                    "CALANDRIA RESIDENCIAL", "Administrativos");
-                Directory.CreateDirectory(carpeta);
-
-                string sugerido = $"Administrativos_M{manzanaActual}_L{loteActual}_{DateTime.Now:yyyyMMdd_HHmm}.pdf";
-
-                using (var sfd = new SaveFileDialog
-                {
-                    Filter = "Archivo PDF (*.pdf)|*.pdf",
-                    FileName = sugerido,
-                    InitialDirectory = carpeta,
-                    Title = "Exportar concentrado administrativo a PDF"
-                })
-                {
-                    if (sfd.ShowDialog() != DialogResult.OK) return;
-                    GenerarPDF(sfd.FileName);
-                    var resp = MessageBox.Show(
-                        $"PDF generado:\n{sfd.FileName}\n\n¿Desea abrirlo ahora?",
-                        "Administrativos", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                    if (resp == DialogResult.Yes)
-                    {
-                        try { Process.Start(sfd.FileName); } catch { }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error al generar PDF: " + ex.Message,
-                    "Administrativos", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void GenerarPDF(string rutaArchivo)
+        private void GenerarPDF(string rutaArchivo,
+            List<CompraCasaApi> comprasExtra = null,
+            List<SalidaAlmacenCasaApi> salidasExtra = null,
+            List<NominaCasaApi> nominaExtra = null)
         {
             using (var pdf = new PdfDocument())
             {
                 pdf.Info.Title = $"Administrativos — Mz {manzanaActual} Lt {loteActual}";
-                pdf.Info.Author = "Sistema Calandria";
+                pdf.Info.Author = "Sistema Pilaris";
                 pdf.Info.Subject = "Concentrado financiero por casa";
                 pdf.Info.Creator = "DynamicSepticSystem";
 
@@ -1370,6 +290,55 @@ namespace DynamicSepticSystem
                     new XRect(margin, y, pageW, 18), XStringFormats.TopRight);
                 y += 28;
 
+                // ============ Secciones informativas adicionales (sólo si vienen datos —
+                // el flujo clásico de FormAdministrativos no las trae) ============
+                if (comprasExtra != null && comprasExtra.Count > 0)
+                {
+                    y = DibujarSeccionPlanaPDF(pdf, ref page, ref gfx, margin, pageW, y,
+                        "COMPRAS LIGADAS A LA CASA",
+                        new double[] { 100, 70, 80, 220, 70, 90 },
+                        new[] { "Folio OC", "Fecha", "Tipo", "Proveedor", "Partidas", "Importe" },
+                        comprasExtra.Select(c => new[]
+                        {
+                            c.FolioOC, c.Fecha.HasValue ? c.Fecha.Value.ToString("dd/MM/yyyy") : "—", c.TipoOrden,
+                            Truncar(c.Proveedor, 40), c.NumPartidas.ToString(), c.Importe.ToString("C2", culturaMx)
+                        }).ToList(),
+                        "TOTAL COMPRAS:", comprasExtra.Sum(c => c.Importe),
+                        fontHeader, fontCell, fontTotal, brushCafeBar, brushCafe, brushBlanco, brushTexto, brushVerde, brushAlt);
+                }
+
+                if (salidasExtra != null && salidasExtra.Count > 0)
+                {
+                    y = DibujarSeccionPlanaPDF(pdf, ref page, ref gfx, margin, pageW, y,
+                        "SALIDAS DE ALMACÉN",
+                        new double[] { 80, 220, 60, 70, 80, 90, 80 },
+                        new[] { "Clave", "Descripción", "Unidad", "Cantidad", "P. Unit.", "Importe", "Fecha" },
+                        salidasExtra.Select(s => new[]
+                        {
+                            s.Clave, Truncar(s.Descripcion, 40), s.Unidad, s.Cantidad.ToString("N2"),
+                            s.PrecioUnitario.ToString("C2", culturaMx), s.Importe.ToString("C2", culturaMx),
+                            s.FechaSalida.HasValue ? s.FechaSalida.Value.ToString("dd/MM/yyyy") : "—"
+                        }).ToList(),
+                        "TOTAL SALIDAS DE ALMACÉN:", salidasExtra.Sum(s => s.Importe),
+                        fontHeader, fontCell, fontTotal, brushCafeBar, brushCafe, brushBlanco, brushTexto, brushVerde, brushAlt);
+                }
+
+                if (nominaExtra != null && nominaExtra.Count > 0)
+                {
+                    y = DibujarSeccionPlanaPDF(pdf, ref page, ref gfx, margin, pageW, y,
+                        "NÓMINA DETALLADA",
+                        new double[] { 180, 70, 180, 90, 90, 90 },
+                        new[] { "Tarea", "Cuadrilla", "Trabajador", "Rol", "Monto", "Actualizado" },
+                        nominaExtra.Select(n => new[]
+                        {
+                            Truncar(n.NombreTarea, 30), n.CodigoCuadrilla, Truncar(n.NombreTrabajador, 30), n.Rol,
+                            n.Monto.ToString("C2", culturaMx),
+                            n.FechaActualizacion.HasValue ? n.FechaActualizacion.Value.ToString("dd/MM/yyyy") : "—"
+                        }).ToList(),
+                        "TOTAL NÓMINA:", nominaExtra.Sum(n => n.Monto),
+                        fontHeader, fontCell, fontTotal, brushCafeBar, brushCafe, brushBlanco, brushTexto, brushVerde, brushAlt);
+                }
+
                 // Gran total
                 if (y > page.Height - 50)
                 {
@@ -1433,6 +402,64 @@ namespace DynamicSepticSystem
             }
             gfx.DrawLine(XPens.LightGray, xInicial, y + altura, xInicial + totalW, y + altura);
             return y + altura;
+        }
+
+        /// <summary>
+        /// Sección de tabla plana sin agrupar (a diferencia de Estimaciones/Destajos),
+        /// para las 3 secciones informativas nuevas (Compras/Salidas de Almacén/Nómina):
+        /// barra de título + encabezado + filas con salto de página + línea de subtotal.
+        /// </summary>
+        private double DibujarSeccionPlanaPDF(PdfDocument pdf, ref PdfPage page, ref XGraphics gfx,
+            double margin, double pageW, double y, string titulo,
+            double[] anchos, string[] encabezados, List<string[]> filas,
+            string totalLabel, decimal totalValor,
+            XFont fontHeader, XFont fontCell, XFont fontTotal,
+            XBrush brushBarra, XBrush brushTitulo, XBrush brushBlanco, XBrush brushTexto, XBrush brushValor, XBrush brushAlt)
+        {
+            if (y > page.Height - 140)
+            {
+                page = pdf.AddPage();
+                page.Size = PdfSharp.PageSize.Letter;
+                page.Orientation = PdfSharp.PageOrientation.Landscape;
+                gfx.Dispose();
+                gfx = XGraphics.FromPdfPage(page);
+                y = margin;
+            }
+
+            gfx.DrawRectangle(brushBarra, margin, y, pageW, 24);
+            gfx.DrawString(titulo, new XFont("Arial", 12, XFontStyle.Bold), brushBlanco,
+                new XRect(margin + 8, y + 4, pageW - 16, 18), XStringFormats.TopLeft);
+            y += 24;
+
+            y = DibujarFilaTabla(gfx, margin, y, anchos, encabezados, fontHeader, brushTitulo, brushBlanco, true);
+
+            int fila = 0;
+            foreach (var valores in filas)
+            {
+                if (y > page.Height - 60)
+                {
+                    page = pdf.AddPage();
+                    page.Size = PdfSharp.PageSize.Letter;
+                    page.Orientation = PdfSharp.PageOrientation.Landscape;
+                    gfx.Dispose();
+                    gfx = XGraphics.FromPdfPage(page);
+                    y = margin;
+                    y = DibujarFilaTabla(gfx, margin, y, anchos, encabezados, fontHeader, brushTitulo, brushBlanco, true);
+                }
+
+                XBrush fondo = (fila % 2 == 0) ? brushAlt : XBrushes.White;
+                y = DibujarFilaTabla(gfx, margin, y, anchos, valores, fontCell, fondo, brushTexto, false);
+                fila++;
+            }
+
+            y += 4;
+            gfx.DrawString(totalLabel, fontTotal, brushTitulo,
+                new XRect(margin, y, pageW - 130, 18), XStringFormats.TopRight);
+            gfx.DrawString(totalValor.ToString("C2", culturaMx), fontTotal, brushValor,
+                new XRect(margin, y, pageW, 18), XStringFormats.TopRight);
+            y += 28;
+
+            return y;
         }
 
         private string Truncar(string s, int max)

@@ -34,7 +34,7 @@ namespace DynamicSepticSystem
 
         private void FormAvanceConcepto_Load(object sender, EventArgs e)
         {
-            this.Text = "Avance por Conceptos - Sistema Calandria";
+            this.Text = "Avance por Conceptos - Sistema Pilaris";
         }
 
         private void ConfigurarObjectListView()
@@ -498,7 +498,7 @@ namespace DynamicSepticSystem
         {
             PdfDocument pdf = new PdfDocument();
             pdf.Info.Title = $"Avance por Conceptos - M{cmbManzana.SelectedItem} L{cmbLote.SelectedItem}";
-            pdf.Info.Author = "Sistema Calandria Residencial";
+            pdf.Info.Author = "Sistema Pilaris";
             pdf.Info.Subject = "Reporte de Avance por Conceptos";
             pdf.Info.Keywords = "Construcciï¿½n, Avance, Conceptos";
 
@@ -741,7 +741,7 @@ namespace DynamicSepticSystem
 
             gfx.DrawLine(new XPen(XColor.FromArgb(189, 195, 199), 1), 40, yPie - 10, page.Width - 40, yPie - 10);
 
-            gfx.DrawString("Sistema Calandria Residencial - Avance por Conceptos", fontPequena,
+            gfx.DrawString("Sistema Pilaris - Avance por Conceptos", fontPequena,
                 XBrushes.Gray, 40, yPie);
 
             gfx.DrawString($"Pï¿½gina {numeroPagina}", fontPequena, XBrushes.Gray,

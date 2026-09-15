@@ -29,6 +29,8 @@ namespace DynamicSepticSystem
         public event EventHandler LoginExitoso;
 
         private WebView2 webLogin;
+        private Actualizador.ResultadoChequeo _ultimoChequeoActualizacion;
+        private FormActualizacionWeb _formActualizacion;
 
         private static readonly JsonSerializerSettings CamelCaseSettings =
             new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
@@ -41,11 +43,12 @@ namespace DynamicSepticSystem
 
         public FormLogin()
         {
-            Text = "Iniciar sesión - Sistema Calandria";
+            Text = "Iniciar sesión - Sistema Pilaris";
             StartPosition = FormStartPosition.CenterScreen;
             Size = new Size(1100, 720);
             MinimumSize = new Size(900, 600);
             BackColor = Color.White;
+            ThemeManager.AplicarIconoPorDefecto(this);
 
             webLogin = new WebView2 { Dock = DockStyle.Fill, BackColor = Color.White };
             Controls.Add(webLogin);
@@ -73,7 +76,7 @@ namespace DynamicSepticSystem
             {
                 ErrorLogger.RegistrarMensaje("Login", "WebView2 no pudo iniciar: " + ex.Message);
                 MessageBox.Show("No se pudo iniciar la pantalla de inicio de sesión:\n\n" + ex.Message,
-                    "Calandria", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Pilaris", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -82,7 +85,7 @@ namespace DynamicSepticSystem
             if (!e.IsSuccess)
             {
                 ErrorLogger.RegistrarMensaje("Login", "WebView2 no inicializó: " + e.InitializationException);
-                MessageBox.Show("No se pudo iniciar la pantalla de inicio de sesión.", "Calandria",
+                MessageBox.Show("No se pudo iniciar la pantalla de inicio de sesión.", "Pilaris",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
@@ -108,7 +111,7 @@ namespace DynamicSepticSystem
             {
                 MessageBox.Show(
                     "No se pudo descargar la interfaz de inicio de sesión.\n\nVerifica la conexión con el servidor.",
-                    "Calandria", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Pilaris", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             webLogin.CoreWebView2.NavigateToString(html);
@@ -187,6 +190,9 @@ namespace DynamicSepticSystem
                 case "cargar-version":
                     _ = EnviarVersionAppAsync();
                     break;
+                case "ver-actualizacion":
+                    MostrarVentanaActualizacion();
+                    break;
                 default:
                     ErrorLogger.RegistrarMensaje("Login", "Acción desconocida desde la página: " + accion);
                     break;
@@ -211,7 +217,8 @@ namespace DynamicSepticSystem
                 {
                     Nombre = resp.Usuario ?? usuario,
                     Perfil = resp.Rol,
-                    Permisos = resp.Permisos ?? new System.Collections.Generic.List<string>()
+                    Permisos = resp.Permisos ?? new System.Collections.Generic.List<string>(),
+                    EsSuperAdmin = resp.EsSuperAdmin
                 };
 
                 Push(new { tipo = "loginResultado", ok = true });
@@ -237,21 +244,44 @@ namespace DynamicSepticSystem
             string local = Actualizador.VersionLocal;
             Push(new { tipo = "version", local, servidor = (string)null, actualizacion = false });
 
-            string servidor;
-            bool hayActualizacion;
-            try
+            // Chequeo silencioso: sin internet o sin releases simplemente no reporta
+            // actualización, no interrumpe el arranque ni muestra errores.
+            _ultimoChequeoActualizacion = await Actualizador.ComprobarAsync();
+            var r = _ultimoChequeoActualizacion;
+
+            Push(new
             {
-                var (_, versionText, _) = await Actualizador.GetLatestReleaseInfoAsync();
-                servidor = string.IsNullOrEmpty(versionText) ? "No disponible" : versionText;
-                hayActualizacion = !string.IsNullOrEmpty(versionText) && versionText != local;
-            }
-            catch
+                tipo = "version",
+                local,
+                servidor = string.IsNullOrEmpty(r.VersionRemota) ? "No disponible" : r.VersionRemota,
+                actualizacion = r.HayActualizacion
+            });
+
+            if (r.HayActualizacion && !IsDisposed)
+                MostrarVentanaActualizacion();
+        }
+
+        /// <summary>
+        /// Muestra (o reactiva) la ventana de actualización obligatoria con el
+        /// último resultado conocido. Se deshabilita este login mientras tanto:
+        /// no hace falta volver a habilitarlo después, porque de aquí en
+        /// adelante el proceso siempre termina (ya sea porque la actualización
+        /// se aplicó, o porque el usuario cerró esa ventana para salir).
+        /// </summary>
+        private void MostrarVentanaActualizacion()
+        {
+            var r = _ultimoChequeoActualizacion;
+            if (r == null || !r.HayActualizacion) return;
+
+            if (_formActualizacion != null && !_formActualizacion.IsDisposed)
             {
-                servidor = "No disponible";
-                hayActualizacion = false;
+                _formActualizacion.Activate();
+                return;
             }
 
-            Push(new { tipo = "version", local, servidor, actualizacion = hayActualizacion });
+            Enabled = false;
+            _formActualizacion = new FormActualizacionWeb(r.VersionLocal, r.VersionRemota, r.ZipUrl);
+            _formActualizacion.Show();
         }
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
-using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Web.Http;
@@ -28,10 +27,11 @@ namespace Calandria.Api.Controllers
             using (var cmd = new SqlCommand(
                 @"SELECT o.Id, o.Nombre, o.NombreBD FROM Obras o
                   JOIN UsuarioObras uo ON uo.ObraId = o.Id
-                  WHERE uo.Usuario = @usuario AND o.Activa = 1
+                  WHERE uo.Usuario = @usuario AND o.Activa = 1 AND o.ClienteId = @clienteId
                   ORDER BY o.Nombre", conn))
             {
                 cmd.Parameters.AddWithValue("@usuario", User.Identity.Name);
+                cmd.Parameters.AddWithValue("@clienteId", ClienteActual.Id(User));
                 using (var reader = cmd.ExecuteReader())
                 {
                     while (reader.Read())
@@ -81,11 +81,14 @@ namespace Calandria.Api.Controllers
             var lista = new List<ObraDto>();
             using (var conn = Db.AbrirMaestra())
             using (var cmd = new SqlCommand(
-                "SELECT Id, Nombre FROM Obras WHERE Activa = 1 ORDER BY Nombre", conn))
-            using (var reader = cmd.ExecuteReader())
+                "SELECT Id, Nombre FROM Obras WHERE Activa = 1 AND ClienteId = @clienteId ORDER BY Nombre", conn))
             {
-                while (reader.Read())
-                    lista.Add(new ObraDto { Id = (int)reader["Id"], Nombre = reader["Nombre"].ToString() });
+                cmd.Parameters.AddWithValue("@clienteId", ClienteActual.Id(User));
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                        lista.Add(new ObraDto { Id = (int)reader["Id"], Nombre = reader["Nombre"].ToString() });
+                }
             }
             return Ok(lista);
         }
@@ -97,18 +100,24 @@ namespace Calandria.Api.Controllers
             var porUsuario = new Dictionary<string, AsignacionObrasUsuarioDto>(StringComparer.OrdinalIgnoreCase);
             using (var conn = Db.AbrirMaestra())
             using (var cmd = new SqlCommand(
-                @"SELECT u.Nombre AS Usuario, uo.ObraId
-                  FROM Usuarios u LEFT JOIN UsuarioObras uo ON uo.Usuario = u.Nombre", conn))
-            using (var reader = cmd.ExecuteReader())
+                @"SELECT u.Nombre AS Usuario, o.Id AS ObraId
+                  FROM Usuarios u
+                  LEFT JOIN UsuarioObras uo ON uo.Usuario = u.Nombre
+                  LEFT JOIN Obras o ON o.Id = uo.ObraId AND o.ClienteId = u.ClienteId
+                  WHERE u.ClienteId = @clienteId", conn))
             {
-                while (reader.Read())
+                cmd.Parameters.AddWithValue("@clienteId", ClienteActual.Id(User));
+                using (var reader = cmd.ExecuteReader())
                 {
-                    string usuario = reader["Usuario"].ToString();
-                    if (!porUsuario.TryGetValue(usuario, out var dto))
-                        porUsuario[usuario] = dto = new AsignacionObrasUsuarioDto { Usuario = usuario, ObraIds = new List<int>() };
+                    while (reader.Read())
+                    {
+                        string usuario = reader["Usuario"].ToString();
+                        if (!porUsuario.TryGetValue(usuario, out var dto))
+                            porUsuario[usuario] = dto = new AsignacionObrasUsuarioDto { Usuario = usuario, ObraIds = new List<int>() };
 
-                    if (reader["ObraId"] != DBNull.Value)
-                        dto.ObraIds.Add((int)reader["ObraId"]);
+                        if (reader["ObraId"] != DBNull.Value)
+                            dto.ObraIds.Add((int)reader["ObraId"]);
+                    }
                 }
             }
             return Ok(porUsuario.Values.ToList());
@@ -122,9 +131,28 @@ namespace Calandria.Api.Controllers
                 return BadRequest("Usuario obligatorio.");
 
             var obraIds = (req.ObraIds ?? new List<int>()).Distinct().ToList();
+            int clienteId = ClienteActual.Id(User);
 
             using (var conn = Db.AbrirMaestra())
             {
+                using (var cmd = new SqlCommand("SELECT 1 FROM Usuarios WHERE Nombre = @usuario AND ClienteId = @clienteId", conn))
+                {
+                    cmd.Parameters.AddWithValue("@usuario", req.Usuario.Trim());
+                    cmd.Parameters.AddWithValue("@clienteId", clienteId);
+                    if (cmd.ExecuteScalar() == null) return NotFound();
+                }
+
+                if (obraIds.Count > 0)
+                {
+                    using (var cmd = new SqlCommand(
+                        $"SELECT COUNT(*) FROM Obras WHERE ClienteId = @clienteId AND Id IN ({string.Join(",", obraIds)})", conn))
+                    {
+                        cmd.Parameters.AddWithValue("@clienteId", clienteId);
+                        if ((int)cmd.ExecuteScalar() != obraIds.Count)
+                            return BadRequest("Una o más obras no existen o no pertenecen a tu empresa.");
+                    }
+                }
+
                 using (var cmd = new SqlCommand("DELETE FROM UsuarioObras WHERE Usuario = @usuario", conn))
                 {
                     cmd.Parameters.AddWithValue("@usuario", req.Usuario.Trim());
@@ -153,6 +181,7 @@ namespace Calandria.Api.Controllers
 
             string nombre = req.Nombre.Trim();
             string nombreBd;
+            int clienteId = ClienteActual.Id(User);
 
             using (var master = Db.AbrirMaestra())
             {
@@ -162,29 +191,18 @@ namespace Calandria.Api.Controllers
                     if (cmd.ExecuteScalar() != null)
                         return Conflict();
                 }
-                nombreBd = GenerarNombreBdUnico(master, nombre);
-            }
-
-            using (var servidor = Db.AbrirServidor())
-            using (var cmd = new SqlCommand($"CREATE DATABASE [{nombreBd}]", servidor))
-                cmd.ExecuteNonQuery();
-
-            using (var conn = new SqlConnection(Configuracion.CadenaConexionObra(nombreBd)))
-            {
-                conn.Open();
-                foreach (var lote in CargarPlantillaPorLotes())
-                using (var cmd = new SqlCommand(lote, conn))
-                    cmd.ExecuteNonQuery();
+                nombreBd = Services.ObraProvisioning.CrearBaseDeDatos(master, nombre);
             }
 
             int obraId;
             using (var master = Db.AbrirMaestra())
             {
                 using (var cmd = new SqlCommand(
-                    "INSERT INTO Obras (Nombre, NombreBD) OUTPUT INSERTED.Id VALUES (@nombre, @nombreBd)", master))
+                    "INSERT INTO Obras (Nombre, NombreBD, ClienteId) OUTPUT INSERTED.Id VALUES (@nombre, @nombreBd, @clienteId)", master))
                 {
                     cmd.Parameters.AddWithValue("@nombre", nombre);
                     cmd.Parameters.AddWithValue("@nombreBd", nombreBd);
+                    cmd.Parameters.AddWithValue("@clienteId", clienteId);
                     obraId = (int)cmd.ExecuteScalar();
                 }
                 using (var cmd = new SqlCommand(
@@ -232,8 +250,9 @@ namespace Calandria.Api.Controllers
             using (var cmd = new SqlCommand(
                 @"UPDATE Obras SET LogoBytes=@logo, LogoExtension=@ext,
                     ColorPrimario=@p, ColorSecundario=@s, ColorSuave=@sv
-                  WHERE Id=@id AND Activa=1", master))
+                  WHERE Id=@id AND Activa=1 AND ClienteId=@clienteId", master))
             {
+                cmd.Parameters.AddWithValue("@clienteId", ClienteActual.Id(User));
                 cmd.Parameters.AddWithValue("@logo", logo);
                 cmd.Parameters.AddWithValue("@ext", (object)req.Extension ?? "png");
                 cmd.Parameters.AddWithValue("@p", paleta.ColorPrimario);
@@ -336,9 +355,10 @@ namespace Calandria.Api.Controllers
             string nombre, nombreBd;
             using (var master = Db.AbrirMaestra())
             using (var cmd = new SqlCommand(
-                "SELECT Nombre, NombreBD FROM Obras WHERE Id = @id AND Activa = 1", master))
+                "SELECT Nombre, NombreBD FROM Obras WHERE Id = @id AND Activa = 1 AND ClienteId = @clienteId", master))
             {
                 cmd.Parameters.AddWithValue("@id", id);
+                cmd.Parameters.AddWithValue("@clienteId", ClienteActual.Id(User));
                 using (var reader = cmd.ExecuteReader())
                 {
                     if (!reader.Read()) return NotFound();
@@ -379,45 +399,6 @@ namespace Calandria.Api.Controllers
             }
 
             return Ok();
-        }
-
-        /// <summary>Sanea el nombre a un identificador de BD válido y le agrega un sufijo si ya existe.</summary>
-        private static string GenerarNombreBdUnico(SqlConnection master, string nombre)
-        {
-            string basecito = new string(nombre
-                .Select(c => char.IsLetterOrDigit(c) ? c : '_')
-                .ToArray())
-                .Trim('_');
-            if (basecito.Length == 0) basecito = "Obra";
-            if (basecito.Length > 100) basecito = basecito.Substring(0, 100);
-
-            string candidato = basecito;
-            int sufijo = 1;
-            while (ExisteBaseDeDatos(master, candidato))
-                candidato = basecito + "_" + (++sufijo);
-            return candidato;
-        }
-
-        private static bool ExisteBaseDeDatos(SqlConnection master, string nombreBd)
-        {
-            using (var cmd = new SqlCommand("SELECT 1 FROM Obras WHERE NombreBD = @nombreBd", master))
-            {
-                cmd.Parameters.AddWithValue("@nombreBd", nombreBd);
-                return cmd.ExecuteScalar() != null;
-            }
-        }
-
-        private static IEnumerable<string> CargarPlantillaPorLotes()
-        {
-            string ruta = Configuracion.SqlPlantillaObraRuta;
-            if (!File.Exists(ruta))
-                throw new InvalidOperationException("Falta la plantilla de esquema de obra: " + ruta);
-
-            string texto = File.ReadAllText(ruta);
-            return texto
-                .Split(new[] { "\r\nGO\r\n", "\nGO\n", "\r\nGO", "GO\r\n" }, StringSplitOptions.None)
-                .Select(s => s.Trim())
-                .Where(s => s.Length > 0);
         }
     }
 }

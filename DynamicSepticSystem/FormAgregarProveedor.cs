@@ -57,7 +57,7 @@ namespace DynamicSepticSystem
 
             try
             {
-                ApiClient.Post("/api/proveedores", new
+                var resp = ApiClient.Post<ProveedorCreadoApi>("/api/proveedores", new
                 {
                     ClaveUnica = claveUnica,
                     Nombre = nombre,
@@ -66,7 +66,7 @@ namespace DynamicSepticSystem
                     Telefono = telefono
                 });
 
-                MessageBox.Show("Proveedor guardado correctamente.", "Éxito",
+                MessageBox.Show($"Proveedor guardado correctamente. Folio: {resp?.Folio}", "Éxito",
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
 
                 this.DialogResult = DialogResult.OK;

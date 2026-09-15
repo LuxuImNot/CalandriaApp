@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using System.Configuration;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
 
@@ -254,7 +252,7 @@ namespace DynamicSepticSystem
             evidenciasDisponibles = disponibles;
             EvidenciasSeleccionadas = new List<EvidenciaInfo>(yaSeleccionadas);
             
-            gestor = new GestorEvidencias(ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString);
+            gestor = new GestorEvidencias();
 
             InitializeComponent();
             ThemeManager.AplicarTema(this);

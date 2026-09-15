@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Web.Http;
+using Calandria.Api.Auth;
 using Calandria.Api.Data;
 using Calandria.Api.Models;
 
@@ -16,11 +17,11 @@ namespace Calandria.Api.Controllers
     /// La tabla FotosConcepto se crea automáticamente la primera vez (idempotente).
     /// La foto viaja en base64 al guardar y como binario al consultar.
     /// </summary>
-    [RoutePrefix("api/fotos-concepto")]
+    [RoutePrefix("api/fotos-concepto"), RequierePermiso("estimaciones.ver")]
     public class FotosConceptoController : ApiController
     {
         /// <summary>POST /api/fotos-concepto · guarda una foto. Devuelve el Id nuevo.</summary>
-        [HttpPost, Route("")]
+        [HttpPost, Route(""), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult Guardar([FromBody] GuardarFotoConceptoRequest req)
         {
             if (req == null)
@@ -37,6 +38,8 @@ namespace Calandria.Api.Controllers
                 return BadRequest("La foto no puede estar vacía");
             if (foto.Length > 10 * 1024 * 1024)
                 return BadRequest("La foto no puede superar los 10 MB");
+            if (!Services.ImagenValidacion.EsImagenValida(foto))
+                return BadRequest("El archivo no es una imagen válida (jpg/png/webp)");
 
             double tamanioKB = foto.Length / 1024.0;
 
@@ -170,7 +173,7 @@ WHERE Manzana = @Manzana AND Lote = @Lote
         }
 
         /// <summary>POST /api/fotos-concepto/{id}/descripcion · actualiza la descripción.</summary>
-        [HttpPost, Route("{id:int}/descripcion")]
+        [HttpPost, Route("{id:int}/descripcion"), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult ActualizarDescripcion(int id, [FromBody] ActualizarDescripcionRequest req)
         {
             using (var conn = Db.Abrir())
@@ -188,7 +191,7 @@ WHERE Manzana = @Manzana AND Lote = @Lote
         }
 
         /// <summary>POST /api/fotos-concepto/{id}/eliminar · borra la foto. Devuelve true si borró.</summary>
-        [HttpPost, Route("{id:int}/eliminar")]
+        [HttpPost, Route("{id:int}/eliminar"), RequierePermiso("estimaciones.editar")]
         public IHttpActionResult Eliminar(int id)
         {
             using (var conn = Db.Abrir())

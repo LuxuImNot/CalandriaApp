@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Web.Http;
+using Calandria.Api.Auth;
 using Calandria.Api.Data;
 using Calandria.Api.Models;
 
@@ -18,7 +19,7 @@ namespace Calandria.Api.Controllers
     /// cuadrillas y miembros desde MiembrosCuadrilla; la asignación se guarda en
     /// NominaTareasAsignada (DELETE + INSERT por tarea).
     /// </summary>
-    [RoutePrefix("api/nomina")]
+    [RoutePrefix("api/nomina"), RequierePermiso("nomina.ver")]
     public class NominaController : ApiController
     {
         /// <summary>GET /api/nomina/cuadrillas → códigos de cuadrilla.</summary>
@@ -118,7 +119,7 @@ namespace Calandria.Api.Controllers
         /// POST /api/nomina/asignacion · reemplaza la asignación de la tarea
         /// (DELETE + INSERT en una transacción), igual que FormAsignarNomina.
         /// </summary>
-        [HttpPost, Route("asignacion")]
+        [HttpPost, Route("asignacion"), RequierePermiso("nomina.editar")]
         public IHttpActionResult GuardarAsignacion([FromBody] GuardarAsignacionRequest req)
         {
             if (req == null)
@@ -175,6 +176,47 @@ namespace Calandria.Api.Controllers
                 }
             }
             return Ok();
+        }
+
+        /// <summary>
+        /// POST /api/nomina/asignacion/eliminar · borra la asignación de nómina
+        /// (NominaTareasAsignada) de uno o varios nodos de mano de obra de un
+        /// destajo. Se usa al reabrir un destajo finalizado cuando el usuario
+        /// decide descartar la nómina asignada. Los recibos ya emitidos
+        /// (RecibosNomina) NO se eliminan. Devuelve el número de filas borradas.
+        /// </summary>
+        [HttpPost, Route("asignacion/eliminar"), RequierePermiso("nomina.editar")]
+        public IHttpActionResult EliminarAsignacion([FromBody] EliminarAsignacionRequest req)
+        {
+            if (req == null)
+                return BadRequest("Cuerpo vacío.");
+            if (req.NodoIds == null || req.NodoIds.Count == 0)
+                return Ok(0);
+
+            int borrados = 0;
+            using (var conn = Db.Abrir())
+            {
+                EnsureTabla(conn);
+
+                using (var tx = conn.BeginTransaction())
+                {
+                    foreach (var nodo in req.NodoIds)
+                    {
+                        using (var cmd = new SqlCommand(@"
+                            DELETE FROM NominaTareasAsignada
+                            WHERE Manzana = @m AND Lote = @l AND Ruta = @r AND NodoID = @nodo", conn, tx))
+                        {
+                            cmd.Parameters.AddWithValue("@m", req.Manzana ?? "");
+                            cmd.Parameters.AddWithValue("@l", req.Lote ?? "");
+                            cmd.Parameters.AddWithValue("@r", req.Ruta ?? "");
+                            cmd.Parameters.AddWithValue("@nodo", nodo);
+                            borrados += cmd.ExecuteNonQuery();
+                        }
+                    }
+                    tx.Commit();
+                }
+            }
+            return Ok(borrados);
         }
 
         /// <summary>
@@ -320,7 +362,7 @@ namespace Calandria.Api.Controllers
         /// marca sus destajos como nómina distribuida, en una transacción.
         /// Reproduce FormDistribucionNomina (GuardarRecibo + MarcarNominaDistribuida).
         /// </summary>
-        [HttpPost, Route("distribucion")]
+        [HttpPost, Route("distribucion"), RequierePermiso("nomina.editar")]
         public IHttpActionResult Distribucion([FromBody] DistribucionNominaRequest req)
         {
             if (req == null)

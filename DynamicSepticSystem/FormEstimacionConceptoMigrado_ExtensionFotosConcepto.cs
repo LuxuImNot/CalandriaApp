@@ -64,7 +64,7 @@ namespace DynamicSepticSystem
             string lote = cmbLote.SelectedItem.ToString();
 
             if (gestorFotosConcepto == null)
-                gestorFotosConcepto = new GestorFotosConcepto(connectionString);
+                gestorFotosConcepto = new GestorFotosConcepto();
 
             // 1) Recolectar todos los pares (nodo, foto) que tengan imagen asociada.
             var items = new List<KeyValuePair<NodoConcepto, FotoConceptoInfo>>();

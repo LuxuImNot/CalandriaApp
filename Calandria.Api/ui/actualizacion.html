@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilaris · Actualización</title>
+
+<style>
+/* Tokens copiados de login.html/panel.html (paleta café Calandria), para que
+   esta pantalla se vea como parte del mismo sistema. */
+:root {
+  --ink:#221E1B; --ink-2:#2F2825;
+  --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC;
+  --ok:#1F6B4A; --ok-bg:#E2F0E8;
+  --warn:#C2620A; --warn-bg:#FAEADB;
+  --stop:#A31D1D; --stop-bg:#F7E3E3;
+  --shadow-lg:0 18px 46px -18px rgba(34,30,27,.35), 0 2px 6px rgba(34,30,27,.06);
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI Variable Text","Segoe UI",Roboto,sans-serif;
+  --r:8px; --r-2:12px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#100E0C; --ink-2:#191512;
+    --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+    --rule:#3A322C; --rule-soft:#2C2521;
+    --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+    --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+    --on-ink:#F2EEE9;
+    --ok:#54B183; --ok-bg:#163024;
+    --warn:#E0913F; --warn-bg:#33240F;
+    --stop:#DB6B6B; --stop-bg:#331717;
+    --shadow-lg:0 18px 46px -18px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#100E0C; --ink-2:#191512;
+  --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+  --rule:#3A322C; --rule-soft:#2C2521;
+  --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+  --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+  --on-ink:#F2EEE9;
+  --ok:#54B183; --ok-bg:#163024;
+  --warn:#E0913F; --warn-bg:#33240F;
+  --stop:#DB6B6B; --stop-bg:#331717;
+  --shadow-lg:0 18px 46px -18px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.4);
+}
+:root[data-theme="light"]{
+  --ink:#221E1B; --ink-2:#2F2825;
+  --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC;
+  --ok:#1F6B4A; --ok-bg:#E2F0E8;
+  --warn:#C2620A; --warn-bg:#FAEADB;
+  --stop:#A31D1D; --stop-bg:#F7E3E3;
+  --shadow-lg:0 18px 46px -18px rgba(34,30,27,.35), 0 2px 6px rgba(34,30,27,.06);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--paper); color:var(--text);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  display:flex; align-items:center; justify-content:center;
+}
+h1{margin:0 0 4px; font-size:18px; font-weight:600; letter-spacing:-.01em}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--brass); outline-offset:2px; border-radius:3px}
+
+.card{
+  width:100%; max-width:440px; margin:24px; background:var(--surface);
+  border:1px solid var(--rule-soft); border-radius:var(--r-2);
+  box-shadow:var(--shadow-lg); padding:28px;
+}
+.icon{
+  width:44px; height:44px; border-radius:999px; background:var(--brass-soft);
+  color:var(--brass-2); display:flex; align-items:center; justify-content:center;
+  font-size:22px; margin-bottom:14px;
+}
+.sub{color:var(--text-2); margin-bottom:18px}
+.versiones{
+  display:flex; gap:10px; align-items:center; margin-bottom:22px;
+  font-size:13px; color:var(--text-2);
+}
+.versiones .badge{
+  background:var(--surface-2); border:1px solid var(--rule-soft); border-radius:999px;
+  padding:3px 10px; font-weight:600; color:var(--text);
+}
+.versiones .flecha{color:var(--text-3)}
+.versiones .nueva{background:var(--brass-soft); color:var(--brass-2); border-color:transparent}
+
+.botones{display:flex; gap:10px; justify-content:flex-end}
+button.btn{
+  padding:9px 16px; border-radius:var(--r); border:1px solid var(--rule);
+  background:var(--surface); font-weight:600; font-size:13px;
+}
+button.btn:hover{background:var(--surface-2)}
+button.primary{background:var(--brass); border-color:var(--brass); color:var(--on-ink)}
+button.primary:hover{background:var(--brass-2)}
+button.btn:disabled{opacity:.6; cursor:default}
+
+.progreso{display:none}
+.barra{
+  height:8px; border-radius:999px; background:var(--surface-2); overflow:hidden; margin-bottom:10px;
+  border:1px solid var(--rule-soft);
+}
+.barra > i{display:block; height:100%; width:0%; background:var(--brass); transition:width .2s ease}
+.estado-txt{color:var(--text-2); font-size:13px}
+
+.mensaje{
+  display:none; border-radius:var(--r); padding:10px 12px; font-size:13px; margin-bottom:16px;
+}
+.mensaje.error{background:var(--stop-bg); color:var(--stop)}
+.mensaje.info{background:var(--warn-bg); color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">⬆</div>
+  <h1>Actualización obligatoria</h1>
+  <div class="sub">Hay una nueva versión de Pilaris. Es necesario instalarla para continuar.</div>
+
+  <div class="versiones">
+    <span class="badge" id="badgeLocal">v—</span>
+    <span class="flecha">→</span>
+    <span class="badge nueva" id="badgeRemota">v—</span>
+  </div>
+
+  <div class="mensaje" id="mensaje"></div>
+
+  <div class="progreso" id="bloqueProgreso">
+    <div class="barra"><i id="barraFill"></i></div>
+    <div class="estado-txt" id="estadoTxt">Preparando descarga...</div>
+  </div>
+
+  <div class="botones" id="bloqueBotones">
+    <button class="btn" id="btnSalir">Salir de Pilaris</button>
+    <button class="btn primary" id="btnActualizar">Actualizar ahora</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const HOST = window.chrome && window.chrome.webview;
+  function alHost(accion, datos){ if (HOST) HOST.postMessage(Object.assign({ accion }, datos || {})); }
+
+  const badgeLocal = document.getElementById("badgeLocal");
+  const badgeRemota = document.getElementById("badgeRemota");
+  const mensaje = document.getElementById("mensaje");
+  const bloqueProgreso = document.getElementById("bloqueProgreso");
+  const bloqueBotones = document.getElementById("bloqueBotones");
+  const barraFill = document.getElementById("barraFill");
+  const estadoTxt = document.getElementById("estadoTxt");
+  const btnActualizar = document.getElementById("btnActualizar");
+  const btnSalir = document.getElementById("btnSalir");
+
+  function mostrarMensaje(texto, tipo){
+    mensaje.textContent = texto;
+    mensaje.className = "mensaje " + tipo;
+    mensaje.style.display = "block";
+  }
+
+  btnActualizar.addEventListener("click", () => {
+    mensaje.style.display = "none";
+    bloqueBotones.style.display = "none";
+    bloqueProgreso.style.display = "block";
+    alHost("actualizar");
+  });
+
+  btnSalir.addEventListener("click", () => alHost("salir"));
+
+  if (HOST) {
+    HOST.addEventListener("message", (e) => {
+      const d = e.data;
+      if (!d || !d.tipo) return;
+      if (d.tipo === "info") {
+        badgeLocal.textContent = "v" + (d.local || "—");
+        badgeRemota.textContent = "v" + (d.remota || "—");
+      } else if (d.tipo === "progreso") {
+        barraFill.style.width = Math.max(0, Math.min(100, d.porcentaje || 0)) + "%";
+        estadoTxt.textContent = d.estado || "";
+      } else if (d.tipo === "error") {
+        bloqueProgreso.style.display = "none";
+        bloqueBotones.style.display = "flex";
+        btnActualizar.textContent = "Reintentar";
+        mostrarMensaje(d.mensaje || "Ocurrió un error al actualizar.", d.cancelado ? "info" : "error");
+      }
+    });
+  }
+
+  alHost("cargar-info");
+})();
+</script>
+</body>
+</html>

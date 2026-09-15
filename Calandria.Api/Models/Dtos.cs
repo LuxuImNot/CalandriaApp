@@ -16,6 +16,7 @@ namespace Calandria.Api.Models
         public string Rol { get; set; }
         public List<string> Permisos { get; set; }
         public DateTime ExpiraUtc { get; set; }
+        public bool EsSuperAdmin { get; set; }
     }
 
     /// <summary>

@@ -21,7 +21,7 @@ namespace Calandria.Api.Auth
             return new SymmetricSecurityKey(bytes);
         }
 
-        public static string Generar(string usuario, string rol, out DateTime expiraUtc)
+        public static string Generar(string usuario, string rol, IEnumerable<string> permisos, int clienteId, out DateTime expiraUtc)
         {
             expiraUtc = DateTime.UtcNow.AddHours(Configuracion.JwtHorasVigencia);
 
@@ -30,8 +30,13 @@ namespace Calandria.Api.Auth
                 new Claim(JwtRegisteredClaimNames.Sub, usuario),
                 new Claim(ClaimTypes.Name, usuario),
                 new Claim(ClaimTypes.Role, rol ?? string.Empty),
+                new Claim("cliente", clienteId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N"))
             };
+
+            if (permisos != null)
+                foreach (var permiso in permisos)
+                    claims.Add(new Claim("perm", permiso));
 
             var creds = new SigningCredentials(Clave(), SecurityAlgorithms.HmacSha256);
             var token = new JwtSecurityToken(

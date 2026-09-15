@@ -1897,7 +1897,7 @@ namespace DynamicSepticSystem
         {
             var doc = new PdfDocument();
             doc.Info.Title = tituloPrincipal;
-            doc.Info.Author = "Calandria Residencial";
+            doc.Info.Author = "Pilaris";
 
             var page = doc.AddPage();
             page.Size = PdfSharp.PageSize.Letter;
@@ -1912,19 +1912,21 @@ namespace DynamicSepticSystem
             var fuenteMuyPequena = new XFont("Arial", 7, XFontStyle.Regular);
 
             // === DEFINIR COLORES ===
-            var colorPrincipal = XColor.FromArgb(13, 71, 161);      // Azul oscuro
-            var colorSecundario = XColor.FromArgb(33, 150, 243);    // Azul claro
-            var colorBorde = XColor.FromArgb(189, 189, 189);       // Gris oscuro
+            var colorPrincipal = XColor.FromArgb(11, 61, 145);      // Azul marino
+            var colorSecundario = XColor.FromArgb(30, 136, 229);    // Azul claro
+            var colorAcento = XColor.FromArgb(255, 152, 0);         // Ámbar (acentos)
+            var colorBorde = XColor.FromArgb(214, 220, 228);        // Gris azulado suave
             var colorTexto = XColor.FromArgb(33, 33, 33);          // Gris muy oscuro
-            var colorGrisClaro = XColor.FromArgb(245, 245, 245);   // Gris muy claro
+            var colorGrisClaro = XColor.FromArgb(238, 243, 250);   // Azul-gris muy claro
 
             var brochaPrincipal = new XSolidBrush(colorPrincipal);
             var brochaSecundario = new XSolidBrush(colorSecundario);
+            var brochaAcento = new XSolidBrush(colorAcento);
             var brochaTexto = new XSolidBrush(colorTexto);
             var brochaBlanca = XBrushes.White;
             var brochaGrisClaro = new XSolidBrush(colorGrisClaro);
 
-            var penBorde = new XPen(colorBorde, 0.5);
+            var penBorde = new XPen(colorBorde, 0.6);
             var penPrincipal = new XPen(colorPrincipal, 1.5);
             var penFino = new XPen(colorBorde, 0.3);
 
@@ -1936,8 +1938,8 @@ namespace DynamicSepticSystem
             double espacioSeccion = 6;
 
             // === ENCABEZADO PRINCIPAL ===
-            gfx.DrawRectangle(brochaPrincipal, margenIzq, y, ancho, 40);
-            
+            DrawTarjeta(gfx, margenIzq, y, ancho, 40, 0, brochaPrincipal, null, null, 4);
+
             try
             {
                 using (var ms = new MemoryStream())
@@ -1952,6 +1954,7 @@ namespace DynamicSepticSystem
 
             gfx.DrawString("CALANDRIA RESIDENCIAL", fuenteSubtitulo, brochaBlanca,
                 new XRect(margenIzq + 38, y + 2, ancho - 38, 12), XStringFormats.TopLeft);
+            gfx.DrawRectangle(brochaAcento, margenIzq + 38, y + 13, 26, 1.4);
             gfx.DrawString(tituloPrincipal, fuenteSeccion, brochaBlanca,
                 new XRect(margenIzq + 38, y + 15, ancho - 38, 11), XStringFormats.TopLeft);
             gfx.DrawString(subtituloPdf, fuentePequena, brochaBlanca,
@@ -1969,10 +1972,12 @@ namespace DynamicSepticSystem
             {
                 if (i > 0) xCasa += colCasaAncho + 1.5;
 
-                gfx.DrawRectangle(brochaGrisClaro, xCasa, y, colCasaAncho, altoCasa);
-                gfx.DrawLine(penBorde, xCasa, y, xCasa, y + altoCasa);
-                gfx.DrawLine(penBorde, xCasa + colCasaAncho, y, xCasa + colCasaAncho, y + altoCasa);
-                gfx.DrawLine(penBorde, xCasa, y + 11, xCasa + colCasaAncho, y + 11);
+                DrawTarjeta(gfx, xCasa, y, colCasaAncho, altoCasa, 0, brochaGrisClaro, null, penBorde, 3);
+                var pathCasa = CrearRectRedondeado(xCasa, y, colCasaAncho, altoCasa, 3);
+                gfx.Save();
+                gfx.IntersectClip(pathCasa);
+                gfx.DrawRectangle(brochaSecundario, xCasa, y, 2.2, altoCasa);
+                gfx.Restore();
 
                 string etiqueta = i == 0 ? "MANZANA" : (i == 1 ? "LOTE" : "PROTOTIPO");
                 string valor = i == 0 ? $"M{manzanaActual}" : (i == 1 ? $"L{loteActual}" : (prototipoActual ?? "-"));
@@ -1990,48 +1995,30 @@ namespace DynamicSepticSystem
             double altoDestajo = 50;
 
             // DESTAJO
-            gfx.DrawRectangle(brochaSecundario, margenIzq, y, colDestajo, 16);
+            DrawTarjeta(gfx, margenIzq, y, colDestajo, 16, altoDestajo - 16, brochaSecundario, brochaGrisClaro, penBorde, 3);
             gfx.DrawString("DESTAJO", fuenteSeccion, brochaBlanca,
                 new XRect(margenIzq + 3, y + 1, colDestajo - 6, 13), XStringFormats.TopLeft);
-
-            gfx.DrawRectangle(brochaGrisClaro, margenIzq, y + 16, colDestajo, altoDestajo - 16);
-            gfx.DrawLine(penBorde, margenIzq, y + 16, margenIzq + colDestajo, y + 16);
-            gfx.DrawLine(penBorde, margenIzq, y + 16, margenIzq, y + altoDestajo);
-            gfx.DrawLine(penBorde, margenIzq + colDestajo, y + 16, margenIzq + colDestajo, y + altoDestajo);
-            gfx.DrawLine(penBorde, margenIzq, y + altoDestajo, margenIzq + colDestajo, y + altoDestajo);
 
             gfx.DrawString($"ID: {destajo.ID}", fuenteNormal, brochaTexto,
                 new XRect(margenIzq + 4, y + 20, colDestajo - 8, 8), XStringFormats.TopLeft);
             gfx.DrawString($"Nombre: {Truncar(destajo.Nombre ?? "-", 32)}", fuenteNormal, brochaTexto,
                 new XRect(margenIzq + 4, y + 30, colDestajo - 8, 8), XStringFormats.TopLeft);
-            gfx.DrawString($"Importe: {destajo.Total.ToString("C2", CultureInfo.CurrentCulture)}", fuenteNormal, brochaSecundario,
-                new XRect(margenIzq + 4, y + 40, colDestajo - 8, 8), XStringFormats.TopLeft);
 
             // CUADRILLA
             double xCuadrilla = margenIzq + colDestajo + 1;
-            gfx.DrawRectangle(brochaSecundario, xCuadrilla, y, colDestajo, 16);
+            DrawTarjeta(gfx, xCuadrilla, y, colDestajo, 16, altoDestajo - 16, brochaSecundario, brochaGrisClaro, penBorde, 3);
             gfx.DrawString("CUADRILLA ASIGNADA", fuenteSeccion, brochaBlanca,
                 new XRect(xCuadrilla + 3, y + 1, colDestajo - 6, 13), XStringFormats.TopLeft);
-
-            gfx.DrawRectangle(brochaGrisClaro, xCuadrilla, y + 16, colDestajo, altoDestajo - 16);
-            gfx.DrawLine(penBorde, xCuadrilla, y + 16, xCuadrilla + colDestajo, y + 16);
-            gfx.DrawLine(penBorde, xCuadrilla, y + 16, xCuadrilla, y + altoDestajo);
-            gfx.DrawLine(penBorde, xCuadrilla + colDestajo, y + 16, xCuadrilla + colDestajo, y + altoDestajo);
-            gfx.DrawLine(penBorde, xCuadrilla, y + altoDestajo, xCuadrilla + colDestajo, y + altoDestajo);
 
             gfx.DrawString($"Código: {destajo.CuadrillaAsignada ?? "-"}", fuenteNormal, brochaTexto,
                 new XRect(xCuadrilla + 4, y + 20, colDestajo - 8, 8), XStringFormats.TopLeft);
             gfx.DrawString($"Integrantes: {miembros.Count}", fuenteNormal, brochaTexto,
                 new XRect(xCuadrilla + 4, y + 30, colDestajo - 8, 8), XStringFormats.TopLeft);
 
-            string jefeInfo = miembros.FirstOrDefault(m => m.EsJefe)?.Nombre ?? "Sin asignar";
-            gfx.DrawString($"Jefe: {Truncar(jefeInfo, 28)}", fuenteNormal, brochaSecundario,
-                new XRect(xCuadrilla + 4, y + 40, colDestajo - 8, 8), XStringFormats.TopLeft);
-
             y += altoDestajo + espacioSeccion + 2;
 
             // === TABLA DE TAREAS ===
-            gfx.DrawRectangle(brochaSecundario, margenIzq, y, ancho, 15);
+            DrawTarjeta(gfx, margenIzq, y, ancho, 15, 0, brochaSecundario, null, null, 3);
             gfx.DrawString("TAREAS / ÍTEMS", fuenteSeccion, brochaBlanca,
                 new XRect(margenIzq + 3, y + 1, ancho - 6, 12), XStringFormats.TopLeft);
 
@@ -2126,12 +2113,13 @@ namespace DynamicSepticSystem
             // Fila de TOTAL
             xTabla = margenIzq;
             double anchoTotalLabel = colNumAncho + colDescAncho + colCantAncho + colUnidAncho;
-            gfx.DrawRectangle(brochaSecundario, xTabla, y, anchoTotalLabel, altoFilaTabla);
+            DrawTarjeta(gfx, xTabla, y, ancho, altoFilaTabla, 0, brochaSecundario, null, null, 3);
+            gfx.DrawLine(new XPen(XColor.FromArgb(90, 255, 255, 255), 0.6),
+                xTabla + anchoTotalLabel, y + 2, xTabla + anchoTotalLabel, y + altoFilaTabla - 2);
             gfx.DrawString("TOTAL", fuenteEncabezado, brochaBlanca,
                 new XRect(xTabla + 2, y, anchoTotalLabel - 4, altoFilaTabla), XStringFormats.CenterRight);
 
             xTabla += anchoTotalLabel;
-            gfx.DrawRectangle(brochaSecundario, xTabla, y, colTotalAncho, altoFilaTabla);
             gfx.DrawString(totalGeneral.ToString("C2", CultureInfo.CurrentCulture), fuenteEncabezado, brochaBlanca,
                 new XRect(xTabla + 2, y, colTotalAncho - 4, altoFilaTabla), XStringFormats.CenterRight);
 
@@ -2140,7 +2128,7 @@ namespace DynamicSepticSystem
             // === INTEGRANTES DE LA CUADRILLA ===
             if (miembros.Count > 0)
             {
-                gfx.DrawRectangle(brochaSecundario, margenIzq, y, ancho, 15);
+                DrawTarjeta(gfx, margenIzq, y, ancho, 15, 0, brochaSecundario, null, null, 3);
                 gfx.DrawString("INTEGRANTES DE LA CUADRILLA", fuenteSeccion, brochaBlanca,
                     new XRect(margenIzq + 3, y + 1, ancho - 6, 12), XStringFormats.TopLeft);
 
@@ -2149,17 +2137,18 @@ namespace DynamicSepticSystem
                 foreach (var miembro in miembros)
                 {
                     var colorFondo = miembro.EsJefe ? new XSolidBrush(XColor.FromArgb(255, 243, 224)) : brochaBlanca;
-                    var colorBordeIntegrante = miembro.EsJefe ? new XPen(XColor.FromArgb(255, 152, 0), 1) : penBorde;
+                    var colorAccentoFila = miembro.EsJefe ? brochaAcento : new XSolidBrush(colorSecundario);
 
                     gfx.DrawRectangle(colorFondo, margenIzq, y, ancho, 12);
-                    gfx.DrawRectangle(colorBordeIntegrante, margenIzq, y, ancho, 12);
+                    gfx.DrawRectangle(colorAccentoFila, margenIzq, y, 2, 12);
+                    gfx.DrawLine(penFino, margenIzq, y + 12, margenIzq + ancho, y + 12);
 
                     string titulo = miembro.EsJefe ? "JEFE" : "Miembro";
                     string telefono = !string.IsNullOrEmpty(miembro.Telefono) ? $" • Tel: {miembro.Telefono}" : "";
                     string info = $"{titulo}: {miembro.Nombre} • {miembro.Rol}{telefono}";
 
                     gfx.DrawString(Truncar(info, 85), fuentePequena, brochaTexto,
-                        new XRect(margenIzq + 3, y + 2, ancho - 6, 8), XStringFormats.TopLeft);
+                        new XRect(margenIzq + 5, y + 2, ancho - 8, 8), XStringFormats.TopLeft);
 
                     y += 12;
                 }
@@ -2185,21 +2174,23 @@ namespace DynamicSepticSystem
             double xFirma3 = margenIzq + (anchoFirma + 1) * 2;
             double lineaFirma = y + altoFirma - 8;
 
+            var penLineaFirma = new XPen(colorSecundario, 0.7);
+
             // Firma 1
-            gfx.DrawRectangle(new XPen(colorBorde, 0.5), xFirma1, y, anchoFirma, altoFirma);
-            gfx.DrawLine(penFino, xFirma1 + 3, lineaFirma, xFirma1 + anchoFirma - 3, lineaFirma);
+            DrawTarjeta(gfx, xFirma1, y, anchoFirma, altoFirma, 0, brochaBlanca, null, penBorde, 3);
+            gfx.DrawLine(penLineaFirma, xFirma1 + 5, lineaFirma, xFirma1 + anchoFirma - 5, lineaFirma);
             gfx.DrawString("Residente/Propietario", fuenteMuyPequena, brochaTexto,
                 new XRect(xFirma1, lineaFirma + 2, anchoFirma, 6), XStringFormats.Center);
 
             // Firma 2
-            gfx.DrawRectangle(new XPen(colorBorde, 0.5), xFirma2, y, anchoFirma, altoFirma);
-            gfx.DrawLine(penFino, xFirma2 + 3, lineaFirma, xFirma2 + anchoFirma - 3, lineaFirma);
+            DrawTarjeta(gfx, xFirma2, y, anchoFirma, altoFirma, 0, brochaBlanca, null, penBorde, 3);
+            gfx.DrawLine(penLineaFirma, xFirma2 + 5, lineaFirma, xFirma2 + anchoFirma - 5, lineaFirma);
             gfx.DrawString("Supervisor de Obra", fuenteMuyPequena, brochaTexto,
                 new XRect(xFirma2, lineaFirma + 2, anchoFirma, 6), XStringFormats.Center);
 
             // Firma 3
-            gfx.DrawRectangle(new XPen(colorBorde, 0.5), xFirma3, y, anchoFirma, altoFirma);
-            gfx.DrawLine(penFino, xFirma3 + 3, lineaFirma, xFirma3 + anchoFirma - 3, lineaFirma);
+            DrawTarjeta(gfx, xFirma3, y, anchoFirma, altoFirma, 0, brochaBlanca, null, penBorde, 3);
+            gfx.DrawLine(penLineaFirma, xFirma3 + 5, lineaFirma, xFirma3 + anchoFirma - 5, lineaFirma);
             gfx.DrawString("Jefe de Proyecto", fuenteMuyPequena, brochaTexto,
                 new XRect(xFirma3, lineaFirma + 2, anchoFirma, 6), XStringFormats.Center);
 
@@ -2211,7 +2202,7 @@ namespace DynamicSepticSystem
             string fechaGeneration = DateTime.Now.ToString("dd/MM/yyyy HH:mm", CultureInfo.CreateSpecificCulture("es-MX"));
             gfx.DrawString($"Generado: {fechaGeneration}", fuenteMuyPequena, brochaTexto,
                 new XRect(margenIzq, y, ancho / 2, 5), XStringFormats.TopLeft);
-            gfx.DrawString("© 2024 Calandria Residencial", fuenteMuyPequena, brochaTexto,
+            gfx.DrawString("© 2024 Pilaris", fuenteMuyPequena, brochaTexto,
                 new XRect(margenIzq + ancho / 2, y, ancho / 2, 5), XStringFormats.TopRight);
 
             doc.Save(archivo);
@@ -2221,6 +2212,41 @@ namespace DynamicSepticSystem
         {
             if (string.IsNullOrEmpty(s)) return "";
             return s.Length <= max ? s : s.Substring(0, max - 1) + "…";
+        }
+
+        private static PdfSharp.Drawing.XGraphicsPath CrearRectRedondeado(double x, double y, double ancho, double alto, double radio)
+        {
+            var path = new PdfSharp.Drawing.XGraphicsPath();
+            path.AddArc(x, y, radio * 2, radio * 2, 180, 90);
+            path.AddArc(x + ancho - radio * 2, y, radio * 2, radio * 2, 270, 90);
+            path.AddArc(x + ancho - radio * 2, y + alto - radio * 2, radio * 2, radio * 2, 0, 90);
+            path.AddArc(x, y + alto - radio * 2, radio * 2, radio * 2, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        // Tarjeta con esquinas redondeadas: franja de encabezado (color sólido) + cuerpo
+        // (color claro), recortados al mismo contorno, con sombra suave y borde. altoBody = 0
+        // dibuja solo el encabezado (para barras de título de sección).
+        private static void DrawTarjeta(
+            XGraphics gfx, double x, double y, double ancho, double altoHeader, double altoBody,
+            XBrush colorHeader, XBrush colorBody, XPen colorBorde, double radio = 3)
+        {
+            double altoTotal = altoHeader + altoBody;
+            var path = CrearRectRedondeado(x, y, ancho, altoTotal, radio);
+
+            var pathSombra = CrearRectRedondeado(x + 0.6, y + 1, ancho, altoTotal, radio);
+            gfx.DrawPath(new XSolidBrush(XColor.FromArgb(20, 0, 0, 0)), pathSombra);
+
+            gfx.Save();
+            gfx.IntersectClip(path);
+            gfx.DrawRectangle(colorHeader, x, y, ancho, altoHeader);
+            if (altoBody > 0)
+                gfx.DrawRectangle(colorBody, x, y + altoHeader, ancho, altoBody);
+            gfx.Restore();
+
+            if (colorBorde != null)
+                gfx.DrawPath(colorBorde, path);
         }
 
         private static string SanitizarNombreArchivo(string nombre)

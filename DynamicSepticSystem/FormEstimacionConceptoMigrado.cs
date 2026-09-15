@@ -26,6 +26,8 @@ namespace DynamicSepticSystem
     {
         #region Campos privados
         
+        // Solo la usa FormGestionarPartidas (AgregarConcepto.cs), que todavía no está
+        // migrado a la API — GestorEvidencias/GestorFotosConcepto ya la ignoran.
         private string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
         private List<NodoConcepto> nodosRaiz = new List<NodoConcepto>();
         private string prototipoActual = "";
@@ -74,7 +76,7 @@ namespace DynamicSepticSystem
             CrearLabelFolio();
             
             // Inicializar gestor de evidencias
-            gestorEvidencias = new GestorEvidencias(connectionString);
+            gestorEvidencias = new GestorEvidencias();
             
             // Configurar menú contextual para partidas
             ConfigurarMenuContextual();
@@ -154,7 +156,7 @@ namespace DynamicSepticSystem
 
         private void FormEstimacionConcepto_Load(object sender, EventArgs e)
         {
-            this.Text = "Estimación por Conceptos - Sistema Calandria (Migrado)";
+            this.Text = "Estimación por Conceptos - Sistema Pilaris (Migrado)";
             ActualizarPreviewPDF();
         }
 

@@ -548,7 +548,7 @@ END";
         {
             var doc = new PdfDocument();
             doc.Info.Title = "Distribución de Nómina - " + _codigoCuadrilla;
-            doc.Info.Author = "Calandria Residencial";
+            doc.Info.Author = "Pilaris";
 
             DibujarPaginaListadoDestajos(doc);
 
@@ -562,7 +562,7 @@ END";
         {
             var doc = new PdfDocument();
             doc.Info.Title = "Recibo de Nómina - " + m.Nombre;
-            doc.Info.Author = "Calandria Residencial";
+            doc.Info.Author = "Pilaris";
             DibujarPaginaRecibo(doc, m);
 
             using (var ms = new MemoryStream())
@@ -849,7 +849,7 @@ END";
                 usuario, DateTime.Now),
                 fuentePeq, brochaTexto,
                 new XRect(margen, yPie + 2, ancho / 2, 10), XStringFormats.TopLeft);
-            gfx.DrawString("© Calandria Residencial",
+            gfx.DrawString("© Pilaris",
                 fuentePeq, brochaTexto,
                 new XRect(margen + ancho / 2, yPie + 2, ancho / 2, 10), XStringFormats.TopRight);
         }

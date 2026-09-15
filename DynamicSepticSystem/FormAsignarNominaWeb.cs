@@ -60,6 +60,7 @@ namespace DynamicSepticSystem
             MinimumSize = new Size(760, 560);
             ClientSize = new Size(860, 640);
             BackColor = Color.White;
+            ThemeManager.AplicarIconoPorDefecto(this);
 
             webNomina = new WebView2 { Dock = DockStyle.Fill, BackColor = Color.White };
             Controls.Add(webNomina);
@@ -383,7 +384,7 @@ namespace DynamicSepticSystem
         {
             var doc = new PdfDocument();
             doc.Info.Title = "Asignación de Nómina";
-            doc.Info.Author = "Calandria Residencial";
+            doc.Info.Author = "Pilaris";
 
             var page = doc.AddPage();
             page.Size = PdfSharp.PageSize.Letter;
@@ -591,7 +592,7 @@ namespace DynamicSepticSystem
                 CultureInfo.CreateSpecificCulture("es-MX"));
             gfx.DrawString($"Generado por: {usuario}  ·  {fecha}", fuentePequena, brochaTexto,
                 new XRect(margen, yPie, ancho / 2, 10), XStringFormats.TopLeft);
-            gfx.DrawString("© Calandria Residencial", fuentePequena, brochaTexto,
+            gfx.DrawString("© Pilaris", fuentePequena, brochaTexto,
                 new XRect(margen + ancho / 2, yPie, ancho / 2, 10), XStringFormats.TopRight);
 
             doc.Save(archivo);

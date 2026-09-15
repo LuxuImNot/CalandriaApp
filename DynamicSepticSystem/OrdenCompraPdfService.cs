@@ -51,7 +51,7 @@ namespace DynamicSepticSystem
                     ms.Position = 0;
                     using (var logo = XImage.FromStream(ms))
                     {
-                        int logoWidth = 100, logoHeight = 67;
+                        int logoWidth = 100, logoHeight = 89; // proporción del logo Pilaris
                         int logoX = (int)page.Width - margin - logoWidth;
                         gfx.DrawImage(logo, logoX, margin - 5, logoWidth, logoHeight);
                     }
@@ -82,7 +82,7 @@ namespace DynamicSepticSystem
             pdf.Info.Title = "Orden de Compra - " + folioOC;
             pdf.Info.Author = "Desarrolladora de Casas Camaney";
             pdf.Info.Subject = "Orden de Compra";
-            pdf.Info.Creator = "Sistema Calandria";
+            pdf.Info.Creator = "Sistema Pilaris";
 
             PdfPage page = pdf.AddPage();
             page.Size = PdfSharp.PageSize.Letter;
@@ -196,7 +196,7 @@ namespace DynamicSepticSystem
             pdf.Info.Title = "Orden de Compra - " + folioOC;
             pdf.Info.Author = "Desarrolladora de Casas Camaney";
             pdf.Info.Subject = "Orden de Compra";
-            pdf.Info.Creator = "Sistema Calandria";
+            pdf.Info.Creator = "Sistema Pilaris";
 
             PdfPage page = pdf.AddPage();
             page.Size = PdfSharp.PageSize.Letter;
@@ -227,7 +227,7 @@ namespace DynamicSepticSystem
                     ms.Position = 0;
                     using (var logo = XImage.FromStream(ms))
                     {
-                        int logoWidth = 120, logoHeight = 80;
+                        int logoWidth = 120, logoHeight = 107; // proporción del logo Pilaris
                         int logoX = (int)page.Width - margin - logoWidth;
                         gfx.DrawImage(logo, logoX, margin - 5, logoWidth, logoHeight);
                     }

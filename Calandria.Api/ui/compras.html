@@ -718,7 +718,7 @@ table.grid button.row-x:hover{background:var(--stop-bg); color:var(--stop)}
             </div>
             <div class="table-wrap" style="max-height:280px">
               <table class="grid" id="tablaProveedoresCatalogo">
-                <thead><tr><th>Clave</th><th>Nombre</th><th>RFC</th><th>Teléfono</th></tr></thead>
+                <thead><tr><th>Folio</th><th>Clave</th><th>Nombre</th><th>RFC</th><th>Teléfono</th></tr></thead>
                 <tbody></tbody>
               </table>
             </div>
@@ -1143,8 +1143,8 @@ table.grid button.row-x:hover{background:var(--stop-bg); color:var(--stop)}
 
     const tbody = $("#tablaProveedoresCatalogo tbody");
     tbody.innerHTML = state.proveedores.length === 0
-      ? `<tr><td colspan="4" class="table-empty">Aún no has capturado proveedores para esta obra. Usa "Nuevo proveedor" para agregar el primero.</td></tr>`
-      : state.proveedores.map(p => `<tr><td class="num">${esc(p.claveUnica)}</td><td class="desc">${esc(p.nombre)}</td><td>${esc(p.rfc)}</td><td>${esc(p.telefono)}</td></tr>`).join("");
+      ? `<tr><td colspan="5" class="table-empty">Aún no has capturado proveedores para esta obra. Usa "Nuevo proveedor" para agregar el primero.</td></tr>`
+      : state.proveedores.map(p => `<tr><td class="num">${esc(p.folio)}</td><td class="num">${esc(p.claveUnica)}</td><td class="desc">${esc(p.nombre)}</td><td>${esc(p.rfc)}</td><td>${esc(p.telefono)}</td></tr>`).join("");
   }
   function proveedorPorClave(clave) { return state.proveedores.find(p => (p.claveUnica || "").toLowerCase() === (clave || "").toLowerCase()); }
   function proveedorPorNombre(nombre) { return state.proveedores.find(p => (p.nombre || "").toLowerCase() === (nombre || "").toLowerCase()); }
@@ -1835,8 +1835,8 @@ table.grid button.row-x:hover{background:var(--stop-bg); color:var(--stop)}
   // ==========================================================================
   function demoProveedores() {
     state.proveedores = [
-      { claveUnica: "PROV-001", nombre: "Materiales del Noroeste", rfc: "MNO850101ABC", direccion: "Blvd. Industrial 100", telefono: "662-111-2233" },
-      { claveUnica: "PROV-002", nombre: "Ferretería Hidalgo", rfc: "FHI900202XYZ", direccion: "Calle 5 de Mayo 45", telefono: "662-444-5566" }
+      { folio: "PROV-0001", claveUnica: "PROV-001", nombre: "Materiales del Noroeste", rfc: "MNO850101ABC", direccion: "Blvd. Industrial 100", telefono: "662-111-2233" },
+      { folio: "PROV-0002", claveUnica: "PROV-002", nombre: "Ferretería Hidalgo", rfc: "FHI900202XYZ", direccion: "Calle 5 de Mayo 45", telefono: "662-444-5566" }
     ];
     renderProveedores();
   }
