@@ -145,14 +145,19 @@ Write-Host "SHA256: $hash"
 #    instalado. Si no, se avisa y se sigue solo con el ZIP (el auto-updater
 #    no depende del instalador para nada).
 $rutaInstaladorExe = $null
-$iscc = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+$iscc = (Get-Command "ISCC.exe" -ErrorAction SilentlyContinue).Source
 if (-not $iscc) {
-    $rutaDefault = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-    if (Test-Path $rutaDefault) { $iscc = Get-Item $rutaDefault }
+    # Inno Setup 6 se puede instalar por-usuario (winget lo pone en LOCALAPPDATA)
+    # o para toda la maquina; se prueban ambas rutas. Sin esto, en esta maquina
+    # el instalador se omitia en silencio y la release salia solo con el ZIP.
+    foreach ($rutaDefault in @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+                               "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+        if (Test-Path $rutaDefault) { $iscc = $rutaDefault; break }
+    }
 }
 if ($iscc) {
     Write-Host "Compilando instalador con Inno Setup..." -ForegroundColor Cyan
-    & $iscc.Source "$raiz\installer.iss" "/DMyAppVersion=$Version" "/O$raiz" | Out-Null
+    & $iscc "$raiz\installer.iss" "/DMyAppVersion=$Version" "/O$raiz" | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Error "ISCC.exe fallo compilando installer.iss. Revisa el mensaje arriba." }
     $rutaInstaladorExe = Join-Path $raiz "CalandriaSetup-v$Version.exe"
     if (-not (Test-Path $rutaInstaladorExe)) { Write-Error "ISCC.exe no genero $rutaInstaladorExe (revisa OutputBaseFilename en installer.iss)." }
