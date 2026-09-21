@@ -248,8 +248,11 @@ namespace Calandria.Api.Controllers
         [HttpPost, Route("usuarios/crear")]
         public IHttpActionResult CrearUsuario([FromBody] CrearUsuarioRequest req)
         {
-            if (req == null || string.IsNullOrWhiteSpace(req.Usuario) || string.IsNullOrEmpty(req.Clave))
+            if (req == null || string.IsNullOrWhiteSpace(req.Usuario))
                 return BadRequest("Usuario y contraseña son obligatorios.");
+
+            string rechazoClave = PoliticaClave.Rechazo(req.Clave);
+            if (rechazoClave != null) return BadRequest(rechazoClave);
             if (string.IsNullOrEmpty(req.FotoBase64))
                 return BadRequest("La foto es obligatoria.");
             if (req.FechaAlta == default(DateTime))
@@ -296,6 +299,52 @@ namespace Calandria.Api.Controllers
                     return Conflict();
                 }
             }
+            return Ok();
+        }
+
+        /// <summary>
+        /// Restablece la contraseña de un usuario cuando la olvidó. El admin dicta
+        /// una temporal y la cuenta queda marcada: entra, pero no opera hasta
+        /// cambiarla (JwtMessageHandler solo le deja api/auth/cambiar-clave).
+        /// El admin nunca ve ni recupera la contraseña anterior: no existe en claro.
+        /// </summary>
+        [HttpPost, Route("usuarios/{usuario}/restablecer-clave")]
+        public IHttpActionResult RestablecerClave(string usuario, [FromBody] RestablecerClaveRequest req)
+        {
+            if (req == null) return BadRequest("Falta la contraseña temporal.");
+
+            string rechazo = PoliticaClave.Rechazo(req.ClaveTemporal);
+            if (rechazo != null) return BadRequest(rechazo);
+
+            string destino = (usuario ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(destino)) return BadRequest("Falta el usuario.");
+
+            // Un admin de cliente no puede restablecerle la contraseña a un
+            // superadministrador: sería escalar privilegios desde la pantalla de
+            // Perfiles. Solo otro superadministrador puede.
+            bool destinoEsSuper = Configuracion.SuperAdmins.Contains(destino);
+            bool quienPideEsSuper = Configuracion.SuperAdmins.Contains(User.Identity.Name);
+            if (destinoEsSuper && !quienPideEsSuper)
+                return StatusCode(System.Net.HttpStatusCode.Forbidden);
+
+            int clienteId = ClienteActual.Id(User);
+
+            using (var conn = Db.AbrirMaestra())
+            {
+                // El filtro por ClienteId es lo que impide restablecerle la clave a
+                // un usuario de otro cliente hospedado en el mismo servidor.
+                using (var cmd = new SqlCommand(
+                    @"UPDATE Usuarios
+                      SET ClaveHash = @hash, CambioClaveRequerido = 1
+                      WHERE Nombre = @usuario AND ClienteId = @clienteId", conn))
+                {
+                    cmd.Parameters.AddWithValue("@hash", DynamicSepticSystem.PasswordHasher.Hash(req.ClaveTemporal));
+                    cmd.Parameters.AddWithValue("@usuario", destino);
+                    cmd.Parameters.AddWithValue("@clienteId", clienteId);
+                    if (cmd.ExecuteNonQuery() == 0) return NotFound();
+                }
+            }
+
             return Ok();
         }
 

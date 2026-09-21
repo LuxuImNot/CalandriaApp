@@ -21,7 +21,7 @@ namespace Calandria.Api.Auth
             return new SymmetricSecurityKey(bytes);
         }
 
-        public static string Generar(string usuario, string rol, IEnumerable<string> permisos, int clienteId, out DateTime expiraUtc)
+        public static string Generar(string usuario, string rol, IEnumerable<string> permisos, int clienteId, out DateTime expiraUtc, bool cambioClaveRequerido = false)
         {
             expiraUtc = DateTime.UtcNow.AddHours(Configuracion.JwtHorasVigencia);
 
@@ -37,6 +37,11 @@ namespace Calandria.Api.Auth
             if (permisos != null)
                 foreach (var permiso in permisos)
                     claims.Add(new Claim("perm", permiso));
+
+            // Contraseña puesta por un administrador: el token entra pero no opera.
+            // JwtMessageHandler solo le deja pasar api/auth/cambiar-clave.
+            if (cambioClaveRequerido)
+                claims.Add(new Claim("cambioClave", "1"));
 
             var creds = new SigningCredentials(Clave(), SecurityAlgorithms.HmacSha256);
             var token = new JwtSecurityToken(

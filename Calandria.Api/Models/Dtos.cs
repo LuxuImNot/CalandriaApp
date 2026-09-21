@@ -17,6 +17,25 @@ namespace Calandria.Api.Models
         public List<string> Permisos { get; set; }
         public DateTime ExpiraUtc { get; set; }
         public bool EsSuperAdmin { get; set; }
+
+        /// <summary>
+        /// La contraseña la puso un administrador: el cliente debe mandar al
+        /// usuario a cambiarla. Con esto en true el token solo sirve para
+        /// api/auth/cambiar-clave (lo corta JwtMessageHandler).
+        /// </summary>
+        public bool CambioClaveRequerido { get; set; }
+    }
+
+    public sealed class CambiarClaveRequest
+    {
+        public string ClaveActual { get; set; }
+        public string ClaveNueva { get; set; }
+    }
+
+    public sealed class RestablecerClaveRequest
+    {
+        /// <summary>Temporal que se le dicta al usuario. El servidor la exige distinta de la actual.</summary>
+        public string ClaveTemporal { get; set; }
     }
 
     /// <summary>

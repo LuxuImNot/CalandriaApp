@@ -37,6 +37,19 @@ namespace Calandria.Api.Auth
                     Thread.CurrentPrincipal = principal;
                     request.GetRequestContext().Principal = principal;
 
+                    // Contraseña puesta por un administrador: la cuenta entra pero
+                    // no opera hasta cambiarla. Se corta aquí, en el único punto por
+                    // el que pasan todas las peticiones, para que ningún cliente
+                    // (escritorio, web o curl) pueda saltárselo.
+                    if (principal.HasClaim("cambioClave", "1") && !EsCambioDeClave(request))
+                    {
+                        var bloqueo = request.CreateResponse(HttpStatusCode.Forbidden);
+                        bloqueo.Content = new StringContent(
+                            "Debes cambiar tu contraseña antes de continuar.");
+                        bloqueo.Headers.Add("X-Cambio-Clave-Requerido", "1");
+                        return Task.FromResult(bloqueo);
+                    }
+
                     if (request.Headers.TryGetValues("X-Obra-Id", out var valores) &&
                         int.TryParse(valores.FirstOrDefault(), out int obraId))
                     {
@@ -53,6 +66,13 @@ namespace Calandria.Api.Auth
             }
 
             return base.SendAsync(request, cancellationToken);
+        }
+
+        /// <summary>La única ruta que puede usar un token marcado con "cambioClave".</summary>
+        private static bool EsCambioDeClave(HttpRequestMessage request)
+        {
+            string ruta = request.RequestUri.AbsolutePath.TrimEnd('/');
+            return ruta.EndsWith("/api/auth/cambiar-clave", System.StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ResolverBaseDeDatos(string usuario, int obraId)

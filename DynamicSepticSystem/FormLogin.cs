@@ -167,6 +167,7 @@ namespace DynamicSepticSystem
 
         private class MsgAccion { public string accion; }
         private class MsgLogin { public string usuario, clave; }
+        private class MsgCambiarClave { public string claveActual, claveNueva; }
 
         private void WebLogin_Mensaje(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
@@ -186,6 +187,9 @@ namespace DynamicSepticSystem
             {
                 case "login":
                     { var d = JsonConvert.DeserializeObject<MsgLogin>(json); IntentarLogin(d.usuario, d.clave); }
+                    break;
+                case "cambiar-clave":
+                    { var d = JsonConvert.DeserializeObject<MsgCambiarClave>(json); IntentarCambiarClave(d.claveActual, d.claveNueva); }
                     break;
                 case "cargar-version":
                     _ = EnviarVersionAppAsync();
@@ -213,16 +217,19 @@ namespace DynamicSepticSystem
             try
             {
                 var resp = ApiClient.Login(usuario, clave);
-                Global.UsuarioActual = new PanelPrincipal.Usuario
-                {
-                    Nombre = resp.Usuario ?? usuario,
-                    Perfil = resp.Rol,
-                    Permisos = resp.Permisos ?? new System.Collections.Generic.List<string>(),
-                    EsSuperAdmin = resp.EsSuperAdmin
-                };
 
-                Push(new { tipo = "loginResultado", ok = true });
-                LoginExitoso?.Invoke(this, EventArgs.Empty);
+                // Contraseña puesta por un administrador: el token solo sirve para
+                // cambiarla, así que no se arma la sesión ni se avisa LoginExitoso.
+                // La página cambia a la vista de cambio y vuelve por "cambiar-clave".
+                if (resp.CambioClaveRequerido)
+                {
+                    _pendienteDeCambio = resp;
+                    _usuarioPendiente = resp.Usuario ?? usuario;
+                    Push(new { tipo = "cambioClaveRequerido", usuario = _usuarioPendiente });
+                    return;
+                }
+
+                CompletarSesion(resp, usuario);
             }
             catch (ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
             {
@@ -236,6 +243,63 @@ namespace DynamicSepticSystem
             {
                 ErrorLogger.Registrar(ex, "FormLogin.IntentarLogin");
                 Push(new { tipo = "loginResultado", ok = false, mensaje = "No se pudo conectar con el servidor. Verifica tu conexión." });
+            }
+        }
+
+        // Datos del login que quedó a medias esperando el cambio de contraseña.
+        private LoginResponseApi _pendienteDeCambio;
+        private string _usuarioPendiente;
+
+        private void CompletarSesion(LoginResponseApi resp, string usuarioTecleado)
+        {
+            Global.UsuarioActual = new PanelPrincipal.Usuario
+            {
+                Nombre = resp.Usuario ?? usuarioTecleado,
+                Perfil = resp.Rol,
+                Permisos = resp.Permisos ?? new System.Collections.Generic.List<string>(),
+                EsSuperAdmin = resp.EsSuperAdmin
+            };
+
+            Push(new { tipo = "loginResultado", ok = true });
+            LoginExitoso?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void IntentarCambiarClave(string claveActual, string claveNueva)
+        {
+            if (_pendienteDeCambio == null)
+            {
+                Push(new { tipo = "cambioClaveResultado", ok = false, mensaje = "Vuelve a iniciar sesión." });
+                return;
+            }
+
+            try
+            {
+                var resp = ApiClient.CambiarClave(claveActual, claveNueva);
+                var pendiente = _pendienteDeCambio;
+                _pendienteDeCambio = null;
+
+                // El API devuelve un token limpio; si por lo que sea no vino perfil
+                // ni permisos, se usan los del login original.
+                if (resp.Permisos == null || resp.Permisos.Count == 0) resp.Permisos = pendiente.Permisos;
+                if (string.IsNullOrEmpty(resp.Rol)) resp.Rol = pendiente.Rol;
+
+                Push(new { tipo = "cambioClaveResultado", ok = true });
+                CompletarSesion(resp, _usuarioPendiente);
+            }
+            catch (ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                // El API explica por qué (clave actual incorrecta, muy corta, igual
+                // a la anterior): se pasa tal cual en vez de inventar un mensaje.
+                Push(new { tipo = "cambioClaveResultado", ok = false, mensaje = ex.Mensaje });
+            }
+            catch (ApiException ex) when ((int)ex.StatusCode == 429)
+            {
+                Push(new { tipo = "cambioClaveResultado", ok = false, mensaje = "Demasiados intentos. Espera un momento e inténtalo de nuevo." });
+            }
+            catch (Exception ex)
+            {
+                ErrorLogger.Registrar(ex, "FormLogin.IntentarCambiarClave");
+                Push(new { tipo = "cambioClaveResultado", ok = false, mensaje = "No se pudo cambiar la contraseña. Verifica tu conexión." });
             }
         }
 

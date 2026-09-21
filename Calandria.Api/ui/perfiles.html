@@ -412,7 +412,7 @@ table.usuarios-table select:focus{border-color:var(--brass)}
       <input type="search" class="filter-input" data-filtra="tbodyUsuarios" placeholder="Filtrar usuarios…" aria-label="Filtrar usuarios">
       <div class="usuarios-table-wrap">
         <table class="usuarios-table">
-          <thead><tr><th></th><th>Usuario</th><th>Perfil asignado</th><th>Ingreso</th></tr></thead>
+          <thead><tr><th></th><th>Usuario</th><th>Perfil asignado</th><th>Ingreso</th><th>Contraseña</th></tr></thead>
           <tbody id="tbodyUsuarios"></tbody>
         </table>
       </div>
@@ -461,6 +461,22 @@ table.usuarios-table select:focus{border-color:var(--brass)}
     <div class="modal-actions">
       <button type="button" id="btnCancelarUsuario">Cancelar</button>
       <button type="button" class="btn-primary" id="btnGuardarUsuarioNuevo">Crear usuario</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalClave" hidden>
+  <div class="modal-card">
+    <h3>Restablecer contraseña</h3>
+    <p class="sub" id="modalClaveQuien"></p>
+    <div class="field" style="margin-bottom:0">
+      <label for="inClaveTemporal">Contraseña temporal</label>
+      <input type="text" id="inClaveTemporal" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="modal-error" id="modalClaveError"></div>
+    <div class="modal-actions">
+      <button type="button" id="btnCancelarClave">Cancelar</button>
+      <button type="button" class="btn-primary" id="btnConfirmarClave">Restablecer</button>
     </div>
   </div>
 </div>
@@ -695,7 +711,8 @@ function renderUsuarios(){
       <td><div class="u-avatar" data-subir-foto="${escapeHtml(u.nombre)}" title="Cambiar foto">${avatarHtml}</div></td>
       <td>${escapeHtml(u.nombre)}</td>
       <td><select data-usuario="${escapeHtml(u.nombre)}">${opciones}</select></td>
-      <td><div class="u-ingreso">${ingresoHtml}</div></td>`;
+      <td><div class="u-ingreso">${ingresoHtml}</div></td>
+      <td><button type="button" class="btn" data-restablecer="${escapeHtml(u.nombre)}">Restablecer</button></td>`;
     tbody.appendChild(tr);
   });
   if (animeFn){
@@ -707,6 +724,9 @@ function renderUsuarios(){
 // Un solo listener delegado para foto y confirmación de fecha: las filas se
 // reconstruyen en cada renderUsuarios(), así que no hay nada que reenlazar.
 el('tbodyUsuarios').addEventListener('click', (ev) => {
+  const rest = ev.target.closest('[data-restablecer]');
+  if (rest){ abrirRestablecer(rest.dataset.restablecer); return; }
+
   const avatar = ev.target.closest('[data-subir-foto]');
   if (avatar){
     const usuario = avatar.dataset.subirFoto;
@@ -750,10 +770,48 @@ function abrirModalUsuario(){
 }
 function cerrarModalUsuario(){ el('modalUsuario').hidden = true; }
 
+// ---- Restablecer contraseña -------------------------------------------
+// Se muestra en claro a propósito: el admin se la tiene que dictar al usuario,
+// y el servidor la marca como temporal (hay que cambiarla al entrar).
+let usuarioAResetear = null;
+
+function sugerirClave(){
+  // Sin ambiguos (O/0, l/1) porque esto se dicta de viva voz o por teléfono.
+  const abc = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const azar = new Uint32Array(10);
+  crypto.getRandomValues(azar);
+  return Array.from(azar, n => abc[n % abc.length]).join('');
+}
+
+function abrirRestablecer(usuario){
+  usuarioAResetear = usuario;
+  el('modalClaveQuien').textContent = 'Se le asignará a ' + usuario + '. Tendrá que cambiarla al entrar.';
+  el('inClaveTemporal').value = sugerirClave();
+  el('modalClaveError').textContent = '';
+  el('modalClave').hidden = false;
+  el('inClaveTemporal').focus();
+  el('inClaveTemporal').select();
+}
+function cerrarModalClave(){ el('modalClave').hidden = true; usuarioAResetear = null; }
+
+el('btnCancelarClave').addEventListener('click', cerrarModalClave);
+el('btnConfirmarClave').addEventListener('click', ()=>{
+  const clave = el('inClaveTemporal').value;
+  if (clave.length < 8){
+    el('modalClaveError').textContent = 'La contraseña temporal debe tener al menos 8 caracteres.';
+    return;
+  }
+  alHost('restablecer-clave', { usuario: usuarioAResetear, claveTemporal: clave });
+});
+
 el('btnNuevoUsuario').addEventListener('click', abrirModalUsuario);
 el('btnCancelarUsuario').addEventListener('click', cerrarModalUsuario);
 el('modalUsuario').addEventListener('click', (ev)=>{ if (ev.target === el('modalUsuario')) cerrarModalUsuario(); });
-document.addEventListener('keydown', (ev)=>{ if (ev.key === 'Escape' && !el('modalUsuario').hidden) cerrarModalUsuario(); });
+document.addEventListener('keydown', (ev)=>{
+  if (ev.key !== 'Escape') return;
+  if (!el('modalUsuario').hidden) cerrarModalUsuario();
+  if (!el('modalClave').hidden) cerrarModalClave();
+});
 
 // Filtro de renglones por vista. Se reaplica cuando la tabla se vuelve a pintar.
 document.querySelectorAll('.filter-input[data-filtra]').forEach(inp=>{
@@ -896,6 +954,17 @@ function init(){
           alHost('cargar-perfiles');
         } else {
           toast(d.mensaje || 'No se pudo eliminar el perfil.', 'error');
+        }
+        break;
+      case 'claveRestablecida':
+        if (d.ok){
+          // La temporal se queda en pantalla hasta que el admin cierre: si el
+          // toast se la lleva, se queda sin nada que dictarle al usuario.
+          const dictar = el('inClaveTemporal').value;
+          cerrarModalClave();
+          toast('Contraseña de ' + d.usuario + ' restablecida. Dictale: ' + dictar, 'ok');
+        } else {
+          el('modalClaveError').textContent = d.mensaje || 'No se pudo restablecer.';
         }
         break;
       case 'usuarios':

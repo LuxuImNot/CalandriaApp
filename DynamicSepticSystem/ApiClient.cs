@@ -56,6 +56,24 @@ namespace DynamicSepticSystem
             }
         }
 
+        /// <summary>
+        /// Cambia la contraseña del usuario autenticado y se queda con el token
+        /// nuevo que devuelve el API. Hay que reemplazarlo sí o sí: el token con
+        /// el que se llega aquí puede traer la marca de cambio pendiente, que lo
+        /// deja inservible para cualquier otra ruta.
+        /// </summary>
+        public static LoginResponseApi CambiarClave(string claveActual, string claveNueva)
+        {
+            var resp = Post<LoginResponseApi>("/api/auth/cambiar-clave",
+                                              new { claveActual, claveNueva });
+            if (!string.IsNullOrEmpty(resp?.Token))
+            {
+                Token = resp.Token;
+                ExpiraUtc = resp.ExpiraUtc;
+            }
+            return resp;
+        }
+
         public static void CerrarSesion()
         {
             Token = null;
@@ -182,6 +200,27 @@ namespace DynamicSepticSystem
             StatusCode = statusCode;
             Cuerpo = cuerpo;
         }
+
+        /// <summary>
+        /// El texto que el API mandó en el cuerpo (Web API serializa BadRequest("…")
+        /// como {"Message":"…"}), o <see cref="Exception.Message"/> si no vino nada
+        /// legible. Media docena de formularios traen esta misma desserialización
+        /// copiada; los nuevos usan esta y los viejos pueden migrar cuando se toquen.
+        /// </summary>
+        public string Mensaje
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(Cuerpo)) return Message;
+                try
+                {
+                    var cuerpo = Newtonsoft.Json.JsonConvert
+                        .DeserializeAnonymousType(Cuerpo, new { Message = "" });
+                    return string.IsNullOrEmpty(cuerpo?.Message) ? Cuerpo : cuerpo.Message;
+                }
+                catch { return Cuerpo; }
+            }
+        }
     }
 
     // ---- Modelos de transporte (coinciden con los DTO del API) ----
@@ -194,6 +233,13 @@ namespace DynamicSepticSystem
         public List<string> Permisos { get; set; }
         public DateTime ExpiraUtc { get; set; }
         public bool EsSuperAdmin { get; set; }
+
+        /// <summary>
+        /// La contraseña la puso un administrador. El token que viene con esto en
+        /// true solo sirve para /api/auth/cambiar-clave: el resto del API lo
+        /// rechaza con 403 hasta que el usuario ponga una contraseña propia.
+        /// </summary>
+        public bool CambioClaveRequerido { get; set; }
     }
 
     /// <summary>Si el usuario autenticado ya aceptó la versión vigente de Términos/Privacidad (api/terminos/estado).</summary>

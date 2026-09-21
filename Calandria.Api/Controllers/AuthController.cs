@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Claims;
 using System.Web.Http;
 using Calandria.Api.Auth;
 using Calandria.Api.Data;
@@ -38,12 +39,14 @@ namespace Calandria.Api.Controllers
             string perfilNombre = null;
             int? perfilId = null;
             int clienteId = 0;
+            bool cambioClaveRequerido = false;
             List<string> permisos;
 
             using (var conn = Db.AbrirMaestra())
             {
                 using (var cmd = new SqlCommand(
-                    @"SELECT u.ClaveHash, u.PerfilId, u.ClienteId, p.Nombre AS PerfilNombre
+                    @"SELECT u.ClaveHash, u.PerfilId, u.ClienteId, u.CambioClaveRequerido,
+                             p.Nombre AS PerfilNombre
                       FROM Usuarios u LEFT JOIN Perfiles p ON p.Id = u.PerfilId
                       WHERE u.Nombre = @usuario", conn))
                 {
@@ -56,6 +59,8 @@ namespace Calandria.Api.Controllers
                             perfilId = reader["PerfilId"] as int?;
                             clienteId = (int)reader["ClienteId"];
                             perfilNombre = reader["PerfilNombre"]?.ToString();
+                            cambioClaveRequerido = reader["CambioClaveRequerido"] != DBNull.Value &&
+                                                   (bool)reader["CambioClaveRequerido"];
                         }
                     }
                 }
@@ -111,7 +116,8 @@ namespace Calandria.Api.Controllers
             }
 
             LoginThrottle.RegistrarExito(usuario);
-            string token = TokenService.Generar(usuario, perfilNombre, permisos, clienteId, out DateTime expiraUtc);
+            string token = TokenService.Generar(usuario, perfilNombre, permisos, clienteId,
+                                                out DateTime expiraUtc, cambioClaveRequerido);
 
             return Ok(new LoginResponse
             {
@@ -120,7 +126,86 @@ namespace Calandria.Api.Controllers
                 Rol = perfilNombre,
                 Permisos = permisos,
                 ExpiraUtc = expiraUtc,
-                EsSuperAdmin = Configuracion.SuperAdmins.Contains(usuario)
+                EsSuperAdmin = Configuracion.SuperAdmins.Contains(usuario),
+                CambioClaveRequerido = cambioClaveRequerido
+            });
+        }
+
+        /// <summary>
+        /// Cambia la contraseña del usuario autenticado. Exige la actual: un token
+        /// robado no alcanza para quedarse con la cuenta. Es la única ruta que
+        /// acepta un token marcado con "cambioClave" (ver JwtMessageHandler), así
+        /// que también sirve para el cambio obligatorio del primer ingreso.
+        /// Devuelve un token nuevo, ya sin la marca.
+        /// </summary>
+        [HttpPost, Route("cambiar-clave")]
+        public IHttpActionResult CambiarClave([FromBody] CambiarClaveRequest req)
+        {
+            if (req == null || string.IsNullOrEmpty(req.ClaveActual))
+                return BadRequest("Ingresa tu contraseña actual.");
+
+            string rechazo = PoliticaClave.Rechazo(req.ClaveNueva);
+            if (rechazo != null) return BadRequest(rechazo);
+
+            string usuario = User.Identity.Name;
+            if (string.IsNullOrWhiteSpace(usuario)) return Unauthorized();
+
+            // Una contraseña "nueva" igual a la actual deja la cuenta con la
+            // temporal que dictó el administrador, que es justo lo que se quiere evitar.
+            if (req.ClaveNueva == req.ClaveActual)
+                return BadRequest("La contraseña nueva debe ser distinta de la actual.");
+
+            // El throttle del login cubre también esto: si no, la clave actual se
+            // vuelve un oráculo para adivinar a fuerza bruta con un token válido.
+            if (LoginThrottle.Bloqueado(usuario))
+                return StatusCode((System.Net.HttpStatusCode)429);
+
+            using (var conn = Db.AbrirMaestra())
+            {
+                string hashAlmacenado;
+                using (var cmd = new SqlCommand(
+                    "SELECT ClaveHash FROM Usuarios WHERE Nombre = @u", conn))
+                {
+                    cmd.Parameters.AddWithValue("@u", usuario);
+                    hashAlmacenado = cmd.ExecuteScalar() as string;
+                }
+                if (hashAlmacenado == null) return Unauthorized();
+
+                if (!PasswordHasher.Verificar(req.ClaveActual, hashAlmacenado, out _))
+                {
+                    LoginThrottle.RegistrarFallo(usuario);
+                    return BadRequest("La contraseña actual no es correcta.");
+                }
+                LoginThrottle.RegistrarExito(usuario);
+
+                using (var upd = new SqlCommand(
+                    @"UPDATE Usuarios SET ClaveHash = @h, CambioClaveRequerido = 0
+                      WHERE Nombre = @u", conn))
+                {
+                    upd.Parameters.AddWithValue("@h", PasswordHasher.Hash(req.ClaveNueva));
+                    upd.Parameters.AddWithValue("@u", usuario);
+                    upd.ExecuteNonQuery();
+                }
+            }
+
+            // El token viejo puede traer el claim "cambioClave", que lo deja
+            // inservible para todo lo demás: hay que reemplazarlo aquí mismo o el
+            // usuario queda encerrado hasta volver a iniciar sesión.
+            var permisos = ((ClaimsPrincipal)User).FindAll("perm").Select(c => c.Value).ToList();
+            string rol = ((ClaimsPrincipal)User).FindFirst(ClaimTypes.Role)?.Value;
+            string token = TokenService.Generar(
+                usuario, string.IsNullOrEmpty(rol) ? null : rol, permisos,
+                ClienteActual.Id(User), out DateTime expiraUtc);
+
+            return Ok(new LoginResponse
+            {
+                Token = token,
+                Usuario = usuario,
+                Rol = rol,
+                Permisos = permisos,
+                ExpiraUtc = expiraUtc,
+                EsSuperAdmin = Configuracion.SuperAdmins.Contains(usuario),
+                CambioClaveRequerido = false
             });
         }
 

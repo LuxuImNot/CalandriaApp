@@ -258,6 +258,7 @@ namespace DynamicSepticSystem
         private class MsgCrearUsuario { public string usuario, clave, fotoBase64, extension, fechaAlta; public int perfilId; }
         private class MsgFotoUsuario { public string usuario, fotoBase64, extension; }
         private class MsgFechaAlta { public string usuario, fechaAlta; }
+        private class MsgRestablecerClave { public string usuario, claveTemporal; }
 
         private void WebPerfiles_Mensaje(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
@@ -301,6 +302,9 @@ namespace DynamicSepticSystem
                         break;
                     case "confirmar-fecha-alta":
                         { var d = JsonConvert.DeserializeObject<MsgFechaAlta>(json); ConfirmarFechaAltaWeb(d); }
+                        break;
+                    case "restablecer-clave":
+                        RestablecerClaveWeb(JsonConvert.DeserializeObject<MsgRestablecerClave>(json));
                         break;
                     case "cargar-obras-catalogo": CargarObrasCatalogoWeb(); break;
                     case "cargar-asignaciones-obras": CargarAsignacionesObrasWeb(); break;
@@ -431,6 +435,34 @@ namespace DynamicSepticSystem
             catch (Exception ex)
             {
                 Push(new { tipo = "perfilAsignado", ok = false, usuario = d.usuario, mensaje = "No se pudo asignar: " + ex.Message });
+            }
+        }
+
+        private void RestablecerClaveWeb(MsgRestablecerClave d)
+        {
+            try
+            {
+                ApiClient.Post(
+                    "/api/perfiles/usuarios/" + Uri.EscapeDataString(d.usuario ?? "") + "/restablecer-clave",
+                    new { ClaveTemporal = d.claveTemporal });
+                Push(new { tipo = "claveRestablecida", ok = true, usuario = d.usuario });
+            }
+            catch (ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                Push(new { tipo = "claveRestablecida", ok = false, usuario = d.usuario, mensaje = MensajeDe(ex) });
+            }
+            catch (ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                Push(new { tipo = "claveRestablecida", ok = false, usuario = d.usuario,
+                           mensaje = "Solo otro superadministrador puede restablecerle la contrasena a este usuario." });
+            }
+            catch (ApiException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                Push(new { tipo = "claveRestablecida", ok = false, usuario = d.usuario, mensaje = "El usuario no existe." });
+            }
+            catch (Exception ex)
+            {
+                Push(new { tipo = "claveRestablecida", ok = false, usuario = d.usuario, mensaje = "No se pudo restablecer: " + ex.Message });
             }
         }
 

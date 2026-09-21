@@ -253,6 +253,38 @@ button.primary.is-loading .txt{opacity:.85}
 
       <p class="hint">¿Problemas para entrar? Contacta a tu administrador.</p>
     </form>
+
+    <form class="card" id="formCambio" novalidate hidden>
+      <h2>Cambia tu contraseña</h2>
+      <p class="sub">Tu contraseña la fijó un administrador. Elige una propia para continuar.</p>
+
+      <div class="error" id="errorCambio" role="alert" aria-live="assertive">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="errorCambioTexto"></span>
+      </div>
+
+      <div class="field">
+        <label for="claveActual">Contraseña temporal</label>
+        <input id="claveActual" type="password" autocomplete="current-password" required>
+      </div>
+
+      <div class="field">
+        <label for="claveNueva">Contraseña nueva</label>
+        <input id="claveNueva" type="password" autocomplete="new-password" minlength="8" required>
+      </div>
+
+      <div class="field">
+        <label for="claveNueva2">Repite la contraseña nueva</label>
+        <input id="claveNueva2" type="password" autocomplete="new-password" minlength="8" required>
+      </div>
+
+      <button type="submit" class="primary" id="btnCambio">
+        <span class="spin"></span>
+        <span class="txt">Guardar y entrar</span>
+      </button>
+
+      <p class="hint">Mínimo 8 caracteres. No podrás entrar hasta cambiarla.</p>
+    </form>
   </main>
 </div>
 
@@ -343,6 +375,51 @@ button.primary.is-loading .txt{opacity:.85}
   });
 
   // ------------------------------------------------------------
+  // Cambio obligatorio de contraseña
+  // ------------------------------------------------------------
+  const formCambio = document.getElementById("formCambio");
+  const btnCambio = document.getElementById("btnCambio");
+  const errorCambio = document.getElementById("errorCambio");
+  const errorCambioTexto = document.getElementById("errorCambioTexto");
+  const claveActual = document.getElementById("claveActual");
+  const claveNueva = document.getElementById("claveNueva");
+  const claveNueva2 = document.getElementById("claveNueva2");
+
+  function mostrarVistaCambio(){
+    form.hidden = true;
+    formCambio.hidden = false;
+    // La temporal ya la tecleó en el login, pero se pide otra vez a propósito:
+    // el API la exige y así nadie cambia la clave de una sesión ajena abierta.
+    claveActual.value = "";
+    claveActual.focus();
+    if (!REDUCE && animate) animate(formCambio, { opacity:[0,1], translateY:[8,0], duration:260, ease:"outQuad" });
+  }
+  function errorCambioMostrar(msg){
+    errorCambioTexto.textContent = msg;
+    errorCambio.classList.add("is-on");
+    if (!REDUCE && animate) animate(formCambio, { translateX:[0,-8,8,-6,6,0], duration:380, ease:"inOutSine" });
+  }
+  function fijarCargandoCambio(cargando){
+    btnCambio.disabled = cargando;
+    btnCambio.classList.toggle("is-loading", cargando);
+  }
+
+  formCambio.addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    errorCambio.classList.remove("is-on");
+
+    // Se valida aquí lo que se puede para no gastar un viaje al servidor; el
+    // API revalida todo de todos modos (PoliticaClave).
+    if (!claveActual.value) { errorCambioMostrar("Escribe la contraseña temporal."); return; }
+    if (claveNueva.value.length < 8) { errorCambioMostrar("La contraseña nueva debe tener al menos 8 caracteres."); return; }
+    if (claveNueva.value !== claveNueva2.value) { errorCambioMostrar("Las dos contraseñas nuevas no coinciden."); return; }
+    if (claveNueva.value === claveActual.value) { errorCambioMostrar("La contraseña nueva debe ser distinta de la temporal."); return; }
+
+    fijarCargandoCambio(true);
+    alHost("cambiar-clave", { claveActual: claveActual.value, claveNueva: claveNueva.value });
+  });
+
+  // ------------------------------------------------------------
   // Versión (footer)
   // ------------------------------------------------------------
   const footerVersion = document.getElementById("footerVersion");
@@ -373,6 +450,18 @@ button.primary.is-loading .txt{opacity:.85}
           mostrarError(d.mensaje || "No se pudo iniciar sesión.");
           inputClave.value = "";
           inputClave.focus();
+        }
+      } else if (d.tipo === "cambioClaveRequerido") {
+        fijarCargando(false);
+        mostrarVistaCambio();
+      } else if (d.tipo === "cambioClaveResultado") {
+        if (d.ok) {
+          try { localStorage.setItem(RECUERDO_USUARIO, inputUsuario.value.trim()); } catch (err) { /* modo privado */ }
+          if (!REDUCE && animate) animate(formCambio, { opacity:[1,0.5], duration:200, ease:"outQuad" });
+        } else {
+          fijarCargandoCambio(false);
+          errorCambioMostrar(d.mensaje || "No se pudo cambiar la contraseña.");
+          claveActual.select();
         }
       } else if (d.tipo === "version") {
         pintarVersion(d);
