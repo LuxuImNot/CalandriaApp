@@ -31,6 +31,28 @@ namespace DynamicSepticSystem
         private WebView2 webAdministrativos;
         private ConsolidadoCasaApi ultimoConsolidado;
 
+        /// <summary>Casa con la que abre la ventana cuando viene del tablero.</summary>
+        private string _preMz, _preLote;
+
+        /// <summary>
+        /// Abre (o cambia) la consulta en una casa concreta: el tablero ya sabe
+        /// cual esta seleccionada. La pagina rellena sus selectores por los mismos
+        /// pasos que daria el usuario.
+        /// </summary>
+        public void PreseleccionarCasa(string manzana, string lote)
+        {
+            if (string.IsNullOrWhiteSpace(manzana) || string.IsNullOrWhiteSpace(lote)) return;
+            _preMz = manzana.Trim();
+            _preLote = lote.Trim();
+            EnviarPreseleccion();
+        }
+
+        private void EnviarPreseleccion()
+        {
+            if (string.IsNullOrEmpty(_preMz) || webAdministrativos?.CoreWebView2 == null) return;
+            Push(new { tipo = "preseleccion", manzana = _preMz, lote = _preLote });
+        }
+
         private static readonly JsonSerializerSettings CamelCaseSettings =
             new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
 
@@ -312,6 +334,9 @@ namespace DynamicSepticSystem
             {
                 var lista = await Task.Run(() => ApiClient.Get<List<string>>("/api/administrativos/manzanas")) ?? new List<string>();
                 Push(new { tipo = "manzanas", lista });
+                // Primer mensaje que pide la pagina al cargar: el mejor momento
+                // para decirle con que casa viene del tablero.
+                EnviarPreseleccion();
             }
             catch (Exception ex) { ManejarErrorApi(ex, "No se pudieron cargar las manzanas"); }
         }

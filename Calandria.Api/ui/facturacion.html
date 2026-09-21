@@ -633,6 +633,22 @@ table.grid tr.is-pendiente td{background:color-mix(in srgb, var(--warn) 10%, var
   document.querySelectorAll("[data-cerrar]").forEach(b => b.addEventListener("click", () => cancelarModal(b.dataset.cerrar)));
   document.querySelectorAll(".modal-backdrop").forEach(bd => bd.addEventListener("click", e => { if (e.target === bd) cancelarModal(bd.id); }));
 
+  // Escape cierra el modal abierto: mismo camino que el clic en el fondo.
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    const abierto = document.querySelector(".modal-backdrop.is-on");
+    if (abierto) cancelarModal(abierto.id);
+  });
+
+  // Ctrl+K salta al primer campo de busqueda visible de la pestana actual.
+  document.addEventListener("keydown", e => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+    const campo = Array.prototype.slice
+      .call(document.querySelectorAll('input[type="search"], .filter-input'))
+      .filter(el => el.offsetParent !== null && !el.disabled)[0];
+    if (campo) { e.preventDefault(); campo.focus(); if (campo.select) campo.select(); }
+  });
+
   function confirmar({ titulo, mensaje, botones }) {
     return new Promise(resolve => {
       pendiente.confirm = resolve;

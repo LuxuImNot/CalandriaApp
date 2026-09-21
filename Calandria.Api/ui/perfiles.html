@@ -232,6 +232,11 @@ input,select,textarea{font:inherit; color:inherit}
 
 /* ---- Usuarios ---- */
 .usuarios-table-wrap{overflow:auto; border:1px solid var(--rule); border-radius:var(--r); background:var(--surface)}
+.filter-input{
+  width:100%; max-width:320px; min-height:34px; margin-bottom:10px; padding:0 10px;
+  border:1px solid var(--rule); border-radius:var(--r); background:var(--surface-2); font-size:12.5px;
+}
+.filter-input:focus{border-color:var(--brass); background:var(--surface)}
 table.usuarios-table{border-collapse:collapse; width:100%; font-size:13px}
 table.usuarios-table th{
   position:sticky; top:0; background:var(--surface-2); text-align:left; padding:9px 12px;
@@ -404,6 +409,7 @@ table.usuarios-table select:focus{border-color:var(--brass)}
     </div>
 
     <div class="content" id="vistaUsuarios" hidden>
+      <input type="search" class="filter-input" data-filtra="tbodyUsuarios" placeholder="Filtrar usuarios…" aria-label="Filtrar usuarios">
       <div class="usuarios-table-wrap">
         <table class="usuarios-table">
           <thead><tr><th></th><th>Usuario</th><th>Perfil asignado</th><th>Ingreso</th></tr></thead>
@@ -416,6 +422,7 @@ table.usuarios-table select:focus{border-color:var(--brass)}
     </div>
 
     <div class="content" id="vistaObras" hidden>
+      <input type="search" class="filter-input" data-filtra="tbodyObrasUsuarios" placeholder="Filtrar usuarios…" aria-label="Filtrar usuarios">
       <div class="usuarios-table-wrap">
         <table class="usuarios-table" id="tablaObrasUsuarios">
           <thead><tr id="theadObrasUsuarios"><th>Usuario</th></tr></thead>
@@ -694,6 +701,7 @@ function renderUsuarios(){
   if (animeFn){
     animeFn(tbody.querySelectorAll('tr'), {opacity:[0,1], translateY:[6,0], duration:220, delay: window.anime.stagger(20), ease:'outQuad'});
   }
+  reaplicarFiltros();
 }
 
 // Un solo listener delegado para foto y confirmación de fecha: las filas se
@@ -746,6 +754,27 @@ el('btnNuevoUsuario').addEventListener('click', abrirModalUsuario);
 el('btnCancelarUsuario').addEventListener('click', cerrarModalUsuario);
 el('modalUsuario').addEventListener('click', (ev)=>{ if (ev.target === el('modalUsuario')) cerrarModalUsuario(); });
 document.addEventListener('keydown', (ev)=>{ if (ev.key === 'Escape' && !el('modalUsuario').hidden) cerrarModalUsuario(); });
+
+// Filtro de renglones por vista. Se reaplica cuando la tabla se vuelve a pintar.
+document.querySelectorAll('.filter-input[data-filtra]').forEach(inp=>{
+  inp.addEventListener('input', ()=>{
+    const q = inp.value.trim().toLowerCase();
+    el(inp.dataset.filtra).querySelectorAll('tr').forEach(tr=>{
+      tr.hidden = q !== '' && tr.textContent.toLowerCase().indexOf(q) === -1;
+    });
+  });
+});
+function reaplicarFiltros(){
+  document.querySelectorAll('.filter-input[data-filtra]').forEach(i=>i.dispatchEvent(new Event('input')));
+}
+
+// Ctrl+K salta al filtro de la vista visible.
+document.addEventListener('keydown', (ev)=>{
+  if (!(ev.ctrlKey || ev.metaKey) || ev.key.toLowerCase() !== 'k') return;
+  const campo = Array.prototype.slice.call(document.querySelectorAll('.filter-input'))
+    .filter(c=>c.offsetParent !== null)[0];
+  if (campo) { ev.preventDefault(); campo.focus(); campo.select(); }
+});
 
 function mimeDeExtension(ext){
   switch ((ext || '').toLowerCase()){
@@ -803,6 +832,7 @@ function renderObrasUsuarios(){
   if (animeFn){
     animeFn(tbody.querySelectorAll('tr'), {opacity:[0,1], translateY:[6,0], duration:220, delay: window.anime.stagger(20), ease:'outQuad'});
   }
+  reaplicarFiltros();
 }
 
 el('btnGuardarObrasUsuarios').addEventListener('click', ()=>{

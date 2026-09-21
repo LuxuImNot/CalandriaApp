@@ -40,6 +40,29 @@ namespace DynamicSepticSystem
         /// <summary>Ultimo arbol cargado; lo usan las acciones para no repetir el GET.</summary>
         private ArbolDestajosApi _arbolActual;
 
+        /// <summary>Casa con la que abre la ventana cuando viene del tablero.</summary>
+        private string _preMz, _preLote;
+
+        /// <summary>
+        /// Abre (o cambia) la ventana en una casa concreta: el tablero ya sabe
+        /// cual esta seleccionada, asi que aqui no hay que volver a elegirla. La
+        /// pagina rellena sus selectores por los mismos pasos que daria el usuario.
+        /// </summary>
+        public void PreseleccionarCasa(string manzana, string lote)
+        {
+            if (string.IsNullOrWhiteSpace(manzana) || string.IsNullOrWhiteSpace(lote)) return;
+            _preMz = manzana.Trim();
+            _preLote = lote.Trim();
+            EnviarPreseleccion();
+        }
+
+        private void EnviarPreseleccion()
+        {
+            if (string.IsNullOrEmpty(_preMz) || webPanel?.CoreWebView2 == null) return;
+            webPanel.CoreWebView2.PostWebMessageAsJson(JsonConvert.SerializeObject(
+                new { tipo = "preseleccion", manzana = _preMz, lote = _preLote }, CamelCaseSettings));
+        }
+
         private static readonly JsonSerializerSettings CamelCaseSettings =
             new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
 
@@ -423,6 +446,9 @@ namespace DynamicSepticSystem
             {
                 var lista = await Task.Run(() => ApiClient.Get<List<string>>("/api/destajos/manzanas")) ?? new List<string>();
                 PushSimple("manzanas", lista);
+                // Este es el primer mensaje que pide la pagina al cargar: el mejor
+                // momento para decirle con que casa viene del tablero.
+                EnviarPreseleccion();
             }
             catch (Exception ex) { ManejarErrorApi(ex, "No se pudieron cargar las manzanas"); }
         }
@@ -1571,7 +1597,7 @@ namespace DynamicSepticSystem
                     return new DestajoCasaReporte
                     {
                         Id = d.ID,
-                        Categoria = categorias.TryGetValue(d.ParentId, out string cat) ? cat : "(sin categoría)",
+                        Categoria = categorias.TryGetValue(d.ParentId, out string cat) ? cat : "(sin categorï¿½a)",
                         Destajo = d.Nombre ?? "",
                         Cuadrilla = d.CuadrillaAsignada ?? "",
                         Estado = d.Finalizado ? "Finalizado" : d.DesatajoActivado ? "Activado" : "Pendiente",
@@ -1628,7 +1654,7 @@ namespace DynamicSepticSystem
                 Filter = "Archivo Excel (*.xlsx)|*.xlsx",
                 FileName = (precios ? "PreciosPorDestajo" : "ExplosionInsumos") + casa +
                            DateTime.Now.ToString("_yyyyMMdd_HHmm") + ".xlsx",
-                Title = precios ? "Guardar reporte de precios" : "Guardar explosión de insumos"
+                Title = precios ? "Guardar reporte de precios" : "Guardar explosiï¿½n de insumos"
             })
             {
                 if (dlg.ShowDialog(this) != DialogResult.OK) return;
@@ -1645,7 +1671,7 @@ namespace DynamicSepticSystem
                     return;
                 }
                 if (MessageBox.Show("Archivo guardado:" + Environment.NewLine + Environment.NewLine + dlg.FileName +
-                        Environment.NewLine + Environment.NewLine + "¿Abrirlo ahora?",
+                        Environment.NewLine + Environment.NewLine + "ï¿½Abrirlo ahora?",
                         "Exportar a Excel", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
                     Process.Start(dlg.FileName);
             }
@@ -1663,8 +1689,8 @@ namespace DynamicSepticSystem
 
             string casa = string.IsNullOrEmpty(manzanaActual)
                 ? "Sin casa cargada"
-                : "Manzana " + manzanaActual + " · Lote " + loteActual;
-            hoja.Cell(2, 1).Value = casa + "  —  generado " + DateTime.Now.ToString("dd/MM/yyyy HH:mm")
+                : "Manzana " + manzanaActual + " ï¿½ Lote " + loteActual;
+            hoja.Cell(2, 1).Value = casa + "  ï¿½  generado " + DateTime.Now.ToString("dd/MM/yyyy HH:mm")
                 + (string.IsNullOrEmpty(nota) ? "" : "  -  " + nota);
             hoja.Cell(2, 1).Style.Font.Italic = true;
             hoja.Range(2, 1, 2, columnas).Merge();
@@ -1693,10 +1719,10 @@ namespace DynamicSepticSystem
             using (var libro = new XLWorkbook())
             {
                 var hoja = libro.Worksheets.Add("Explosion");
-                int fila = EncabezadoHojaExcel(hoja, "EXPLOSIÓN DE INSUMOS POR DESTAJO", 10, nota);
+                int fila = EncabezadoHojaExcel(hoja, "EXPLOSIï¿½N DE INSUMOS POR DESTAJO", 10, nota);
                 EncabezadosColumnas(hoja, fila, new[]
                 {
-                    "Categoría", "Destajo", "Cuadrilla", "Estado",
+                    "Categorï¿½a", "Destajo", "Cuadrilla", "Estado",
                     "Clave", "Insumo", "Unidad", "Cantidad", "P.U.", "Importe"
                 });
 

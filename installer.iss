@@ -43,9 +43,12 @@ Name: "desktopicon"; Description: "Crear un acceso directo en el Escritorio"; Gr
 ; Todo bin\Release EXCEPTO secrets.config y los *.example: ese archivo trae el
 ; token personal de GitHub del desarrollador que compilo el instalador, y la
 ; app funciona sin el (solo baja el limite de peticiones a la API de GitHub).
-; connectionStrings.config SI se incluye: la app todavia lo necesita mientras
-; dure la migracion a la Web API (formularios que aun hacen SQL directo).
-Source: "{#MyAppSourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "secrets.config,secrets.config.example,connectionStrings.config.example"
+Source: "{#MyAppSourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "secrets.config,secrets.config.example,connectionStrings.config,connectionStrings.config.example"
+; connectionStrings.config SI se necesita (las pantallas que aun no migran a la
+; Web API hacen SQL directo), pero NO el del desarrollador: el de bin\Release
+; apunta a localhost\SQLEXPRESS y en la maquina del cliente cuelga ~30 s al
+; entrar al panel. Se empaqueta la cadena de produccion.
+Source: "connectionStrings.release.config"; DestDir: "{app}"; DestName: "connectionStrings.config"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

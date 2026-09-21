@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pilaris · Inversión general</title>
+
+<style>
+/* Tokens copiados de clientes.html/panel.html (paleta café Calandria). */
+:root {
+  --ink:#221E1B; --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC;
+  --ok:#1F6B4A; --ok-bg:#E2F0E8;
+  --warn:#C2620A; --warn-bg:#FAEADB;
+  --stop:#A31D1D; --stop-bg:#F7E3E3;
+  --shadow:0 1px 2px rgba(34,30,27,.06);
+  --shadow-lg:0 18px 46px -18px rgba(34,30,27,.35), 0 2px 6px rgba(34,30,27,.06);
+  --mono:ui-monospace,"Cascadia Mono","Segoe UI Mono","SF Mono",Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI Variable Text","Segoe UI",Roboto,sans-serif;
+  --r:8px; --r-2:12px;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --ink:#F2EEE9; --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+    --rule:#3A322C; --rule-soft:#2C2521;
+    --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+    --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+    --on-ink:#17130C;
+    --ok:#54B183; --ok-bg:#163024;
+    --warn:#E0913F; --warn-bg:#33240F;
+    --stop:#DB6B6B; --stop-bg:#331717;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    --shadow-lg:0 18px 46px -18px rgba(0,0,0,.6), 0 2px 6px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#F2EEE9; --paper:#14110F; --surface:#1E1A16; --surface-2:#251F1A;
+  --rule:#3A322C; --rule-soft:#2C2521;
+  --text:#F2EEE9; --text-2:#B3A99E; --text-3:#8A8077;
+  --brass:#D9A441; --brass-2:#E8B65C; --brass-soft:#33291A;
+  --on-ink:#17130C; --ok:#54B183; --ok-bg:#163024;
+  --warn:#E0913F; --warn-bg:#33240F; --stop:#DB6B6B; --stop-bg:#331717;
+}
+:root[data-theme="light"]{
+  --ink:#221E1B; --paper:#EDEBE7; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --rule:#D6D1CA; --rule-soft:#E6E2DC;
+  --text:#221E1B; --text-2:#5C544D; --text-3:#867D74;
+  --brass:#7A5A12; --brass-2:#9A7420; --brass-soft:#F2E8D2;
+  --on-ink:#F3F0EC; --ok:#1F6B4A; --ok-bg:#E2F0E8;
+  --warn:#C2620A; --warn-bg:#FAEADB; --stop:#A31D1D; --stop-bg:#F7E3E3;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--text);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1{font-size:20px; margin:0 0 4px; font-weight:600; letter-spacing:-.01em}
+h2{font-size:15px; margin:0 0 16px; color:var(--brass-2); font-weight:600}
+p{color:var(--text-2); margin:0}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--brass); outline-offset:2px; border-radius:3px}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums}
+.eyebrow{font-size:10px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--text-3)}
+
+.wrap{max-width:1120px; margin:0 auto; padding:32px 20px 48px}
+.head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:24px; gap:12px; flex-wrap:wrap}
+.head .sub{font-size:12.5px; color:var(--text-3)}
+.volver{background:none; border:1px solid var(--rule); border-radius:var(--r); padding:8px 14px; font-size:12.5px; color:var(--text-2)}
+.volver:hover{background:var(--surface-2)}
+
+.card{
+  background:var(--surface); border:1px solid var(--rule-soft); border-radius:var(--r-2);
+  box-shadow:var(--shadow-lg); padding:24px 26px; margin-bottom:24px;
+}
+
+/* ---------- Gran total ---------- */
+.kpis{display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-bottom:20px}
+@media (max-width:700px){ .kpis{grid-template-columns:1fr} }
+.kpi-val{font-family:var(--mono); font-size:25px; font-weight:600; letter-spacing:-.02em; margin-top:4px}
+.kpi-val.aplicado{color:var(--brass-2)}
+.kpi-val.resta{color:var(--ok)}
+.kpi-nota{font-size:11.5px; color:var(--text-3); margin-top:2px}
+
+/* ---------- Tarjetas por categoría ---------- */
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr)); gap:16px}
+.cat{
+  background:var(--surface); border:1px solid var(--rule-soft); border-radius:var(--r-2);
+  box-shadow:var(--shadow); padding:16px 18px 14px;
+}
+.cat h3{margin:0 0 12px; font-size:14px; font-weight:600; letter-spacing:-.01em}
+.linea{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:7px}
+.linea label{font-size:11.5px; color:var(--text-3)}
+.monto{
+  width:148px; text-align:right; padding:4px 7px;
+  border:1px solid transparent; border-radius:6px; background:transparent;
+  color:var(--text); font-family:var(--mono); font-size:13.5px; font-variant-numeric:tabular-nums;
+}
+.monto:hover{border-color:var(--rule); background:var(--surface-2)}
+.monto:focus{outline:none; border-color:var(--brass); background:var(--surface-2); box-shadow:0 0 0 3px var(--brass-soft)}
+.monto.aplicado{color:var(--brass-2)}
+.monto.guardado{border-color:var(--ok)}
+
+.barra{height:6px; border-radius:999px; background:var(--rule-soft); overflow:hidden; margin:12px 0 7px}
+.barra > span{display:block; height:100%; background:var(--brass); border-radius:999px; transition:width .25s ease}
+.barra.excedido > span{background:var(--stop)}
+.pie{display:flex; justify-content:space-between; font-size:11.5px; color:var(--text-3)}
+.pie .pct{font-family:var(--mono); font-weight:600; color:var(--text-2)}
+.pie .pct.excedido{color:var(--stop)}
+.pie .pct.completo{color:var(--ok)}
+
+/* ---------- Desplegable: registrar acción + historial ---------- */
+.hist-toggle{
+  display:flex; align-items:center; gap:6px; width:100%; margin-top:12px; padding:7px 0 0;
+  border:none; border-top:1px solid var(--rule-soft); background:none;
+  font-size:11.5px; font-weight:600; color:var(--text-2); text-align:left;
+}
+.hist-toggle:hover{color:var(--brass-2)}
+.hist-toggle .chev{width:13px; height:13px; flex:none; transition:transform .18s ease}
+.hist-toggle[aria-expanded="true"] .chev{transform:rotate(90deg)}
+
+.hist[hidden]{display:none}
+.hist{margin-top:10px}
+.accion{display:grid; grid-template-columns:1fr 96px; gap:6px; margin-bottom:10px}
+.accion input{
+  height:30px; padding:0 8px; border:1px solid var(--rule); border-radius:6px;
+  background:var(--surface-2); color:var(--text); font-family:inherit; font-size:12.5px;
+}
+.accion input.cantidad{font-family:var(--mono); text-align:right}
+.accion input:focus{outline:none; border-color:var(--brass); box-shadow:0 0 0 3px var(--brass-soft)}
+.accion .btn-mini{
+  grid-column:1/-1; height:30px; padding:0; border:none; border-radius:6px;
+  background:var(--brass); color:var(--on-ink); font-size:12.5px; font-weight:600;
+}
+.accion .btn-mini:disabled{background:var(--rule); color:var(--text-3); cursor:not-allowed}
+.accion .btn-cancelar{
+  grid-column:1/-1; height:26px; border:1px solid var(--rule); border-radius:6px;
+  background:none; font-size:11.5px; color:var(--text-2);
+}
+.accion[hidden]{display:none}
+
+/* Pestañas del desplegable: capturar vs consultar. */
+.tabs{display:flex; gap:4px; margin-bottom:10px}
+.tab{
+  flex:1; height:26px; padding:0 8px; border:1px solid var(--rule); border-radius:6px;
+  background:var(--surface-2); color:var(--text-2); font-size:11.5px; font-weight:600;
+}
+.tab.activa{background:var(--brass-soft); border-color:var(--brass); color:var(--brass)}
+
+.mov{list-style:none; margin:0; padding:0; max-height:220px; overflow-y:auto}
+.mov li{padding:7px 0; border-top:1px solid var(--rule-soft); font-size:12px}
+.mov li:first-child{border-top:none}
+.mov li[data-id]{cursor:pointer; padding-left:7px; padding-right:7px; margin:0 -7px; border-radius:6px}
+.mov li[data-id]:hover{background:var(--surface-2)}
+.mov li.sel{background:var(--brass-soft)}
+.mov li.sel:hover{background:var(--brass-soft)}
+.mov .fila{display:flex; justify-content:space-between; gap:8px; align-items:baseline}
+.mov .quien{font-size:11px; color:var(--text-3); margin-top:1px}
+.mov .cant{font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:600; white-space:nowrap}
+.mov .cant.mas{color:var(--ok)}
+.mov .cant.menos{color:var(--stop)}
+.mov .ajuste{color:var(--text-2)}
+.mov .vacio{color:var(--text-3); border-top:none}
+/* Editar y borrar renglones: sólo los pinta la página para el usuario admin. */
+.mov .acciones{display:flex; gap:4px; margin-top:5px}
+.mov .acciones button{
+  border:1px solid var(--rule); border-radius:5px; background:var(--surface);
+  padding:1px 7px; font-size:10.5px; color:var(--text-2);
+}
+.mov .acciones button:hover{border-color:var(--brass); color:var(--brass-2)}
+.mov .acciones .borrar:hover{border-color:var(--stop); color:var(--stop)}
+
+/* ---------- Tarjeta mostrando un momento del pasado ---------- */
+.cat.viendo{border-color:var(--brass); box-shadow:0 0 0 3px var(--brass-soft), var(--shadow)}
+.cat.viendo .monto{color:var(--text-2); cursor:default}
+.cat.viendo .monto:hover{border-color:transparent; background:transparent}
+.sello{
+  display:flex; align-items:center; justify-content:space-between; gap:8px; margin:-4px 0 10px;
+  padding:5px 8px; border-radius:6px; background:var(--brass-soft); color:var(--brass);
+  font-size:11px; font-weight:600;
+}
+.sello[hidden]{display:none}
+.sello button{border:none; background:none; padding:0; font-size:11px; font-weight:600; color:var(--brass); text-decoration:underline}
+
+.vacio{color:var(--text-3); font-size:13px; padding:8px 0}
+
+.toast{
+  position:fixed; bottom:20px; left:50%; transform:translateX(-50%); opacity:0;
+  background:var(--ink); color:var(--on-ink); padding:10px 16px; border-radius:var(--r); font-size:12.5px;
+  box-shadow:0 8px 24px rgba(0,0,0,.3); pointer-events:none; z-index:200; max-width:min(480px,80vw);
+  transition:opacity .2s ease;
+}
+.toast.is-error{background:var(--stop)}
+.toast.is-ok{background:var(--ok)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="head">
+    <div>
+      <h1>Inversión general</h1>
+      <p class="sub">Presupuesto y monto aplicado por categoría de la obra. Haz clic en una cifra para editarla.</p>
+    </div>
+    <button class="volver" id="btnVolver">Volver</button>
+  </div>
+
+  <div class="card">
+    <h2>Gran total</h2>
+    <div class="kpis">
+      <div>
+        <div class="eyebrow">Inversión presupuestada</div>
+        <div class="kpi-val num" id="totImporte">—</div>
+      </div>
+      <div>
+        <div class="eyebrow">Aplicado</div>
+        <div class="kpi-val aplicado num" id="totAplicado">—</div>
+        <div class="kpi-nota" id="totPct"></div>
+      </div>
+      <div>
+        <div class="eyebrow">Por ejercer</div>
+        <div class="kpi-val resta num" id="totResta">—</div>
+        <div class="kpi-nota" id="totCats"></div>
+      </div>
+    </div>
+    <div class="barra" id="barraTotal"><span style="width:0"></span></div>
+  </div>
+
+  <div class="grid" id="grid"><p class="vacio">Cargando…</p></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const HOST = window.chrome && window.chrome.webview ? window.chrome.webview : null;
+const el = id => document.getElementById(id);
+
+let datos = [];
+let esAdmin = false;
+
+let _toastTimer = null;
+function toast(msg, tipo){
+  const t = el('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (tipo ? ' is-' + tipo : '');
+  clearTimeout(_toastTimer);
+  t.style.opacity = 1;
+  _toastTimer = setTimeout(()=>{ t.style.opacity = 0; }, 3200);
+}
+
+function alHost(accion, extra){
+  if (!HOST){ toast('Sin aplicación anfitriona: esta acción sólo funciona dentro de Pilaris.', 'error'); return; }
+  HOST.postMessage(Object.assign({ accion }, extra || {}));
+}
+
+const fmt = new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' });
+const money = n => fmt.format(n || 0);
+// El usuario puede teclear "1,500,000" o "$1 500 000.50": nos quedamos con dígitos y punto.
+const parseMonto = s => { const n = parseFloat(String(s).replace(/[^0-9.]/g,'')); return isFinite(n) && n >= 0 ? n : 0; };
+// La cantidad de una acción sí admite negativo (corrige un registro anterior).
+const parseCantidad = s => parseFloat(String(s).replace(/[^0-9.\-]/g,''));
+// El concepto y el usuario los escribe gente: nunca van crudos al innerHTML.
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const fecha = f => new Date(f).toLocaleString('es-MX', { dateStyle:'short', timeStyle:'short' });
+
+function pct(aplicado, importe){ return importe > 0 ? (aplicado / importe) * 100 : 0; }
+
+function render(){
+  const cont = el('grid');
+  if (!datos.length){ cont.innerHTML = '<p class="vacio">No hay categorías de inversión registradas.</p>'; return; }
+
+  cont.innerHTML = datos.map((d, i) => `
+    <div class="cat">
+      <h3>${d.categoria}</h3>
+      <div class="sello" data-sello="${i}" hidden>
+        <span></span><button type="button" data-actual="${i}">Volver al actual</button>
+      </div>
+      <div class="linea">
+        <label for="imp${i}">Importe</label>
+        <input class="monto" id="imp${i}" data-i="${i}" data-campo="importe" inputmode="decimal" value="${money(d.importe)}">
+      </div>
+      <div class="linea">
+        <label for="apl${i}">Aplicado</label>
+        <input class="monto aplicado" id="apl${i}" data-i="${i}" data-campo="aplicado" inputmode="decimal" value="${money(d.aplicado)}">
+      </div>
+      <div class="barra" data-barra="${i}"><span style="width:0"></span></div>
+      <div class="pie">
+        <span>Por ejercer <span class="num">${money(d.importe - d.aplicado)}</span></span>
+        <span class="pct" data-pct="${i}"></span>
+      </div>
+      <button class="hist-toggle" data-toggle="${i}" aria-expanded="false" aria-controls="hist${i}">
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+        Acciones e historial
+      </button>
+      <div class="hist" id="hist${i}" hidden>
+        <div class="tabs">
+          <button type="button" class="tab activa" data-tab="reg" data-i="${i}">Registrar</button>
+          <button type="button" class="tab" data-tab="mov" data-i="${i}">Historial</button>
+        </div>
+        <div class="accion" data-pane="reg${i}">
+          <input type="text" id="con${i}" data-i="${i}" placeholder="Concepto" maxlength="300" aria-label="Concepto del movimiento">
+          <input type="text" class="cantidad" id="cant${i}" data-i="${i}" inputmode="decimal" placeholder="Cantidad" aria-label="Cantidad del movimiento">
+          <button class="btn-mini" data-registrar="${i}">Registrar acción</button>
+          <button type="button" class="btn-cancelar" data-cancelar="${i}" hidden>Cancelar edición</button>
+        </div>
+        <ul class="mov" data-mov="${i}" data-pane="mov${i}" hidden></ul>
+      </div>
+    </div>`).join('');
+
+  datos.forEach((d, i) => pintarAvance(i));
+  totales();
+}
+
+// Barra y porcentaje de una tarjeta; se llama al renderizar y tras cada edición.
+// Los montos son parámetro porque la tarjeta puede estar mostrando el pasado.
+function pintarAvance(i, importe, aplicado){
+  if (importe === undefined) { importe = datos[i].importe; aplicado = datos[i].aplicado; }
+  const p = pct(aplicado, importe);
+  const barra = document.querySelector(`[data-barra="${i}"]`);
+  const etiqueta = document.querySelector(`[data-pct="${i}"]`);
+  if (!barra || !etiqueta) return;
+  barra.classList.toggle('excedido', p > 100);
+  barra.firstElementChild.style.width = Math.min(p, 100) + '%';
+  etiqueta.textContent = importe > 0 ? p.toFixed(1) + '%' : 'sin presupuesto';
+  etiqueta.className = 'pct' + (p > 100 ? ' excedido' : (p >= 100 ? ' completo' : ''));
+}
+
+// Estado de la categoría justo después del movimiento indicado: se parte de los
+// valores de hoy y se deshacen, uno por uno, todos los movimientos posteriores.
+// El historial viene del más reciente al más viejo, así que basta recorrerlo
+// hasta toparse con el movimiento buscado.
+function estadoEn(i, id){
+  const d = datos[i];
+  let importe = d.importe, aplicado = d.aplicado;
+  for (const m of (d.historial || [])){
+    if (m.id === id) return { importe, aplicado, fecha: m.fecha };
+    if (m.tipo === 'Accion') aplicado -= m.cantidad;
+    else if (m.tipo === 'AjusteImporte') importe = m.anterior;
+    else aplicado = m.anterior;
+  }
+  return null;
+}
+
+// Repinta una tarjeta: con los valores de hoy, o con los del momento que se
+// esté consultando en el historial (datos[i].viendo).
+function refrescarTarjeta(i){
+  const cat = document.querySelectorAll('#grid .cat')[i];
+  if (!cat) return;
+  const d = datos[i];
+  const foto = d.viendo != null ? estadoEn(i, d.viendo) : null;
+  const importe = foto ? foto.importe : d.importe;
+  const aplicado = foto ? foto.aplicado : d.aplicado;
+
+  const imp = cat.querySelector('[data-campo="importe"]');
+  const apl = cat.querySelector('[data-campo="aplicado"]');
+  if (imp && document.activeElement !== imp) imp.value = money(importe);
+  if (apl && document.activeElement !== apl) apl.value = money(aplicado);
+  const pie = cat.querySelector('.pie .num');
+  if (pie) pie.textContent = money(importe - aplicado);
+
+  // Mientras se mira el pasado no se edita ni se registra: lo que se ve no es
+  // el estado sobre el que se guardaría.
+  cat.classList.toggle('viendo', !!foto);
+  [imp, apl].forEach(x => { if (x) x.readOnly = !!foto; });
+  cat.querySelectorAll('.accion input, .accion button').forEach(x => { x.disabled = !!foto; });
+  const sello = cat.querySelector('.sello');
+  sello.hidden = !foto;
+  if (foto) sello.firstElementChild.textContent = 'Estado al ' + fecha(foto.fecha);
+  cat.querySelectorAll('.mov li[data-id]').forEach(li => {
+    li.classList.toggle('sel', foto != null && +li.dataset.id === d.viendo);
+  });
+
+  pintarAvance(i, importe, aplicado);
+  totales();
+}
+
+function totales(){
+  const importe = datos.reduce((a, d) => a + d.importe, 0);
+  const aplicado = datos.reduce((a, d) => a + d.aplicado, 0);
+  const p = pct(aplicado, importe);
+  el('totImporte').textContent = money(importe);
+  el('totAplicado').textContent = money(aplicado);
+  el('totResta').textContent = money(importe - aplicado);
+  el('totPct').textContent = importe > 0 ? p.toFixed(1) + '% del presupuesto' : '';
+  el('totCats').textContent = datos.length + ' categorías';
+  const barra = el('barraTotal');
+  barra.classList.toggle('excedido', p > 100);
+  barra.firstElementChild.style.width = Math.min(p, 100) + '%';
+}
+
+// Al enfocar se muestra el número pelón (más fácil de reteclear); al salir se
+// vuelve a formatear y, si cambió, se guarda.
+el('grid').addEventListener('focusin', ev => {
+  const inp = ev.target.closest('.monto');
+  // Un input de solo lectura todavía recibe foco: mirando el pasado no se toca.
+  if (!inp || inp.readOnly) return;
+  inp.classList.remove('guardado');
+  inp.value = String(datos[+inp.dataset.i][inp.dataset.campo]);
+  inp.select();
+});
+
+el('grid').addEventListener('focusout', ev => {
+  const inp = ev.target.closest('.monto');
+  if (!inp || inp.readOnly) return;
+  const i = +inp.dataset.i, campo = inp.dataset.campo;
+  const valor = parseMonto(inp.value);
+  const cambio = valor !== datos[i][campo];
+  datos[i][campo] = valor;
+  inp.value = money(valor);
+  refrescarTarjeta(i);
+
+  // El ajuste a mano también deja rastro en el historial (lo escribe el API),
+  // así que la lista cargada se invalida.
+  if (cambio) datos[i].historial = null;
+
+  if (cambio) alHost('guardar-inversion', {
+    categoria: datos[i].categoria,
+    importe: datos[i].importe,
+    aplicado: datos[i].aplicado
+  });
+});
+
+// Enter confirma (dispara el focusout), Escape descarta la edición.
+el('grid').addEventListener('keydown', ev => {
+  const inp = ev.target.closest('.monto');
+  if (!inp) return;
+  if (ev.key === 'Enter'){ ev.preventDefault(); inp.blur(); }
+  else if (ev.key === 'Escape'){ inp.value = String(datos[+inp.dataset.i][inp.dataset.campo]); inp.blur(); }
+});
+
+// ---------- Desplegable: acciones e historial ----------
+
+// El historial sólo se pide cuando se abre su pestaña.
+function mostrarTab(i, cual){
+  const cat = document.querySelectorAll('#grid .cat')[i];
+  if (!cat) return;
+  cat.querySelectorAll('.tab').forEach(t => t.classList.toggle('activa', t.dataset.tab === cual));
+  cat.querySelector(`[data-pane="reg${i}"]`).hidden = cual !== 'reg';
+  cat.querySelector(`[data-pane="mov${i}"]`).hidden = cual !== 'mov';
+  if (cual === 'mov'){ if (!datos[i].historial) pedirHistorial(i); }
+  else if (datos[i].viendo != null){ datos[i].viendo = null; refrescarTarjeta(i); }
+}
+
+function historialVisible(i){
+  const pane = document.querySelector(`[data-pane="mov${i}"]`);
+  const panel = document.getElementById('hist' + i);
+  return !!(pane && panel && !pane.hidden && !panel.hidden);
+}
+
+// Deja el formulario listo para capturar de nuevo.
+function cancelarEdicion(i){
+  datos[i].editando = null;
+  const btn = document.querySelector(`[data-registrar="${i}"]`);
+  if (btn) btn.textContent = 'Registrar acción';
+  const cancelar = document.querySelector(`[data-cancelar="${i}"]`);
+  if (cancelar) cancelar.hidden = true;
+  const con = el('con' + i), cant = el('cant' + i);
+  if (con) con.value = '';
+  if (cant) cant.value = '';
+}
+
+function pedirHistorial(i){
+  const ul = document.querySelector(`[data-mov="${i}"]`);
+  if (ul) ul.innerHTML = '<li class="vacio">Cargando…</li>';
+  alHost('historial-inversion', { categoria: datos[i].categoria });
+}
+
+function renderHistorial(i, lista){
+  const ul = document.querySelector(`[data-mov="${i}"]`);
+  if (!ul) return;
+  if (!lista || !lista.length){
+    ul.innerHTML = '<li class="vacio">Sin movimientos registrados.</li>';
+    return;
+  }
+  ul.innerHTML = lista.map(m => {
+    const quien = `<div class="quien">${esc(m.usuario || 'sin usuario')} · ${fecha(m.fecha)}</div>`;
+    // Sólo admin edita o borra; el API lo vuelve a verificar.
+    const ctrl = !esAdmin ? '' : `<div class="acciones">${
+      m.tipo === 'Accion' ? `<button type="button" data-editar="${m.id}">Editar</button>` : ''
+    }<button type="button" class="borrar" data-borrar="${m.id}">Borrar</button></div>`;
+    const abre = `<li data-id="${m.id}" title="Ver la tarjeta como quedó con este movimiento">`;
+    if (m.tipo === 'Accion'){
+      const signo = m.cantidad < 0 ? 'menos' : 'mas';
+      return `${abre}
+        <div class="fila">
+          <span>${esc(m.concepto)}</span>
+          <span class="cant ${signo}">${m.cantidad < 0 ? '−' : '+'}${money(Math.abs(m.cantidad))}</span>
+        </div>${quien}${ctrl}</li>`;
+    }
+    const que = m.tipo === 'AjusteImporte' ? 'Presupuesto' : 'Aplicado';
+    return `${abre}
+      <div class="fila">
+        <span class="ajuste">${que}</span>
+        <span class="cant num">${money(m.anterior)} → ${money(m.cantidad)}</span>
+      </div>${quien}${ctrl}</li>`;
+  }).join('');
+  refrescarTarjeta(i);
+}
+
+el('grid').addEventListener('click', ev => {
+  const toggle = ev.target.closest('[data-toggle]');
+  if (toggle){
+    const i = +toggle.dataset.toggle;
+    const panel = document.getElementById('hist' + i);
+    const abrir = panel.hidden;
+    panel.hidden = !abrir;
+    toggle.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    // Cerrar el desplegable devuelve la tarjeta al presente.
+    if (!abrir && datos[i].viendo != null){ datos[i].viendo = null; refrescarTarjeta(i); }
+    return;
+  }
+
+  const tab = ev.target.closest('.tab');
+  if (tab){ mostrarTab(+tab.dataset.i, tab.dataset.tab); return; }
+
+  const cancelar = ev.target.closest('[data-cancelar]');
+  if (cancelar){ cancelarEdicion(+cancelar.dataset.cancelar); return; }
+
+  // Editar reutiliza el formulario de captura con los datos del renglón.
+  const editar = ev.target.closest('[data-editar]');
+  if (editar){
+    const i = +editar.closest('.mov').dataset.mov;
+    const id = +editar.dataset.editar;
+    const m = (datos[i].historial || []).find(x => x.id === id);
+    if (!m) return;
+    if (datos[i].viendo != null){ datos[i].viendo = null; refrescarTarjeta(i); }
+    datos[i].editando = id;
+    el('con' + i).value = m.concepto || '';
+    el('cant' + i).value = m.cantidad;
+    document.querySelector(`[data-registrar="${i}"]`).textContent = 'Guardar cambios';
+    document.querySelector(`[data-cancelar="${i}"]`).hidden = false;
+    mostrarTab(i, 'reg');
+    el('con' + i).focus();
+    return;
+  }
+
+  const borrar = ev.target.closest('[data-borrar]');
+  if (borrar){
+    const i = +borrar.closest('.mov').dataset.mov;
+    const id = +borrar.dataset.borrar;
+    if (!confirm('¿Borrar este movimiento del historial? Si es una acción, su cantidad se descuenta del aplicado.')) return;
+    alHost('eliminar-movimiento', { categoria: datos[i].categoria, id });
+    return;
+  }
+
+  const volver = ev.target.closest('[data-actual]');
+  if (volver){
+    const i = +volver.dataset.actual;
+    datos[i].viendo = null;
+    refrescarTarjeta(i);
+    return;
+  }
+
+  // Un renglón del historial muestra la tarjeta como quedó con ese movimiento;
+  // volver a picarle regresa al presente.
+  const fila = ev.target.closest('.mov li[data-id]');
+  if (fila){
+    const i = +fila.closest('.mov').dataset.mov;
+    const id = +fila.dataset.id;
+    datos[i].viendo = datos[i].viendo === id ? null : id;
+    refrescarTarjeta(i);
+    return;
+  }
+
+  const btn = ev.target.closest('[data-registrar]');
+  if (!btn) return;
+  const i = +btn.dataset.registrar;
+  const concepto = el('con' + i).value.trim();
+  const cantidad = parseCantidad(el('cant' + i).value);
+
+  if (!concepto){ toast('Escribe el concepto del movimiento.', 'error'); el('con' + i).focus(); return; }
+  if (!isFinite(cantidad) || cantidad === 0){ toast('Escribe una cantidad distinta de cero.', 'error'); el('cant' + i).focus(); return; }
+
+  btn.disabled = true;
+  if (datos[i].editando != null)
+    alHost('editar-movimiento', { categoria: datos[i].categoria, id: datos[i].editando, concepto, cantidad });
+  else
+    alHost('registrar-accion', { categoria: datos[i].categoria, concepto, cantidad });
+});
+
+el('btnVolver').addEventListener('click', () => alHost('volver'));
+
+if (HOST){
+  HOST.addEventListener('message', ev => {
+    const d = ev.data;
+    if (!d || !d.tipo) return;
+    switch (d.tipo){
+      case 'inversion':
+        esAdmin = !!d.esAdmin;
+        datos = (d.lista || []).map(x => ({
+          categoria: x.categoria,
+          importe: Number(x.importe) || 0,
+          aplicado: Number(x.aplicado) || 0
+        }));
+        render();
+        break;
+      case 'guardado': {
+        const i = datos.findIndex(x => x.categoria === d.categoria);
+        if (d.ok){
+          const inp = document.querySelector(`.monto[data-i="${i}"]`);
+          if (inp) { inp.classList.add('guardado'); setTimeout(()=>inp.classList.remove('guardado'), 1200); }
+          // El ajuste dejó su renglón en el API; si el historial está a la vista, se repite.
+          if (historialVisible(i)) pedirHistorial(i);
+        } else {
+          toast(d.mensaje || 'No se pudo guardar.', 'error');
+          alHost('cargar-inversion');
+        }
+        break;
+      }
+      case 'historial': {
+        const i = datos.findIndex(x => x.categoria === d.categoria);
+        if (i < 0) break;
+        datos[i].historial = d.lista || [];
+        // La lista se repite tras cada cambio: la foto que se estaba mirando ya
+        // no corresponde, así que la tarjeta vuelve al presente.
+        datos[i].viendo = null;
+        renderHistorial(i, datos[i].historial);
+        break;
+      }
+      case 'accionRegistrada': {
+        const i = datos.findIndex(x => x.categoria === d.categoria);
+        const btn = i >= 0 ? document.querySelector(`[data-registrar="${i}"]`) : null;
+        if (btn) btn.disabled = false;
+        if (!d.ok){ toast(d.mensaje || 'No se pudo registrar la acción.', 'error'); break; }
+        if (i >= 0){
+          datos[i].aplicado = Number(d.aplicado) || 0;
+          refrescarTarjeta(i);
+          cancelarEdicion(i);
+          datos[i].historial = null;
+          if (historialVisible(i)) pedirHistorial(i);
+        }
+        toast('Acción registrada.', 'ok');
+        break;
+      }
+      case 'movimiento': {
+        const i = datos.findIndex(x => x.categoria === d.categoria);
+        const btn = i >= 0 ? document.querySelector(`[data-registrar="${i}"]`) : null;
+        if (btn) btn.disabled = false;
+        if (!d.ok){ toast(d.mensaje || 'No se pudo aplicar el cambio.', 'error'); break; }
+        if (i >= 0){
+          datos[i].aplicado = Number(d.aplicado) || 0;
+          cancelarEdicion(i);
+          refrescarTarjeta(i);
+          pedirHistorial(i);
+        }
+        toast('Historial actualizado.', 'ok');
+        break;
+      }
+      case 'error':
+        toast(d.mensaje || 'Ocurrió un error.', 'error');
+        break;
+    }
+  });
+  alHost('cargar-inversion');
+} else {
+  el('grid').innerHTML = '<p class="vacio">Abre esta pantalla desde Pilaris.</p>';
+}
+</script>
+
+</body>
+</html>

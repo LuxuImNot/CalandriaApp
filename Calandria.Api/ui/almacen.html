@@ -700,6 +700,34 @@ table.grid td.num, table.grid th.num{font-family:var(--mono); font-variant-numer
   const selLoteConsulta = document.getElementById("selLoteConsulta");
 
   // ==========================================================================
+  // ULTIMA CASA USADA (por seccion)
+  // Rellena los selectores al abrir; no dispara la carga sola para no pedirle
+  // datos al host sin que nadie los haya pedido. Basta un clic en el boton.
+  // ==========================================================================
+  function recordarCasa(seccion, mz, lote) {
+    try { localStorage.setItem("calandria.almacen." + seccion, JSON.stringify({ mz, lote })); } catch (e) { /* modo privado */ }
+  }
+  function casaRecordada(seccion) {
+    try { return JSON.parse(localStorage.getItem("calandria.almacen." + seccion) || "null"); } catch (e) { return null; }
+  }
+  const casaPendiente = { salidas: casaRecordada("salidas"), consulta: casaRecordada("consulta") };
+  function aplicarCasaRecordada(seccion, selMz, selLote, btn) {
+    const p = casaPendiente[seccion];
+    if (!p) return;
+    const hay = (sel, v) => Array.prototype.some.call(sel.options, o => o.value === v);
+    if (selMz.value !== p.mz) {
+      if (!hay(selMz, p.mz)) { casaPendiente[seccion] = null; return; }
+      selMz.value = p.mz;
+      selMz.dispatchEvent(new Event("change"));   // pide los lotes al host
+      return;
+    }
+    casaPendiente[seccion] = null;
+    if (!hay(selLote, p.lote)) return;
+    selLote.value = p.lote;
+    btn.disabled = false;
+  }
+
+  // ==========================================================================
   // MENSAJES DEL HOST
   // ==========================================================================
   if (HOST) {
@@ -710,10 +738,17 @@ table.grid td.num, table.grid th.num{font-family:var(--mono); font-variant-numer
         case "manzanas":
           poblarSelect(selManzanaSalida, d.lista, "Manzana…");
           poblarSelect(selManzanaConsulta, d.lista, "Manzana…");
+          aplicarCasaRecordada("salidas", selManzanaSalida, selLoteSalida, btnCargarSalida);
+          aplicarCasaRecordada("consulta", selManzanaConsulta, selLoteConsulta, btnCargarConsulta);
           break;
         case "lotes":
-          if (d.seccion === "salidas") poblarSelect(selLoteSalida, d.lista, "Lote…");
-          else poblarSelect(selLoteConsulta, d.lista, "Lote…");
+          if (d.seccion === "salidas") {
+            poblarSelect(selLoteSalida, d.lista, "Lote…");
+            aplicarCasaRecordada("salidas", selManzanaSalida, selLoteSalida, btnCargarSalida);
+          } else {
+            poblarSelect(selLoteConsulta, d.lista, "Lote…");
+            aplicarCasaRecordada("consulta", selManzanaConsulta, selLoteConsulta, btnCargarConsulta);
+          }
           break;
         case "ordenes": renderOrdenes(d.lista); break;
         case "ocDetalle": renderOcDetalle(d); break;
@@ -971,9 +1006,13 @@ table.grid td.num, table.grid th.num{font-family:var(--mono); font-variant-numer
     if (HOST) HOST.postMessage({ accion: "cargar-lotes", manzana: selManzanaSalida.value, seccion: "salidas" });
     else poblarSelect(selLoteSalida, ["1", "2", "3"], "Lote…");
   });
-  selLoteSalida.addEventListener("change", () => { btnCargarSalida.disabled = !selLoteSalida.value; });
+  selLoteSalida.addEventListener("change", () => {
+    btnCargarSalida.disabled = !selLoteSalida.value;
+    if (selLoteSalida.value) btnCargarSalida.click();
+  });
   btnCargarSalida.addEventListener("click", () => {
     casaSalidaActual = { manzana: selManzanaSalida.value, lote: selLoteSalida.value };
+    recordarCasa("salidas", casaSalidaActual.manzana, casaSalidaActual.lote);
     if (HOST) HOST.postMessage({ accion: "cargar-casa-salida", manzana: casaSalidaActual.manzana, lote: casaSalidaActual.lote });
     else cargarPendientesSalidaDemo(casaSalidaActual.manzana, casaSalidaActual.lote);
   });
@@ -1147,8 +1186,12 @@ table.grid td.num, table.grid th.num{font-family:var(--mono); font-variant-numer
     if (HOST) HOST.postMessage({ accion: "cargar-lotes", manzana: selManzanaConsulta.value, seccion: "consulta" });
     else poblarSelect(selLoteConsulta, ["1", "2", "3"], "Lote…");
   });
-  selLoteConsulta.addEventListener("change", () => { btnCargarConsulta.disabled = !selLoteConsulta.value; });
+  selLoteConsulta.addEventListener("change", () => {
+    btnCargarConsulta.disabled = !selLoteConsulta.value;
+    if (selLoteConsulta.value) btnCargarConsulta.click();
+  });
   btnCargarConsulta.addEventListener("click", () => {
+    recordarCasa("consulta", selManzanaConsulta.value, selLoteConsulta.value);
     if (HOST) HOST.postMessage({ accion: "cargar-materiales", manzana: selManzanaConsulta.value, lote: selLoteConsulta.value, ruta: rutaActual });
     else renderConsulta(materialesDemo());
   });
@@ -1171,6 +1214,15 @@ table.grid td.num, table.grid th.num{font-family:var(--mono); font-variant-numer
   // ==========================================================================
   // TEMA
   // ==========================================================================
+  // Ctrl+K salta al primer campo de busqueda visible de la pestana actual.
+  document.addEventListener("keydown", e => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+    const campo = Array.prototype.slice
+      .call(document.querySelectorAll('input[type="search"], .filter-input'))
+      .filter(c => c.offsetParent !== null && !c.disabled)[0];
+    if (campo) { e.preventDefault(); campo.focus(); if (campo.select) campo.select(); }
+  });
+
   const themeBtn = document.getElementById("theme");
   themeBtn.addEventListener("click", () => {
     const root = document.documentElement;

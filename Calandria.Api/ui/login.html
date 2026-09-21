@@ -326,6 +326,8 @@ button.primary.is-loading .txt{opacity:.85}
     btnLogin.classList.toggle("is-loading", cargando);
   }
 
+  const RECUERDO_USUARIO = "calandria.login.usuario";
+
   form.addEventListener("submit", (ev) => {
     ev.preventDefault();
     const usuario = inputUsuario.value.trim();
@@ -362,6 +364,8 @@ button.primary.is-loading .txt{opacity:.85}
       if (!d || !d.tipo) return;
       if (d.tipo === "loginResultado") {
         if (d.ok) {
+          // Solo el usuario: la contrasena nunca se guarda.
+          try { localStorage.setItem(RECUERDO_USUARIO, inputUsuario.value.trim()); } catch (err) { /* modo privado */ }
           // El host oculta esta ventana y abre el panel principal.
           if (!REDUCE && animate) animate(".card", { opacity: [1, 0.5], duration: 200, ease: "outQuad" });
         } else {
@@ -376,7 +380,15 @@ button.primary.is-loading .txt{opacity:.85}
     });
   }
 
-  inputUsuario.focus();
+  // Ultimo usuario que entro bien: se rellena para escribir solo la contrasena.
+  let usuarioRecordado = "";
+  try { usuarioRecordado = localStorage.getItem(RECUERDO_USUARIO) || ""; } catch (e) { usuarioRecordado = ""; }
+  if (usuarioRecordado) {
+    inputUsuario.value = usuarioRecordado;
+    inputClave.focus();
+  } else {
+    inputUsuario.focus();
+  }
   alHost("cargar-version");
 })();
 </script>

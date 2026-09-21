@@ -990,6 +990,22 @@ table.grid button.row-x:hover{background:var(--stop-bg); color:var(--stop)}
   document.querySelectorAll("[data-cerrar]").forEach(b => b.addEventListener("click", () => cancelarModal(b.dataset.cerrar)));
   document.querySelectorAll(".modal-backdrop").forEach(bd => bd.addEventListener("click", e => { if (e.target === bd) cancelarModal(bd.id); }));
 
+  // Escape cierra el modal abierto: mismo camino que el clic en el fondo.
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    const abierto = document.querySelector(".modal-backdrop.is-on");
+    if (abierto) cancelarModal(abierto.id);
+  });
+
+  // Ctrl+K salta al primer campo de busqueda visible de la pestana actual.
+  document.addEventListener("keydown", e => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+    const campo = Array.prototype.slice
+      .call(document.querySelectorAll('input[type="search"], .filter-input'))
+      .filter(el => el.offsetParent !== null && !el.disabled)[0];
+    if (campo) { e.preventDefault(); campo.focus(); if (campo.select) campo.select(); }
+  });
+
   function pedirTexto({ titulo, mensaje, valor = "" }) {
     return new Promise(resolve => {
       pendiente.prompt = resolve;
@@ -1212,13 +1228,14 @@ table.grid button.row-x:hover{background:var(--stop-bg); color:var(--stop)}
     recargarCatalogoMulti();
   });
 
-  $("#btnAgregarCasaMulti").addEventListener("click", () => {
-    const manzana = $("#txtManzanaMulti").value.trim();
-    const lote = $("#txtLoteMulti").value.trim();
+  function agregarCasaMulti(manzana, lote) {
     if (!manzana || !lote) return aviso("Ingresa manzana y lote.", true);
     if (state.casasMulti.some(c => c.manzana === manzana && c.lote === lote)) return aviso("Esta casa ya fue agregada.", true);
     alHost("agregar-casa", { manzana, lote });
-  });
+  }
+
+  $("#btnAgregarCasaMulti").addEventListener("click", () =>
+    agregarCasaMulti($("#txtManzanaMulti").value.trim(), $("#txtLoteMulti").value.trim()));
 
   function recargarCatalogoMulti() {
     if (state.casasMulti.length === 0) { state.catalogoMultiBase = []; renderCatalogoMulti(); return; }
@@ -1797,6 +1814,9 @@ table.grid button.row-x:hover{background:var(--stop-bg); color:var(--stop)}
           if (d.ok) cargarRepositorio();
           break;
         case "vistaInicial": if (d.vista) mostrarVista(d.vista); break;
+        // Casa que manda el tablero: entra a la orden múltiple como si se
+        // hubiera tecleado y agregado a mano.
+        case "preseleccion": agregarCasaMulti(String(d.manzana || ""), String(d.lote || "")); break;
         case "sesion": aplicarPermisos(!!d.puedeEditar); break;
         case "tema": aplicarTemaObra(d); break;
         case "error": aviso(d.mensaje || "Ocurrió un error.", true); break;

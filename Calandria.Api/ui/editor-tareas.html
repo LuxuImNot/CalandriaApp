@@ -692,6 +692,25 @@ function mostrarOverlay(id){
 }
 function ocultarOverlay(id){ el(id).hidden = true; }
 
+// Escape cierra el overlay abierto (el ultimo del DOM es el que quedo encima).
+document.addEventListener("keydown", (e)=>{
+  if (e.key !== "Escape") return;
+  const abiertos = document.querySelectorAll(".overlay:not([hidden])");
+  if (!abiertos.length) return;
+  const id = abiertos[abiertos.length - 1].id;
+  ocultarOverlay(id);
+  if (id === "ovColumnas") renderTree();   // igual que el boton Cerrar del panel
+});
+
+// Ctrl+K salta al primer campo de busqueda visible de la pestana actual.
+document.addEventListener("keydown", e => {
+  if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+  const campo = Array.prototype.slice
+    .call(document.querySelectorAll('input[type="search"], .filter-input'))
+    .filter(c => c.offsetParent !== null && !c.disabled)[0];
+  if (campo) { e.preventDefault(); campo.focus(); if (campo.select) campo.select(); }
+});
+
 function botonAccion(texto, onClick, danger){
   const b = document.createElement('button');
   b.type = 'button';

@@ -121,10 +121,11 @@ select{font:inherit; color:inherit}
   display:flex; align-items:center; gap:10px; flex-wrap:wrap;
   padding:12px 20px; background:var(--surface); border-bottom:1px solid var(--rule); flex:none;
 }
-.toolbar select{
+.toolbar select, .toolbar .filter-input{
   min-height:36px; border-radius:var(--r); border:1px solid var(--rule);
   background:var(--surface-2); color:var(--text); padding:0 10px; font-size:12.5px;
 }
+.toolbar .filter-input{min-width:200px; max-width:280px}
 
 .btn{
   display:flex; align-items:center; justify-content:center; gap:6px;
@@ -303,6 +304,7 @@ table.grid tr.is-gastado td{background:color-mix(in srgb, var(--ok) 8%, var(--su
     <select id="selManzana" aria-label="Manzana"><option value="">Manzana…</option></select>
     <select id="selLote" aria-label="Lote" disabled><option value="">Lote…</option></select>
     <button class="btn btn-primary" id="btnConsultar" disabled>Consultar</button>
+    <input type="search" class="filter-input" id="filtroTablas" placeholder="Filtrar renglones…" aria-label="Filtrar renglones de las tablas">
     <div class="tb-spacer"></div>
     <button class="btn" id="btnExportarPdf" disabled>Exportar PDF</button>
   </div>
@@ -486,14 +488,63 @@ table.grid tr.is-gastado td{background:color-mix(in srgb, var(--ok) 8%, var(--su
     if (!selManzana.value) return;
     alHost("cargar-lotes", { manzana: selManzana.value });
   });
-  selLote.addEventListener("change", () => { btnConsultar.disabled = !selLote.value; });
+  selLote.addEventListener("change", () => {
+    btnConsultar.disabled = !selLote.value;
+    // Elegir el lote ya es suficiente: el boton queda solo para reconsultar.
+    if (selLote.value) btnConsultar.click();
+  });
   btnConsultar.addEventListener("click", () => {
     if (!selManzana.value || !selLote.value) return;
+    recordarCasa(selManzana.value, selLote.value);
     alHost("cargar-consolidado", { manzana: selManzana.value, lote: selLote.value });
   });
   btnExportarPdf.addEventListener("click", () => {
     if (!selManzana.value || !selLote.value) return;
     alHost("exportar-pdf", { manzana: selManzana.value, lote: selLote.value });
+  });
+
+  // Casa que manda el tablero al abrir esta ventana: se recorren los mismos
+  // pasos que daría el usuario (manzana → lotes → consultar), por eso vuelve a
+  // entrar aquí cada vez que llega una lista.
+  const RECUERDO_CASA = "calandria.administrativos.casa";
+  function recordarCasa(mz, lote) {
+    try { localStorage.setItem(RECUERDO_CASA, JSON.stringify({ mz, lote })); } catch (e) { /* modo privado */ }
+  }
+  function casaRecordada() {
+    try { return JSON.parse(localStorage.getItem(RECUERDO_CASA) || "null"); } catch (e) { return null; }
+  }
+
+  // Arranca con la ultima casa consultada; si el tablero manda otra, la pisa.
+  let preCasa = casaRecordada();
+  function aplicarPreseleccion() {
+    if (!preCasa) return;
+    const hay = (sel, v) => Array.from(sel.options).some(o => o.value === v);
+    if (selManzana.value !== preCasa.mz) {
+      if (!hay(selManzana, preCasa.mz)) return;
+      selManzana.value = preCasa.mz;
+      selManzana.dispatchEvent(new Event("change"));
+      return;
+    }
+    if (!hay(selLote, preCasa.lote)) return;
+    selLote.value = preCasa.lote;
+    btnConsultar.disabled = false;
+    preCasa = null;
+    btnConsultar.click();
+  }
+
+  // Un solo filtro para las 5 tablas: esconde los renglones que no casan.
+  const filtroTablas = $("#filtroTablas");
+  filtroTablas.addEventListener("input", () => {
+    const q = filtroTablas.value.trim().toLowerCase();
+    document.querySelectorAll("table.grid tbody tr").forEach(tr => {
+      tr.hidden = q !== "" && tr.textContent.toLowerCase().indexOf(q) === -1;
+    });
+  });
+
+  // Ctrl+K salta al filtro.
+  document.addEventListener("keydown", e => {
+    if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+    e.preventDefault(); filtroTablas.focus(); filtroTablas.select();
   });
 
   // ==========================================================================
@@ -675,9 +726,13 @@ table.grid tr.is-gastado td{background:color-mix(in srgb, var(--ok) 8%, var(--su
       const d = ev.data;
       if (!d || !d.tipo) return;
       switch (d.tipo) {
-        case "manzanas": poblarSelect(selManzana, d.lista, "Manzana…"); break;
-        case "lotes": poblarSelect(selLote, d.lista, "Lote…"); break;
-        case "consolidado": renderConsolidado(d); break;
+        case "manzanas": poblarSelect(selManzana, d.lista, "Manzana…"); aplicarPreseleccion(); break;
+        case "lotes": poblarSelect(selLote, d.lista, "Lote…"); aplicarPreseleccion(); break;
+        case "preseleccion":
+          preCasa = { mz: String(d.manzana || ""), lote: String(d.lote || "") };
+          aplicarPreseleccion();
+          break;
+        case "consolidado": renderConsolidado(d); filtroTablas.dispatchEvent(new Event("input")); break;
         case "pdfExportado": aviso(d.mensaje || (d.ok ? "PDF generado." : "No se pudo generar el PDF."), !d.ok); break;
         case "error": aviso(d.mensaje || "Ocurrió un error.", true); break;
       }

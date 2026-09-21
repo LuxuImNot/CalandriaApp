@@ -237,19 +237,47 @@ namespace DynamicSepticSystem
             public DateTime? ultima;
         }
 
+        /// <summary>Último push al panel, para no repetirlo en cada activación.</summary>
+        private DateTime ultimoRefrescoPanel = DateTime.MinValue;
+
+        /// <summary>
+        /// Los destajos se marcan en OTRAS ventanas (Destajos, Avance Masivo), que
+        /// se abren con Show() y no avisan al volver: sin esto el tablero se queda
+        /// con el progreso de cuando cargó la página.
+        /// </summary>
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            if (!webPanelListo) return;
+            // ponytail: throttle por tiempo; si hiciera falta exactitud, que las
+            // ventanas de destajos avisen al cerrar.
+            if ((DateTime.Now - ultimoRefrescoPanel).TotalSeconds < 5) return;
+            EnviarDatosAlPanel();
+        }
+
         /// <summary>
         /// Empuja al panel las casas con sus coordenadas reales
         /// (coordenadas_mapa.json, el mismo origen que usa el mapa clásico) y su
         /// progreso real (ActivacionTareasRuta, vía api/destajos/resumen-casas).
         /// </summary>
-        private void EnviarDatosAlPanel()
+        private async void EnviarDatosAlPanel()
         {
             if (!webPanelListo || webPanel?.CoreWebView2 == null) return;
+            ultimoRefrescoPanel = DateTime.Now;
 
             try
             {
-                var lista = LeerCoordenadasParaWeb();
-                AplicarResumenReal(lista);
+                // El resumen viaja por HTTP (118 casas): fuera del hilo de UI para
+                // que refrescar no congele la ventana.
+                var lista = await Task.Run(() =>
+                {
+                    var casas = LeerCoordenadasParaWeb();
+                    AplicarResumenReal(casas);
+                    return casas;
+                });
+
+                if (IsDisposed || webPanel?.CoreWebView2 == null) return;
+
                 var carga = new
                 {
                     tipo = "datos",
@@ -563,7 +591,8 @@ namespace DynamicSepticSystem
                 // Las opciones [ADMIN] se validan aquí además de ocultarse en la
                 // página: el HTML llega del servidor, pero no manda sobre permisos.
                 if ((m.accion == "hard-progress" || m.accion == "mapear-coordenadas" ||
-                     m.accion == "log-errores" || m.accion == "editar-explosiones") && !Global.EsAdmin)
+                     m.accion == "log-errores" || m.accion == "editar-explosiones" ||
+                     m.accion == "inversion") && !Global.EsAdmin)
                 {
                     MessageBox.Show("Esta opción es sólo para el administrador.",
                         "Permisos", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -592,7 +621,7 @@ namespace DynamicSepticSystem
                         break;
 
                     // --- COMPRAS ---
-                    case "compra-multiple":     AbrirFormCompraMulti();            break;
+                    case "compra-multiple":     AbrirFormCompraMulti(m.manzana, m.lote); break;
                     case "compra-indirecta":    AbrirFormCompraIndirecta();        break;
                     case "consultar-ordenes":   AbrirRepositorioOrdenesCompra();   break;
 
@@ -600,7 +629,7 @@ namespace DynamicSepticSystem
                     case "almacen":             AbrirFormAlmacen();                break;
 
                     // --- OBRA ---
-                    case "destajos":            AbrirFormActivarTareasTreeList();  break;
+                    case "destajos":            AbrirFormActivarTareasTreeList(m.manzana, m.lote); break;
                     case "editor-tareas":       AbrirFormEditorTreeList();         break;
                     case "avance-partidas":     AbrirFormAvanceObra();             break;
                     case "avance-conceptos":    AbrirFormAvanceConcepto();         break;
@@ -620,7 +649,8 @@ namespace DynamicSepticSystem
                     case "perfiles":            AbrirFormPerfilTrabajador();       break;
 
                     // --- ADMINISTRATIVOS ---
-                    case "administrativos":     AbrirFormAdministrativos();        break;
+                    case "administrativos":     AbrirFormAdministrativos(m.manzana, m.lote); break;
+                    case "inversion":           AbrirFormInversionWeb();           break;
                     case "log-errores":         AbrirFormLogErrores();             break;
                     case "diagnostico":         btnDiagnosticoConexion_Click(this, EventArgs.Empty); break;
                     case "perfiles-permisos":   btnGestionPerfiles_Click(this, EventArgs.Empty); break;

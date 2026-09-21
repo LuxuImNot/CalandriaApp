@@ -954,8 +954,12 @@ table.grid tr.is-off td:not(.sel){opacity:.42}
       const d = ev.data;
       if (!d || !d.tipo) return;
 
-      if (d.tipo === "manzanas") poblarSelect(selManzana, d.lista, "Manzana…");
-      else if (d.tipo === "lotes") poblarSelect(selLote, d.lista, "Lote…");
+      if (d.tipo === "manzanas") { poblarSelect(selManzana, d.lista, "Manzana…"); aplicarPreseleccion(); }
+      else if (d.tipo === "lotes") { poblarSelect(selLote, d.lista, "Lote…"); aplicarPreseleccion(); }
+      else if (d.tipo === "preseleccion") {
+        preCasa = { mz: String(d.manzana || ""), lote: String(d.lote || "") };
+        aplicarPreseleccion();
+      }
       else if (d.tipo === "reporte-semana") renderReporteSemana(d.lista || []);
       else if (d.tipo === "reporte-cuadrilla") renderReporteCuadrilla(d.lista || []);
       else if (d.tipo === "reporte-nomina") renderReporteNomina(d.lista || []);
@@ -1018,12 +1022,47 @@ table.grid tr.is-off td:not(.sel){opacity:.42}
       else cargarLotesDemo(selManzana.value);
     }
   });
-  selLote.addEventListener("change", () => { btnCargar.disabled = !selLote.value; });
+  selLote.addEventListener("change", () => {
+    btnCargar.disabled = !selLote.value;
+    // Elegir el lote ya es suficiente: el boton queda solo para recargar.
+    if (selLote.value) btnCargar.click();
+  });
   btnCargar.addEventListener("click", () => {
     if (!selManzana.value || !selLote.value) return;
+    recordarCasa(selManzana.value, selLote.value);
     if (HOST) { HOST.postMessage({ accion: "cargar-casa", manzana: selManzana.value, lote: selLote.value }); aviso(ROTULO["cargar-casa"] + "…"); }
     else cargarCasaDemo(selManzana.value, selLote.value);
   });
+
+  // Casa que manda el tablero al abrir esta ventana: se recorren los mismos
+  // pasos que daría el usuario (manzana → lotes → cargar), por eso vuelve a
+  // entrar aquí cada vez que llega una lista.
+  const RECUERDO_CASA = "calandria.destajos.casa";
+  function recordarCasa(mz, lote) {
+    try { localStorage.setItem(RECUERDO_CASA, JSON.stringify({ mz, lote })); } catch (e) { /* modo privado */ }
+  }
+  function casaRecordada() {
+    try { return JSON.parse(localStorage.getItem(RECUERDO_CASA) || "null"); } catch (e) { return null; }
+  }
+
+  // Arranca con la ultima casa usada; si el tablero manda otra, la pisa. Si ya
+  // no existe en el catalogo, aplicarPreseleccion() la ignora sin hacer ruido.
+  let preCasa = casaRecordada();
+  function aplicarPreseleccion() {
+    if (!preCasa) return;
+    const hay = (sel, v) => Array.from(sel.options).some(o => o.value === v);
+    if (selManzana.value !== preCasa.mz) {
+      if (!hay(selManzana, preCasa.mz)) return;
+      selManzana.value = preCasa.mz;
+      selManzana.dispatchEvent(new Event("change"));
+      return;
+    }
+    if (!hay(selLote, preCasa.lote)) return;
+    selLote.value = preCasa.lote;
+    btnCargar.disabled = false;
+    preCasa = null;
+    btnCargar.click();
+  }
 
   document.getElementById("navArbol").addEventListener("click", () => alHost("arbol-completo"));
   document.getElementById("navInsumos").addEventListener("click", () => alHost("insumos"));
@@ -1914,6 +1953,21 @@ table.grid tr.is-off td:not(.sel){opacity:.42}
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
     if (e.key === "ArrowLeft") irAPaso(indiceActual - 1, -1);
     else if (e.key === "ArrowRight") irAPaso(indiceActual + 1, 1);
+  });
+
+  // Escape cierra el overlay abierto; Ctrl+K salta al primer campo de busqueda visible.
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      if (!historialOverlay.hidden) { historialOverlay.hidden = true; return; }
+      if (!reportesOverlay.hidden) cerrarReportes();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      const campo = Array.prototype.slice
+        .call(document.querySelectorAll('input[type="search"], .filter-input, #selManzana'))
+        .filter(el => el.offsetParent !== null && !el.disabled)[0];
+      if (campo) { e.preventDefault(); campo.focus(); if (campo.select) campo.select(); }
+    }
   });
 
   document.getElementById("stamp").textContent =

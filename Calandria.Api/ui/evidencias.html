@@ -416,11 +416,41 @@ select,input{font:inherit; color:inherit}
     if (!selManzana.value) return;
     alHost("cargar-lotes", { manzana: selManzana.value });
   });
-  selLote.addEventListener("change", () => { btnConsultar.disabled = !selLote.value; });
+  selLote.addEventListener("change", () => {
+    btnConsultar.disabled = !selLote.value;
+    // Elegir el lote ya es suficiente: el boton queda solo para reconsultar.
+    if (selLote.value) btnConsultar.click();
+  });
   btnConsultar.addEventListener("click", () => {
     if (!selManzana.value || !selLote.value) return;
+    recordarCasa(selManzana.value, selLote.value);
     alHost("cargar-evidencias", { manzana: selManzana.value, lote: selLote.value });
   });
+
+  // Ultima casa consultada: se repiten los mismos pasos que daria el usuario
+  // (manzana -> lotes -> consultar), por eso vuelve a entrar aqui con cada lista.
+  const RECUERDO_CASA = "calandria.evidencias.casa";
+  function recordarCasa(mz, lote) {
+    try { localStorage.setItem(RECUERDO_CASA, JSON.stringify({ mz, lote })); } catch (e) { /* modo privado */ }
+  }
+  let preCasa = null;
+  try { preCasa = JSON.parse(localStorage.getItem(RECUERDO_CASA) || "null"); } catch (e) { preCasa = null; }
+  function aplicarCasaRecordada() {
+    if (!preCasa) return;
+    const hay = (sel, v) => Array.from(sel.options).some(o => o.value === v);
+    if (selManzana.value !== preCasa.mz) {
+      if (!hay(selManzana, preCasa.mz)) { preCasa = null; return; }
+      selManzana.value = preCasa.mz;
+      selManzana.dispatchEvent(new Event("change"));
+      return;
+    }
+    const lote = preCasa.lote;
+    preCasa = null;
+    if (!hay(selLote, lote)) return;
+    selLote.value = lote;
+    btnConsultar.disabled = false;
+    btnConsultar.click();
+  }
   btnExportarPdf.addEventListener("click", () => {
     if (!casaActual) return;
     alHost("exportar-pdf", { manzana: casaActual.manzana, lote: casaActual.lote });
@@ -609,8 +639,8 @@ select,input{font:inherit; color:inherit}
       const d = ev.data;
       if (!d || !d.tipo) return;
       switch (d.tipo) {
-        case "manzanas": poblarSelect(selManzana, d.lista, "Manzana…"); break;
-        case "lotes": poblarSelect(selLote, d.lista, "Lote…"); break;
+        case "manzanas": poblarSelect(selManzana, d.lista, "Manzana…"); aplicarCasaRecordada(); break;
+        case "lotes": poblarSelect(selLote, d.lista, "Lote…"); aplicarCasaRecordada(); break;
         case "evidencias": {
           const cambioCasa = !casaActual || casaActual.manzana !== d.manzana || casaActual.lote !== d.lote;
           casaActual = { manzana: d.manzana, lote: d.lote };

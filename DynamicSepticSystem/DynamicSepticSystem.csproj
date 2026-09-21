@@ -306,6 +306,9 @@
     <Compile Include="FormClientesWeb.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="FormInversionWeb.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="FormActualizacionWeb.cs">
       <SubType>Form</SubType>
     </Compile>

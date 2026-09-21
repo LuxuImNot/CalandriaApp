@@ -181,13 +181,17 @@ button{font:inherit; color:inherit; cursor:pointer}
   padding:10px 20px; background:var(--surface); border-bottom:1px solid var(--rule);
 }
 .titleblock .tb-spacer{flex:1}
-.search{
-  display:flex; align-items:center; gap:8px; min-width:230px;
+.picker{
+  display:flex; align-items:center; gap:8px;
   padding:0 10px; height:34px; border:1px solid var(--rule); border-radius:var(--r);
   background:var(--surface-2); color:var(--text-3);
 }
-.search svg{width:15px; height:15px; flex:none}
-.search input{border:0; background:transparent; color:var(--text); font:inherit; font-size:12.5px; width:100%; outline:none}
+.picker svg{width:15px; height:15px; flex:none}
+.picker select{
+  border:0; background:transparent; color:var(--text); font:inherit; font-size:12.5px;
+  outline:none; cursor:pointer; max-width:120px;
+}
+.picker select:disabled{color:var(--text-3); cursor:default}
 .kbd{
   font-family:var(--mono); font-size:10px; color:var(--text-3);
   border:1px solid var(--rule); border-radius:4px; padding:1px 5px; flex:none;
@@ -570,6 +574,7 @@ button{font:inherit; color:inherit; cursor:pointer}
       </button>
       <div class="nav-sub" id="g-admin-only" data-admin>
         <button data-accion="editar-explosiones">Editar explosiones</button>
+        <button data-accion="inversion">Inversión general</button>
         <button data-accion="hard-progress">Hard Progress</button>
         <button data-accion="mapear-coordenadas">Mapear coordenadas</button>
         <button data-accion="log-errores">Registro de errores</button>
@@ -606,11 +611,12 @@ button{font:inherit; color:inherit; cursor:pointer}
   <div class="main">
 
     <header class="titleblock">
-      <label class="search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="q" placeholder="Buscar casa: M5 L12" aria-label="Buscar casa por manzana y lote">
+      <div class="picker">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></svg>
+        <select id="selMz" aria-label="Manzana"><option value="">Manzana…</option></select>
+        <select id="selLote" aria-label="Lote" disabled><option value="">Lote…</option></select>
         <span class="kbd">Ctrl K</span>
-      </label>
+      </div>
 
       <div class="tb-spacer"></div>
 
@@ -719,6 +725,21 @@ button{font:inherit; color:inherit; cursor:pointer}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>
                 <span><span class="ba-t">Evidencias</span><span class="ba-s">Galería fotográfica de la casa</span></span>
               </button>
+
+              <button class="btn-accion" data-accion="almacen" data-req-casa disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></svg>
+                <span><span class="ba-t">Almacén de la casa</span><span class="ba-s">Entradas, salidas y surtido</span></span>
+              </button>
+
+              <button class="btn-accion" data-accion="compra-multiple" data-req-casa disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 4 6v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6l-2-4Z"/><path d="M4 6h16"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                <span><span class="ba-t">Orden de compra</span><span class="ba-s">Insumos de los destajos</span></span>
+              </button>
+
+              <button class="btn-accion" data-accion="administrativos" data-req-casa disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 6.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.8 5 3.3 5 1.4 5 3.4-2.2 3.3-5 3.3-5-1.1-5-3"/></svg>
+                <span><span class="ba-t">Consulta por casa</span><span class="ba-s">Dinero ejercido y por ejercer</span></span>
+              </button>
             </div>
           </section>
 
@@ -820,7 +841,8 @@ button{font:inherit; color:inherit; cursor:pointer}
     "avance-masivo":"Avance Masivo", "abrir-sembrado":"Plano de sembrado",
     "mapear-coordenadas":"Mapear coordenadas", "evidencias":"Evidencias fotográficas",
     "trabajadores":"Trabajadores", "cuadrillas":"Cuadrillas", "perfiles":"Perfiles y recibos",
-    "administrativos":"Consulta por casa", "log-errores":"Registro de errores",
+    "administrativos":"Consulta por casa", "inversion":"Inversión general",
+    "log-errores":"Registro de errores",
     "perfiles-permisos":"Perfiles y permisos",
     "diagnostico":"Diagnóstico de conexión", "panel-clasico":"Panel clásico",
     "cerrar-sesion":"Cerrar sesión"
@@ -996,6 +1018,7 @@ button{font:inherit; color:inherit; cursor:pointer}
 
   function cargarCasa(c, avisarHost) {
     sel = c;
+    recordarCasa(c);
     fotos = [];
     fotoIdx = 0;
     pidiendoFotos = true;
@@ -1012,6 +1035,7 @@ button{font:inherit; color:inherit; cursor:pointer}
     cBody.innerHTML = cuerpoCasa(c);
     conectarGaleria();
     habilitarAcciones(c);
+    sincronizarPicker();
     marcarMini();
     pintarActivas();
     animarConsultor();
@@ -1163,19 +1187,63 @@ button{font:inherit; color:inherit; cursor:pointer}
   }
 
   // ======================================================================
-  // BUSCADOR
+  // SELECTOR DE CASA (manzana → lote; elegir lote la carga)
+  // Sale de las mismas casas que el mapa, así que no pregunta nada al host.
   // ======================================================================
-  document.getElementById("q").addEventListener("input", e => {
-    const m = e.target.value.toUpperCase().match(/M?\s*(\d+)\s*L?\s*(\d+)/);
-    if (!m) return;
-    const c = casas.find(k => k.mzNum === m[1] && k.lote === +m[2]);
-    if (!c) { aviso("No se encontró la casa M" + m[1] + " L" + m[2] + ".", true); return; }
-    cargarCasa(c, true);
+  const selMz = document.getElementById("selMz");
+  const selLote = document.getElementById("selLote");
+
+  function opciones(sel, valores, placeholder, etiqueta) {
+    sel.innerHTML = "";
+    const cero = new Option(placeholder, "");
+    sel.appendChild(cero);
+    valores.forEach(v => sel.appendChild(new Option(etiqueta(v), String(v))));
+    sel.disabled = valores.length === 0;
+  }
+
+  // Ultima casa consultada: se restaura al abrir el tablero para no volver a
+  // elegir manzana+lote. Sin avisar al host: solo repinta la ficha.
+  const RECUERDO_CASA = "calandria.panel.casa";
+  function recordarCasa(c) {
+    try { localStorage.setItem(RECUERDO_CASA, JSON.stringify({ mzNum: c.mzNum, lote: c.lote })); } catch (e) { /* modo privado */ }
+  }
+  function casaRecordada() {
+    try { return JSON.parse(localStorage.getItem(RECUERDO_CASA) || "null"); } catch (e) { return null; }
+  }
+
+  function poblarManzanas() {
+    const mzs = [...new Set(casas.map(c => c.mzNum))].sort((a, b) => a - b);
+    opciones(selMz, mzs, "Manzana…", v => "Manzana " + v);
+    sincronizarPicker();
+  }
+
+  function poblarLotes(mzNum) {
+    const lotes = casas.filter(c => c.mzNum === mzNum).map(c => c.lote).sort((a, b) => a - b);
+    opciones(selLote, lotes, "Lote…", v => "Lote " + v);
+  }
+
+  /// Deja el selector mostrando la casa del consultor (venga del plano, de la
+  /// lista de activas o del propio selector).
+  function sincronizarPicker() {
+    if (!sel) { selMz.value = ""; opciones(selLote, [], "Lote…", v => v); return; }
+    selMz.value = sel.mzNum;
+    poblarLotes(sel.mzNum);
+    selLote.value = String(sel.lote);
+  }
+
+  selMz.addEventListener("change", () => {
+    if (!selMz.value) { opciones(selLote, [], "Lote…", v => v); return; }
+    poblarLotes(selMz.value);
+  });
+
+  selLote.addEventListener("change", () => {
+    const c = casas.find(k => k.mzNum === selMz.value && k.lote === +selLote.value);
+    if (c) cargarCasa(c, true);
   });
 
   document.addEventListener("keydown", e => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-      e.preventDefault(); document.getElementById("q").focus();
+      e.preventDefault(); selMz.focus();
     }
   });
 
@@ -1203,7 +1271,7 @@ button{font:inherit; color:inherit; cursor:pointer}
       habilitarAcciones(null);
       marcarMini();
       pintarActivas();
-      document.getElementById("q").value = "";
+      sincronizarPicker();
       return;
     }
     const b = ev.target.closest("[data-accion]");
@@ -1261,6 +1329,9 @@ button{font:inherit; color:inherit; cursor:pointer}
       }
 
       if (Array.isArray(d.casas) && d.casas.length) {
+        // El host reenvía las casas cada vez que se vuelve al tablero: si había
+        // una abierta en el consultor, se recarga con sus números nuevos.
+        const antes = sel ? { mz: sel.mz, lote: sel.lote } : null;
         casas = d.casas.map(c => ({
           mz: "M" + c.mz, mzNum: c.mz, lote: c.lote, x: c.x, y: c.y,
           estado: c.estado || "idle", avance: c.avance || 0, total: c.total || 0,
@@ -1271,9 +1342,19 @@ button{font:inherit; color:inherit; cursor:pointer}
         sel = null;
         consultorVacio();
         habilitarAcciones(null);
+        poblarManzanas();
         dibujarMini();
         pintarActivas();
         actualizarKpis();
+
+        const otra = antes && casas.find(c => c.mz === antes.mz && c.lote === antes.lote);
+        if (otra) { cargarCasa(otra, false); }
+        else {
+          // Nadie venía consultando nada: se abre la última casa de la sesión anterior.
+          const r = casaRecordada();
+          const previa = r && casas.find(c => c.mzNum === r.mzNum && c.lote === r.lote);
+          if (previa) cargarCasa(previa, false);
+        }
       }
       pintarSaludo();
     });
@@ -1358,6 +1439,7 @@ button{font:inherit; color:inherit; cursor:pointer}
 
   consultorVacio();
   habilitarAcciones(null);
+  poblarManzanas();
   dibujarMini();
   pintarActivas();
   pintarSaludo();

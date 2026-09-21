@@ -91,6 +91,16 @@ namespace DynamicSepticSystem
         {
             var owner = ConfigurationManager.AppSettings["GitHubOwner"] ?? "LuxuImNot";
             var repo = ConfigurationManager.AppSettings["GitHubRepo"] ?? "CalandriaApp";
+
+            // Sin repo configurado no hay canal de actualizacion: se corta aqui (el
+            // unico punto donde se lee) en vez de pegarle a una URL invalida. Si esto
+            // faltara, el cliente podria terminar bajando la release de OTRO producto
+            // (CalandriaSys) y sobrescribiendose con ella al cerrar la app.
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+            {
+                Log("Actualizaciones deshabilitadas: GitHubOwner/GitHubRepo vacios en App.config.");
+                return (null, null, null);
+            }
             var apiUrl = $"https://api.github.com/repos/{owner}/{repo}/releases/latest";
             var token = ConfigurationManager.AppSettings["GitHubToken"];
 

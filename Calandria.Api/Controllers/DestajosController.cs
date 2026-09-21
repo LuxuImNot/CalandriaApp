@@ -175,7 +175,12 @@ namespace Calandria.Api.Controllers
                             Activados = activados,
                             ImporteTotal = importeTotal,
                             ImporteTerminado = importeTerminado,
-                            AvancePct = totalDestajos > 0 ? (int)Math.Round(finIds.Count * 100m / totalDestajos) : 0,
+                            // Ponderado por importe, igual que CalcularResumen (la
+                            // pantalla de destajos): así el mapa y el árbol dicen lo
+                            // mismo de la misma casa. Sin importes, conteo de destajos.
+                            AvancePct = importeTotal > 0
+                                ? (int)Math.Round(importeTerminado * 100m / importeTotal)
+                                : (totalDestajos > 0 ? (int)Math.Round(finIds.Count * 100m / totalDestajos) : 0),
                             Estado = estado,
                             UltimaActualizacion = ultima
                         });

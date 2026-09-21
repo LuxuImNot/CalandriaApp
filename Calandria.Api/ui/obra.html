@@ -559,6 +559,13 @@ button.primary.is-loading .txt{opacity:.85}
 
   btnCerrarPersonalizar.addEventListener("click", cerrarModalPersonalizar);
 
+  // Escape cierra el modal que este abierto.
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    if (!document.getElementById("modalBorrar").hidden) cerrarModalBorrar();
+    else if (!document.getElementById("modalPersonalizar").hidden) cerrarModalPersonalizar();
+  });
+
   logoDrop.addEventListener("click", (ev) => { if (ev.target !== inputLogo) inputLogo.click(); });
 
   inputLogo.addEventListener("change", () => {

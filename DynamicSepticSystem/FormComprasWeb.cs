@@ -36,6 +36,27 @@ namespace DynamicSepticSystem
         private readonly string _vistaInicial;
         private WebView2 webCompras;
 
+        /// <summary>Casa con la que abre la ventana cuando viene del tablero.</summary>
+        private string _preMz, _preLote;
+
+        /// <summary>
+        /// Deja la casa del tablero ya agregada a la orden multiple, para no
+        /// volver a teclear manzana y lote.
+        /// </summary>
+        public void PreseleccionarCasa(string manzana, string lote)
+        {
+            if (string.IsNullOrWhiteSpace(manzana) || string.IsNullOrWhiteSpace(lote)) return;
+            _preMz = manzana.Trim();
+            _preLote = lote.Trim();
+            EnviarPreseleccion();
+        }
+
+        private void EnviarPreseleccion()
+        {
+            if (string.IsNullOrEmpty(_preMz) || webCompras?.CoreWebView2 == null) return;
+            Push(new { tipo = "preseleccion", manzana = _preMz, lote = _preLote });
+        }
+
         private static readonly JsonSerializerSettings CamelCaseSettings =
             new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() };
 
@@ -111,6 +132,7 @@ namespace DynamicSepticSystem
                 EnviarSesionWeb();
                 if (_vistaInicial != "multi")
                     Push(new { tipo = "vistaInicial", vista = _vistaInicial });
+                EnviarPreseleccion();
                 _ = CargarTemaObraAsync();
             };
 

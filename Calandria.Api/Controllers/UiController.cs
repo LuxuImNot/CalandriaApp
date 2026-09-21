@@ -30,7 +30,7 @@ namespace Calandria.Api.Controllers
         /// la whitelist de tabla en DestajosController): el nombre llega del
         /// cliente, así que no basta con RutaSegura(); sólo estos nombres existen.
         /// </summary>
-        private static readonly string[] PaginasPermitidas = { "panel", "destajos", "almacen", "compras", "trabajadores", "editor-tareas", "perfiles", "obra", "distribucion-nomina", "asignar-nomina", "facturacion", "terminos", "administrativos", "evidencias", "clientes", "avance-masivo", "sembrado" };
+        private static readonly string[] PaginasPermitidas = { "panel", "destajos", "almacen", "compras", "trabajadores", "editor-tareas", "perfiles", "obra", "distribucion-nomina", "asignar-nomina", "facturacion", "terminos", "administrativos", "evidencias", "clientes", "avance-masivo", "sembrado", "inversion" };
 
         private static string Carpeta =>
             Configuracion.UiRuta;

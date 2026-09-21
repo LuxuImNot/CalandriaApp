@@ -51,3 +51,34 @@ context.txt
 *.mp4
 *.bak
 nul
+
+# ---- Scratch del escritorio: capturas, pruebas y documentos sueltos que
+#      fueron cayendo en la raiz del repo y no son fuente del proyecto. ----
+Calandria.Api/pruebas-ui/
+Calandria.Api/publish-nuevo/
+reportes/
+*.docx
+*.xlsx
+*.pdf
+*.lnk
+*.rpt
+*.jpg
+*.jpeg
+DynamicSepticSystem/*.png
+DynamicSepticSystem/*.py
+PILARIS.png
+PILARISLOGO.png
+logoprueba.jpg
+mockup.html
+prueba-memoria-casa.py
+factura_ejemplo_CFDI.xml
+AIDER.bat
+AIDER.txt
+CODEGOD.bat
+ErrorLogin.txt
+prompts.txt
+PromptUSAYA.txt
+New Text Document.txt
+DynamicSepticSystem/ErrorSQ.txt
+DynamicSepticSystem/LEEME.txt
+DynamicSepticSystem/LOGO-ICON.ico

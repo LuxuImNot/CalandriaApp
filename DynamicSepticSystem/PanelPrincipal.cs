@@ -809,6 +809,23 @@ namespace DynamicSepticSystem
         }
 
         private ToolTip tooltipSesion;
+        private bool clicSesionConectado;
+
+        /// <summary>
+        /// Vuelve a autenticar contra el API sin cerrar la app. La obra elegida y
+        /// las ventanas abiertas se conservan: solo se renueva el token.
+        /// </summary>
+        private void ReloguearApi()
+        {
+            // WebView2: se abre con Show(), nunca con ShowDialog().
+            var login = new FormLogin();
+            login.LoginExitoso += (s, e) =>
+            {
+                login.Close();
+                ActualizarInfoUsuario();
+            };
+            login.Show(this);
+        }
 
         /// <summary>
         /// Actualiza la información del usuario en la interfaz
@@ -820,6 +837,13 @@ namespace DynamicSepticSystem
             var lblSesion = this.Controls.Find("lblSesion", true).FirstOrDefault() as Label;
             var lblObraActual = this.Controls.Find("lblObraActual", true).FirstOrDefault() as Label;
             var panelDevTools = this.Controls.Find("panelDevTools", true).FirstOrDefault() as Panel;
+
+            // Solo responde al clic cuando el indicador está en naranja (sin sesión API).
+            if (lblSesion != null && !clicSesionConectado)
+            {
+                clicSesionConectado = true;
+                lblSesion.Click += (s, e) => { if (lblSesion.Cursor == Cursors.Hand) ReloguearApi(); };
+            }
 
             if (lblObraActual != null)
                 lblObraActual.Text = "🏗 " + (Global.ObraActualNombre ?? "Sin obra") + " (cambiar)";
@@ -865,13 +889,17 @@ namespace DynamicSepticSystem
                             : "";
                         lblSesion.Text = $"● API conectada{vence}";
                         lblSesion.ForeColor = Color.FromArgb(46, 204, 113);
+                        lblSesion.Cursor = Cursors.Default;
                     }
                     else
                     {
+                        // Sin sesión de API el relogueo se hace desde aquí: antes había
+                        // que cerrar y volver a abrir la app cuando vencía el token.
                         lblSesion.Text = ApiClient.Autenticado
-                            ? "○ Sesión API vencida (relogueo pendiente)"
-                            : "○ Sin conexión API (modo local)";
+                            ? "○ Sesión vencida · clic para reconectar"
+                            : "○ Sin conexión API · clic para reconectar";
                         lblSesion.ForeColor = Color.FromArgb(230, 126, 34);
+                        lblSesion.Cursor = Cursors.Hand;
                     }
                 }
             }
@@ -1121,6 +1149,14 @@ namespace DynamicSepticSystem
                 };
                 miRegistroErrores.Click += (s, e) => AbrirFormLogErrores();
                 miAdministrativos.DropDownItems.Add(miRegistroErrores);
+
+                var miInversionGeneral = new ToolStripMenuItem("Inversión General [ADMIN]")
+                {
+                    Font = new Font("Segoe UI", 9F, FontStyle.Regular),
+                    ForeColor = ThemeManager.ColorTextoOscuro
+                };
+                miInversionGeneral.Click += (s, e) => AbrirFormInversionWeb();
+                miAdministrativos.DropDownItems.Add(miInversionGeneral);
 
                 var miPerfilesPermisos = new ToolStripMenuItem("Perfiles y Permisos [ADMIN]")
                 {
@@ -1637,6 +1673,21 @@ namespace DynamicSepticSystem
             new FormClientesWeb().Show();
         }
 
+        private void AbrirFormInversionWeb()
+        {
+            foreach (Form form in Application.OpenForms)
+            {
+                if (form is FormInversionWeb)
+                {
+                    form.BringToFront();
+                    form.Focus();
+                    return;
+                }
+            }
+
+            new FormInversionWeb().Show();
+        }
+
         private void btnCambiarTema_Click(object sender, EventArgs e)
         {
             var skinManager = MaterialSkin.MaterialSkinManager.Instance;
@@ -1788,7 +1839,7 @@ namespace DynamicSepticSystem
             }
         }
 
-        private void AbrirFormCompraMulti()
+        private void AbrirFormCompraMulti(string manzana = null, string lote = null)
         {
             try
             {
@@ -1796,6 +1847,8 @@ namespace DynamicSepticSystem
                 {
                     if (form is FormCompraMulti || form is FormComprasWeb)
                     {
+                        // Si el tablero traía casa, se agrega a la orden abierta.
+                        (form as FormComprasWeb)?.PreseleccionarCasa(manzana, lote);
                         form.BringToFront();
                         form.Focus();
                         return;
@@ -1807,7 +1860,9 @@ namespace DynamicSepticSystem
                     // Show(), no ShowDialog(): un WebView2 modal sobre el del panel
                     // principal (también WebView2) aborta la inicialización con
                     // COMException E_ABORT — ver reference_webview2_multi_instance.
-                    new FormComprasWeb("multi").Show();
+                    var web = new FormComprasWeb("multi");
+                    web.PreseleccionarCasa(manzana, lote);
+                    web.Show();
                 }
                 else
                 {
@@ -2175,17 +2230,19 @@ namespace DynamicSepticSystem
         /// <summary>
         /// Abre el formulario de activación/desactivación de tareas (⚙️ Activar/Desactivar Tareas)
         /// </summary>
-        private void AbrirFormActivarTareasTreeList()
+        private void AbrirFormActivarTareasTreeList(string manzana = null, string lote = null)
         {
             try
             {
                 // Verificar si ya está abierto
                 foreach (Form form in Application.OpenForms)
                 {
-                    if (form is FormActivarTareasTreeList)
+                    if (form is FormActivarTareasTreeList abierto)
                     {
-                        form.BringToFront();
-                        form.Focus();
+                        // Si el tablero cambió de casa, la ventana la sigue.
+                        abierto.PreseleccionarCasa(manzana, lote);
+                        abierto.BringToFront();
+                        abierto.Focus();
                         return;
                     }
                 }
@@ -2195,6 +2252,7 @@ namespace DynamicSepticSystem
                 // panel principal ya hospedando su propio WebView2 — ver
                 // reference_webview2_multi_instance. Show() evita ese loop.
                 var frm = new FormActivarTareasTreeList();
+                frm.PreseleccionarCasa(manzana, lote);
                 frm.Show(this);
             }
             catch (Exception ex)
@@ -2211,21 +2269,24 @@ namespace DynamicSepticSystem
         /// <summary>
         /// Abre el formulario Administrativos (consolidado financiero por casa)
         /// </summary>
-        private void AbrirFormAdministrativos()
+        private void AbrirFormAdministrativos(string manzana = null, string lote = null)
         {
             try
             {
                 foreach (Form form in Application.OpenForms)
                 {
-                    if (form is FormAdministrativos)
+                    if (form is FormAdministrativos abierto)
                     {
-                        form.BringToFront();
-                        form.Focus();
+                        // Si el tablero cambió de casa, la consulta la sigue.
+                        abierto.PreseleccionarCasa(manzana, lote);
+                        abierto.BringToFront();
+                        abierto.Focus();
                         return;
                     }
                 }
 
                 var frm = new FormAdministrativos();
+                frm.PreseleccionarCasa(manzana, lote);
                 frm.Show(this);
             }
             catch (Exception ex)
