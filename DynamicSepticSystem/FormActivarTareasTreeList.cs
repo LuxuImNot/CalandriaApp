@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Data.SqlClient;
 using System.Drawing;
 using System.Globalization;
@@ -19,7 +18,6 @@ namespace DynamicSepticSystem
     /// </summary>
     public partial class FormActivarTareasTreeList : Form
     {
-        private string connectionString = ConfigurationManager.ConnectionStrings["CalandriaConn"].ConnectionString;
         private List<ItemTareaActivacion> itemsTareas = new List<ItemTareaActivacion>();
         private string manzanaActual = "";
         private string loteActual = "";
@@ -108,24 +106,13 @@ namespace DynamicSepticSystem
         {
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Manzana FROM InventarioCasas ORDER BY Manzana";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    using (SqlDataReader reader = cmd.ExecuteReader())
-                    {
-                        cmbManzana.Items.Clear();
-                        while (reader.Read())
-                        {
-                            cmbManzana.Items.Add(reader["Manzana"].ToString());
-                        }
-                    }
-                }
+                var lista = ApiClient.Get<List<string>>("/api/destajos/manzanas") ?? new List<string>();
+                cmbManzana.Items.Clear();
+                foreach (var m in lista) cmbManzana.Items.Add(m);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al cargar manzanas: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ManejarErrorApi(ex, "No se pudieron cargar las manzanas");
             }
         }
 
@@ -135,27 +122,14 @@ namespace DynamicSepticSystem
 
             try
             {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT DISTINCT Lote FROM InventarioCasas WHERE Manzana = @m ORDER BY Lote";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", cmbManzana.SelectedItem.ToString());
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            cmbLote.Items.Clear();
-                            while (reader.Read())
-                            {
-                                cmbLote.Items.Add(reader["Lote"].ToString());
-                            }
-                        }
-                    }
-                }
+                var lista = ApiClient.Get<List<string>>("/api/destajos/lotes?manzana="
+                    + Uri.EscapeDataString(cmbManzana.SelectedItem.ToString())) ?? new List<string>();
+                cmbLote.Items.Clear();
+                foreach (var l in lista) cmbLote.Items.Add(l);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al cargar lotes: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ManejarErrorApi(ex, "No se pudieron cargar los lotes");
             }
         }
 
@@ -163,50 +137,41 @@ namespace DynamicSepticSystem
         {
             if (cmbManzana.SelectedItem == null || cmbLote.SelectedItem == null)
             {
-                MessageBox.Show("Por favor selecciona Manzana y Lote", "Atenci�n", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Por favor selecciona Manzana y Lote", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            manzanaActual = cmbManzana.SelectedItem.ToString();
-            loteActual = cmbLote.SelectedItem.ToString();
+            string manzana = cmbManzana.SelectedItem.ToString();
+            string lote = cmbLote.SelectedItem.ToString();
 
-            prototipoActual = ObtenerPrototipo(manzanaActual, loteActual);
-            if (string.IsNullOrEmpty(prototipoActual))
+            CasaDestajoApi casa;
+            try
             {
-                MessageBox.Show($"No se encontr� el prototipo para M{manzanaActual}-L{loteActual}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                casa = ApiClient.Get<CasaDestajoApi>("/api/destajos/casa?manzana="
+                    + Uri.EscapeDataString(manzana) + "&lote=" + Uri.EscapeDataString(lote));
+            }
+            catch (Exception ex)
+            {
+                ManejarErrorApi(ex, "No se pudo cargar la casa");
                 return;
             }
 
-            // Determinar qu� ruta usar seg�n el prototipo
-            rutaActual = prototipoActual.ToUpper().Contains("CALANDRA") ? "RutaCalandraDestajo" : "RutaTuneraDestajo";
+            if (casa == null || string.IsNullOrEmpty(casa.Prototipo))
+            {
+                MessageBox.Show($"No se encontró el prototipo para M{manzana}-L{lote}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            manzanaActual = manzana;
+            loteActual = lote;
+            prototipoActual = casa.Prototipo;
+            rutaActual = casa.Ruta;
 
             this.Text = $"Activación de Destajos — M{manzanaActual} L{loteActual} ({prototipoActual})";
 
             CargarTareas();
         }
 
-        private string ObtenerPrototipo(string manzana, string lote)
-        {
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    string sql = "SELECT Prototipo FROM InventarioCasas WHERE Manzana = @m AND Lote = @l";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzana);
-                        cmd.Parameters.AddWithValue("@l", lote);
-                        var result = cmd.ExecuteScalar();
-                        return result?.ToString() ?? "";
-                    }
-                }
-            }
-            catch
-            {
-                return "";
-            }
-        }
 
         #endregion
 
@@ -420,34 +385,7 @@ namespace DynamicSepticSystem
                 // antes de llegar aquí, así que no hace falta repetirlo como en los
                 // Menu*_Click. DesactivarWeb hace su propio flujo de justificación
                 // (vía el 400 del API) si el destajo ya liberó insumos.
-                if (DestajosWebActivo)
-                {
-                    BeginInvoke((Action)(() => { _ = DesactivarWeb(item.ID); }));
-                    ActualizarEstadisticas();
-                    return;
-                }
-
-                // Si ya libero insumos, exige justificacion y registra excepcion.
-                if (destajoEstabaActivado && !RegistrarExcepcionDesactivacionSiLiberado(item))
-                {
-                    _suprimirFlujoActivacion = true;
-                    try
-                    {
-                        item.Activa = true;
-                        e.Item.Checked = true;
-                        olvTareas.RefreshObject(item);
-                    }
-                    finally { _suprimirFlujoActivacion = false; }
-                    return;
-                }
-
-                // Al desactivar, limpia la cuadrilla asignada, finalización y el estado de activación
-                item.CuadrillaAsignada = "";
-                item.DesatajoActivado = false;
-                item.Finalizado = false;
-                item.FechaFinalizacion = null;
-                item.FechaActivacion = null;
-                olvTareas.RefreshObject(item);
+                BeginInvoke((Action)(() => { _ = DesactivarWeb(item.ID); }));
             }
 
             ActualizarEstadisticas();
@@ -583,137 +521,25 @@ namespace DynamicSepticSystem
         {
             var item = ItemSeleccionado();
             if (item == null || item.Nivel != 1) return;
-
-            // RegenerarPdfWeb (Web.cs) repite las mismas validaciones de abajo.
-            if (DestajosWebActivo) { _ = RegenerarPdfWeb(item.ID); return; }
-
-            if (!item.DesatajoActivado)
-            {
-                MessageBox.Show("Este destajo no está activado. Asegúrate de que tenga cuadrilla asignada y esté completamente configurado.",
-                    "PDF", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(item.CuadrillaAsignada))
-            {
-                MessageBox.Show("El destajo no tiene cuadrilla asignada.",
-                    "PDF", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            GenerarPdfDestajo(item);
+            _ = RegenerarPdfWeb(item.ID);
         }
 
         private void MenuItemFinalizar_Click(object sender, EventArgs e)
         {
             var item = ItemSeleccionado();
             if (item == null || item.Nivel != 1) return;
-
-            // FinalizarWeb (Web.cs) repite las mismas validaciones + confirmación de
-            // abajo, así que se redirige antes de duplicar el diálogo de confirmación.
-            if (DestajosWebActivo) { _ = FinalizarWeb(item.ID); return; }
-
-            if (!item.DesatajoActivado)
-            {
-                MessageBox.Show(
-                    "Sólo se puede finalizar un destajo previamente activado con cuadrilla.",
-                    "Finalizar destajo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            if (item.Finalizado)
-            {
-                MessageBox.Show("Este destajo ya está finalizado.",
-                    "Finalizar destajo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            if (string.IsNullOrEmpty(item.CuadrillaAsignada))
-            {
-                MessageBox.Show("El destajo no tiene cuadrilla asignada.",
-                    "Finalizar destajo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            var rsp = MessageBox.Show(
-                $"¿Finalizar el destajo \"{item.Nombre}\"?\n\n" +
-                "Se generará el PDF de finalización y quedará habilitada la asignación de nómina.",
-                "Finalizar destajo", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (rsp != DialogResult.Yes) return;
-
-            item.Finalizado = true;
-            item.FechaFinalizacion = DateTime.Now;
-
-            PersistirActivacionDestajo(item);
-            olvTareas.RefreshObject(item);
-            ActualizarEstadisticas();
-
-            GenerarPdfFinalizacionDestajo(item);
+            _ = FinalizarWeb(item.ID);
         }
 
-        private void GenerarPdfFinalizacionDestajo(ItemTareaActivacion destajo)
-        {
-            if (destajo == null || destajo.Nivel != 1) return;
-
-            try
-            {
-                var miembros = ObtenerMiembrosCuadrilla(destajo.CuadrillaAsignada);
-                var hijos = itemsTareas.Where(i => i.ParentId == destajo.ID).ToList();
-
-                string nombreSeguro = SanitizarNombreArchivo(destajo.Nombre);
-                string nombreArchivo =
-                    $"Finalizacion_M{manzanaActual}-L{loteActual}_{destajo.ID}_{nombreSeguro}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
-
-                string archivoTemp = Path.Combine(Path.GetTempPath(), nombreArchivo);
-                CrearPdfDestajo(archivoTemp, destajo, miembros, hijos,
-                    "ACTA DE FINALIZACIÓN", "Trabajos Terminados y Validados");
-
-                GuardarPdfDestajoEnBD(destajo, nombreArchivo, archivoTemp);
-
-                string sugerido = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                    $"Finalizacion_M{manzanaActual}-L{loteActual}_{destajo.Nombre}.pdf");
-
-                using (var preview = new FormPdfPreview(archivoTemp, sugerido))
-                {
-                    preview.ShowDialog(this);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error generando el PDF de finalización:\n" + ex.Message,
-                    "PDF", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
 
         private void MenuItemDesactivar_Click(object sender, EventArgs e)
         {
             var item = ItemSeleccionado();
             if (item == null || item.Nivel != 1) return;
 
-            // Se replica aquí el check de admin porque DesactivarWeb (llamado
-            // directo, no vía DespacharMensaje) no lo hace por su cuenta — ese
-            // chequeo normalmente lo pone DespacharMensaje antes de despachar.
-            if (DestajosWebActivo)
-            {
-                if (!EsUsuarioAdmin())
-                {
-                    MessageBox.Show(
-                        "Solo el administrador puede desactivar un destajo ya activado.",
-                        "Permiso denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-                _ = DesactivarWeb(item.ID);
-                return;
-            }
-
-            if (!item.DesatajoActivado)
-            {
-                MessageBox.Show("Este destajo ya está desactivado.",
-                    "Desactivar", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
+            // El check de admin se replica aquí porque DesactivarWeb, llamado directo
+            // y no vía DespacharMensaje, no lo hace por su cuenta. El API lo vuelve a
+            // exigir de todos modos; esto sólo evita el viaje y da mejor mensaje.
             if (!EsUsuarioAdmin())
             {
                 MessageBox.Show(
@@ -721,39 +547,7 @@ namespace DynamicSepticSystem
                     "Permiso denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-
-            var rsp = MessageBox.Show(
-                $"¿Desactivar el destajo \"{item.Nombre}\"?\n\n" +
-                "Se eliminará la cuadrilla asignada y se marcará como desactivado.",
-                "Desactivar destajo", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-            if (rsp != DialogResult.Yes) return;
-
-            // Si el destajo ya libero insumos al almacen, exige justificacion y
-            // registra la excepcion (el stock NO se devuelve).
-            if (!RegistrarExcepcionDesactivacionSiLiberado(item))
-                return;
-
-            _suprimirFlujoActivacion = true;
-            try
-            {
-                item.Activa = false;
-                item.CuadrillaAsignada = "";
-                item.DesatajoActivado = false;
-                item.Finalizado = false;
-                item.FechaFinalizacion = null;
-
-                var olvItem = olvTareas.ModelToItem(item);
-                if (olvItem != null) olvItem.Checked = false;
-
-                olvTareas.RefreshObject(item);
-            }
-            finally
-            {
-                _suprimirFlujoActivacion = false;
-            }
-
-            PersistirActivacionDestajo(item);
-            ActualizarEstadisticas();
+            _ = DesactivarWeb(item.ID);
         }
 
         /// <summary>
@@ -767,28 +561,7 @@ namespace DynamicSepticSystem
             var item = ItemSeleccionado();
             if (item == null || item.Nivel != 1) return;
 
-            // Mismo motivo que en MenuItemDesactivar_Click: ReabrirWeb (llamado
-            // directo) no valida admin por su cuenta, así que se replica aquí.
-            if (DestajosWebActivo)
-            {
-                if (!EsUsuarioAdmin())
-                {
-                    MessageBox.Show(
-                        "Sólo el administrador puede reabrir un destajo finalizado.",
-                        "Permiso denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-                _ = ReabrirWeb(item.ID);
-                return;
-            }
-
-            if (!item.Finalizado)
-            {
-                MessageBox.Show("Sólo se puede reabrir un destajo que ya está finalizado.",
-                    "Reabrir destajo", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
+            // Mismo motivo que en MenuItemDesactivar_Click.
             if (!EsUsuarioAdmin())
             {
                 MessageBox.Show(
@@ -796,40 +569,7 @@ namespace DynamicSepticSystem
                     "Permiso denegado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-
-            var rsp = MessageBox.Show(
-                $"¿Reabrir el destajo \"{item.Nombre}\"?\n\n" +
-                "Volverá al estado ACTIVADO (conserva su cuadrilla) y podrás finalizarlo de nuevo.",
-                "Reabrir destajo", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (rsp != DialogResult.Yes) return;
-
-            // Detectar nómina asignada a los nodos de mano de obra de este destajo.
-            var nodosConNomina = DetectarNodosConNominaAsignada(item);
-            if (nodosConNomina.Count > 0)
-            {
-                var rspNom = MessageBox.Show(
-                    "Este destajo tiene nómina asignada a su mano de obra.\n\n" +
-                    "• Sí  → borrar la asignación de nómina al reabrir.\n" +
-                    "• No  → conservar la asignación tal cual.\n\n" +
-                    "(Los recibos ya emitidos no se eliminan en ningún caso.)",
-                    "Nómina asignada", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
-                if (rspNom == DialogResult.Cancel) return;
-                if (rspNom == DialogResult.Yes)
-                {
-                    // Si falla el borrado, abortamos para no dejar estado inconsistente.
-                    if (!EliminarNominaAsignada(nodosConNomina))
-                        return;
-                }
-            }
-
-            item.Finalizado = false;
-            item.FechaFinalizacion = null;
-            // Permanece activado y con su cuadrilla asignada.
-
-            PersistirActivacionDestajo(item);
-            olvTareas.RefreshObject(item);
-            ActualizarEstadisticas();
-            ActualizarPanelGuia();
+            _ = ReabrirWeb(item.ID);
         }
 
         /// <summary>
@@ -1003,310 +743,42 @@ namespace DynamicSepticSystem
 
         #region Carga de tareas
 
+        /// <summary>
+        /// Carga la casa actual desde api/destajos/arbol. El mapeo al modelo del
+        /// ObjectListView (incluidas las activaciones y el surtido por clave/nombre)
+        /// lo hace MapearItems, compartido con el panel web: una sola lectura y una
+        /// sola verdad, la BD de la obra activa.
+        /// </summary>
         private void CargarTareas()
         {
             _destajoGuia = null;
             _itemAccionOverride = null;
             _indiceVista = -1;
-            itemsTareas.Clear();
-            CargarTareasDesdeRuta();
-            CargarActivacionesGuardadas();
-            CargarSurtidoPorClave();
 
-            // Obtener solo los nodos raíz (nivel 0) para mostrar el árbol
-            var nodosRaiz = itemsTareas.Where(i => i.Nivel == 0).ToList();
-
-            _suprimirFlujoActivacion = true;
             try
             {
-                olvTareas.SetObjects(nodosRaiz);
-                olvTareas.CollapseAll();
-            }
-            finally
-            {
-                _suprimirFlujoActivacion = false;
-            }
-
-            lblContextoCasa.Text = string.Format(
-                "Casa M{0} L{1}  ·  Prototipo: {2}  ·  Ruta: {3}",
-                manzanaActual, loteActual, prototipoActual, rutaActual);
-
-            ActualizarEstadisticas();
-
-            // Modo paso-a-paso (sin árbol): enfoca de una vez el destajo actual
-            // para que el asistente muestre sus opciones sin tener que seleccionarlo.
-            SeleccionarDestajoActual();
-        }
-
-        private void CargarTareasDesdeRuta()
-        {
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
+                var arbol = ApiClient.Get<ArbolDestajosApi>(
+                    "/api/destajos/arbol?manzana=" + Uri.EscapeDataString(manzanaActual)
+                    + "&lote=" + Uri.EscapeDataString(loteActual)
+                    + "&ruta=" + Uri.EscapeDataString(rutaActual));
+                if (arbol == null)
                 {
-                    conn.Open();
-
-                    // Cargar todos los nodos del �rbol (Padre, Sub-Padre, Hijo)
-                    // Se une con la tabla de columnas para obtener Cantidad, Unidad y PrecioUnitario
-                    string sql = $@"
-                        SELECT 
-                            r.ID,
-                            r.Nombre,
-                            r.Descripcion,
-                            r.Nivel,
-                            r.Orden,
-                            r.TipoTarea,
-                            r.ParentId,
-                            ISNULL(MAX(CASE WHEN c.NombreColumna = 'Cantidad' THEN c.Valor END), '0') AS Cantidad,
-                            ISNULL(MAX(CASE WHEN c.NombreColumna = 'Unidad' THEN c.Valor END), '') AS Unidad,
-                            ISNULL(MAX(CASE WHEN c.NombreColumna = 'Precio' THEN c.Valor END), '0') AS PrecioUnitario,
-                            ISNULL(MAX(CASE WHEN c.NombreColumna = 'Clave' THEN c.Valor END), '') AS Clave
-                        FROM {rutaActual} r
-                        LEFT JOIN {rutaActual}_Columnas c ON r.ID = c.NodoID
-                        GROUP BY r.ID, r.Nombre, r.Descripcion, r.Nivel, r.Orden, r.TipoTarea, r.ParentId
-                        ORDER BY r.Nivel, r.Orden";
-
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            int contador = 0;
-                            while (reader.Read())
-                            {
-                                int nivel = Convert.ToInt32(reader["Nivel"]);
-                                int tipoTareaInt = reader["TipoTarea"] != System.DBNull.Value 
-                                    ? Convert.ToInt32(reader["TipoTarea"]) 
-                                    : 0;
-                                TipoTarea tipoTarea = (TipoTarea)tipoTareaInt;
-                                
-                                int parentId = reader["ParentId"] != System.DBNull.Value 
-                                    ? Convert.ToInt32(reader["ParentId"]) 
-                                    : 0;
-
-                                // Convertir valores desde string a decimal
-                                decimal cantidad = 0;
-                                if (!string.IsNullOrEmpty(reader["Cantidad"].ToString()))
-                                {
-                                    decimal.TryParse(reader["Cantidad"].ToString(), out cantidad);
-                                }
-
-                                string unidad = reader["Unidad"] != System.DBNull.Value
-                                    ? reader["Unidad"].ToString()
-                                    : "";
-
-                                decimal precioUnitario = 0;
-                                if (!string.IsNullOrEmpty(reader["PrecioUnitario"].ToString()))
-                                {
-                                    decimal.TryParse(reader["PrecioUnitario"].ToString(), out precioUnitario);
-                                }
-
-                                // Contar solo nodos de nivel 1 para el contador
-                                if (nivel == 1)
-                                    contador++;
-
-                                var item = new ItemTareaActivacion
-                                {
-                                    ID = Convert.ToInt32(reader["ID"]),
-                                    ParentId = parentId,
-                                    Nombre = reader["Nombre"].ToString(),
-                                    Descripcion = reader["Descripcion"] != System.DBNull.Value ? reader["Descripcion"].ToString() : "",
-                                    Clave = reader["Clave"] != System.DBNull.Value ? reader["Clave"].ToString().Trim() : "",
-                                    Nivel = nivel,
-                                    Contador = nivel == 1 ? contador : 0,
-                                    Tipo = ObtenerTipoNodo(nivel),
-                                    TipoTarea = ObtenerTipoTareaTexto(tipoTarea),
-                                    TipoTareaEnum = tipoTarea,
-                                    Activa = true, // Por defecto activa
-                                    Cantidad = cantidad,
-                                    Unidad = unidad,
-                                    PrecioUnitario = precioUnitario
-                                };
-
-                                itemsTareas.Add(item);
-                            }
-                        }
-                    }
+                    MessageBox.Show($"No se pudo cargar el árbol de destajos de M{manzanaActual}-L{loteActual}.",
+                        "Destajos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
                 }
+
+                _arbolActual = arbol;
+                MapearItems(arbol);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al cargar tareas: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ManejarErrorApi(ex, "No se pudieron cargar las tareas");
             }
         }
 
-        private void CargarActivacionesGuardadas()
-        {
-            if (string.IsNullOrEmpty(manzanaActual) || string.IsNullOrEmpty(loteActual))
-                return;
 
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
 
-                    // Crear tabla si no existe + asegurar columnas
-                    string sqlCheck = @"
-                        IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ActivacionTareasRuta')
-                        BEGIN
-                            CREATE TABLE ActivacionTareasRuta (
-                                Id INT IDENTITY(1,1) PRIMARY KEY,
-                                Manzana NVARCHAR(10),
-                                Lote NVARCHAR(10),
-                                Prototipo NVARCHAR(50),
-                                Ruta NVARCHAR(50),
-                                NodoID INT,
-                                NombreTarea NVARCHAR(200),
-                                Activa BIT,
-                                CuadrillaAsignada NVARCHAR(20) NULL,
-                                DesatajoActivado BIT DEFAULT 0,
-                                Finalizado BIT DEFAULT 0,
-                                FechaFinalizacion DATETIME NULL,
-                                FechaActualizacion DATETIME DEFAULT GETDATE()
-                            );
-                        END
-                        IF NOT EXISTS (SELECT 1 FROM sys.columns
-                                       WHERE Name = N'CuadrillaAsignada'
-                                         AND Object_ID = Object_ID(N'dbo.ActivacionTareasRuta'))
-                        BEGIN
-                            ALTER TABLE ActivacionTareasRuta ADD CuadrillaAsignada NVARCHAR(20) NULL;
-                        END
-                        IF NOT EXISTS (SELECT 1 FROM sys.columns
-                                       WHERE Name = N'DesatajoActivado'
-                                         AND Object_ID = Object_ID(N'dbo.ActivacionTareasRuta'))
-                        BEGIN
-                            ALTER TABLE ActivacionTareasRuta ADD DesatajoActivado BIT DEFAULT 0;
-                        END
-                        IF NOT EXISTS (SELECT 1 FROM sys.columns
-                                       WHERE Name = N'Finalizado'
-                                         AND Object_ID = Object_ID(N'dbo.ActivacionTareasRuta'))
-                        BEGIN
-                            ALTER TABLE ActivacionTareasRuta ADD Finalizado BIT DEFAULT 0;
-                        END
-                        IF NOT EXISTS (SELECT 1 FROM sys.columns
-                                       WHERE Name = N'FechaFinalizacion'
-                                         AND Object_ID = Object_ID(N'dbo.ActivacionTareasRuta'))
-                        BEGIN
-                            ALTER TABLE ActivacionTareasRuta ADD FechaFinalizacion DATETIME NULL;
-                        END
-                        IF NOT EXISTS (SELECT 1 FROM sys.columns
-                                       WHERE Name = N'FechaActivacion'
-                                         AND Object_ID = Object_ID(N'dbo.ActivacionTareasRuta'))
-                        BEGIN
-                            ALTER TABLE ActivacionTareasRuta ADD FechaActivacion DATETIME NULL;
-                        END";
-                    using (SqlCommand cmdCheck = new SqlCommand(sqlCheck, conn))
-                    {
-                        cmdCheck.ExecuteNonQuery();
-                    }
-
-                    // Cargar activaciones guardadas
-                    string sql = @"
-                        SELECT NodoID, Activa, CuadrillaAsignada, DesatajoActivado,
-                               ISNULL(Finalizado, 0) AS Finalizado, FechaFinalizacion,
-                               FechaActivacion
-                        FROM ActivacionTareasRuta
-                        WHERE Manzana = @m AND Lote = @l AND Ruta = @ruta";
-
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzanaActual);
-                        cmd.Parameters.AddWithValue("@l", loteActual);
-                        cmd.Parameters.AddWithValue("@ruta", rutaActual);
-
-                        using (SqlDataReader reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                int nodoId = Convert.ToInt32(reader["NodoID"]);
-                                bool activa = Convert.ToBoolean(reader["Activa"]);
-                                string cuadrilla = reader["CuadrillaAsignada"] == DBNull.Value
-                                    ? ""
-                                    : reader["CuadrillaAsignada"].ToString();
-                                bool desatajoActivado = reader["DesatajoActivado"] == DBNull.Value
-                                    ? false
-                                    : Convert.ToBoolean(reader["DesatajoActivado"]);
-                                bool finalizado = reader["Finalizado"] == DBNull.Value
-                                    ? false
-                                    : Convert.ToBoolean(reader["Finalizado"]);
-                                DateTime? fechaFin = reader["FechaFinalizacion"] == DBNull.Value
-                                    ? (DateTime?)null
-                                    : Convert.ToDateTime(reader["FechaFinalizacion"]);
-                                DateTime? fechaAct = reader["FechaActivacion"] == DBNull.Value
-                                    ? (DateTime?)null
-                                    : Convert.ToDateTime(reader["FechaActivacion"]);
-
-                                var item = itemsTareas.FirstOrDefault(i => i.ID == nodoId);
-                                if (item != null)
-                                {
-                                    item.Activa = activa;
-                                    item.CuadrillaAsignada = cuadrilla;
-                                    item.DesatajoActivado = desatajoActivado;
-                                    item.Finalizado = finalizado;
-                                    item.FechaFinalizacion = fechaFin;
-                                    item.FechaActivacion = fechaAct;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al cargar activaciones: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        /// <summary>
-        /// Carga, por clave, la cantidad ya surtida (salidas de almacen) a la casa
-        /// actual. Se usa para colorear los insumos (verde = surtido, rojo = pendiente).
-        /// </summary>
-        private void CargarSurtidoPorClave()
-        {
-            _surtidoPorClave = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-            _surtidoPorNombre = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
-            if (string.IsNullOrEmpty(manzanaActual) || string.IsNullOrEmpty(loteActual)) return;
-
-            try
-            {
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(@"
-                        SELECT ISNULL(Clave,'') AS Clave, ISNULL(Descripcion,'') AS Descripcion, SUM(Cantidad) AS Surtido
-                        FROM dbo.SalidasAlmacen
-                        WHERE LTRIM(RTRIM(Manzana)) = @m AND LTRIM(RTRIM(Lote)) = @l
-                        GROUP BY ISNULL(Clave,''), ISNULL(Descripcion,'')", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", (manzanaActual ?? "").Trim());
-                        cmd.Parameters.AddWithValue("@l", (loteActual ?? "").Trim());
-                        using (var rd = cmd.ExecuteReader())
-                        {
-                            while (rd.Read())
-                            {
-                                string clave = (rd["Clave"]?.ToString() ?? "").Trim();
-                                string nombre = (rd["Descripcion"]?.ToString() ?? "").Trim();
-                                decimal s = rd["Surtido"] != DBNull.Value ? Convert.ToDecimal(rd["Surtido"]) : 0m;
-                                if (clave.Length > 0)
-                                {
-                                    _surtidoPorClave.TryGetValue(clave, out var a);
-                                    _surtidoPorClave[clave] = a + s;
-                                }
-                                if (nombre.Length > 0)
-                                {
-                                    _surtidoPorNombre.TryGetValue(nombre, out var b);
-                                    _surtidoPorNombre[nombre] = b + s;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // Sin datos de surtido: se tratara todo como pendiente.
-            }
-        }
 
         /// <summary>
         /// Cantidad surtida (a la casa actual) para un insumo. Cuando el insumo del
@@ -1528,89 +1000,7 @@ namespace DynamicSepticSystem
 
         private void btnGuardar_Click(object sender, EventArgs e)
         {
-            if (string.IsNullOrEmpty(manzanaActual) || string.IsNullOrEmpty(loteActual))
-            {
-                MessageBox.Show("Por favor selecciona una casa primero", "Atenci�n", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
-            // POST /api/destajos/guardar es el mismo reemplazo en bloque que el
-            // codigo de abajo, pero con ValidarRuta, permiso destajos.editar y
-            // transaccion — lo que faltaba al escribir directo desde este boton.
-            if (DestajosWebActivo) { _ = GuardarWeb(); return; }
-
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-
-                    // Limpiar activaciones anteriores para esta casa
-                    string sqlDelete = @"
-                        DELETE FROM ActivacionTareasRuta 
-                        WHERE Manzana = @m AND Lote = @l AND Ruta = @ruta";
-
-                    using (SqlCommand cmdDelete = new SqlCommand(sqlDelete, conn))
-                    {
-                        cmdDelete.Parameters.AddWithValue("@m", manzanaActual);
-                        cmdDelete.Parameters.AddWithValue("@l", loteActual);
-                        cmdDelete.Parameters.AddWithValue("@ruta", rutaActual);
-                        cmdDelete.ExecuteNonQuery();
-                    }
-
-                    // Guardar nuevas activaciones
-                    foreach (var item in itemsTareas)
-                    {
-                        string sqlInsert = @"
-                            INSERT INTO ActivacionTareasRuta
-                            (Manzana, Lote, Prototipo, Ruta, NodoID, NombreTarea, Activa, CuadrillaAsignada, DesatajoActivado,
-                             Finalizado, FechaFinalizacion, FechaActualizacion, FechaActivacion)
-                            VALUES (@m, @l, @proto, @ruta, @nodoId, @nombre, @activa, @cuadrilla, @desatActivado,
-                                    @finalizado, @fechaFin, GETDATE(), @fechaAct)";
-
-                        // Si está activado y no tenía FechaActivacion, asignar ahora
-                        if (item.DesatajoActivado && !item.FechaActivacion.HasValue)
-                            item.FechaActivacion = DateTime.Now;
-                        // Si se desactivó, limpiar la fecha
-                        if (!item.DesatajoActivado)
-                            item.FechaActivacion = null;
-
-                        using (SqlCommand cmdInsert = new SqlCommand(sqlInsert, conn))
-                        {
-                            cmdInsert.Parameters.AddWithValue("@m", manzanaActual);
-                            cmdInsert.Parameters.AddWithValue("@l", loteActual);
-                            cmdInsert.Parameters.AddWithValue("@proto", prototipoActual ?? (object)System.DBNull.Value);
-                            cmdInsert.Parameters.AddWithValue("@ruta", rutaActual);
-                            cmdInsert.Parameters.AddWithValue("@nodoId", item.ID);
-                            cmdInsert.Parameters.AddWithValue("@nombre", item.Nombre ?? "");
-                            cmdInsert.Parameters.AddWithValue("@activa", item.Activa);
-                            cmdInsert.Parameters.AddWithValue("@cuadrilla",
-                                string.IsNullOrEmpty(item.CuadrillaAsignada)
-                                    ? (object)System.DBNull.Value
-                                    : item.CuadrillaAsignada);
-                            cmdInsert.Parameters.AddWithValue("@desatActivado", item.DesatajoActivado);
-                            cmdInsert.Parameters.AddWithValue("@finalizado", item.Finalizado);
-                            cmdInsert.Parameters.AddWithValue("@fechaFin",
-                                item.FechaFinalizacion.HasValue
-                                    ? (object)item.FechaFinalizacion.Value
-                                    : (object)System.DBNull.Value);
-                            cmdInsert.Parameters.AddWithValue("@fechaAct",
-                                item.FechaActivacion.HasValue
-                                    ? (object)item.FechaActivacion.Value
-                                    : (object)System.DBNull.Value);
-
-                            cmdInsert.ExecuteNonQuery();
-                        }
-                    }
-                }
-
-                MessageBox.Show($"? Configuraci�n guardada para M{manzanaActual}-L{loteActual}", 
-                    "�xito", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al guardar: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            _ = GuardarWeb();
         }
 
         /// <summary>Rama web de btnGuardar_Click: mismo reemplazo en bloque, vía
@@ -1663,64 +1053,16 @@ namespace DynamicSepticSystem
 
         #region Flujo Activación → Cuadrilla → PDF
 
+        /// <summary>
+        /// Activar y cambiar-cuadrilla son el mismo endpoint: ActivarWeb cubre los dos
+        /// casos con el mismo diálogo de cuadrilla + PDF. El parámetro esActivacion se
+        /// conserva por los llamadores, pero ya no cambia el flujo (el estado real lo
+        /// devuelve RefrescarArbol, no lo adivina el cliente).
+        /// </summary>
         private void EjecutarFlujoActivacionDestajo(ItemTareaActivacion destajo, bool esActivacion = true)
         {
             if (destajo == null) return;
-
-            // Con DestajosWeb activo, "Ver árbol completo" reutiliza este mismo
-            // control (marcoArbol/olvTareas) re-parentado a un diálogo — sin este
-            // gate, activar/cambiar cuadrilla desde ahí escribía por SQL directo en
-            // paralelo al panel web, saltándose ValidarRuta/RequierePermiso/transacción.
-            // ActivarWeb (FormActivarTareasTreeList.Web.cs) ya cubre activar y
-            // cambiar-cuadrilla con el mismo diálogo de cuadrilla + PDF.
-            if (DestajosWebActivo)
-            {
-                EjecutarFlujoActivacionDestajoWeb(destajo);
-                return;
-            }
-
-            using (var formCuadrilla = new FormAsignarCuadrilla())
-            {
-                var dr = formCuadrilla.ShowDialog(this);
-                if (dr != DialogResult.OK ||
-                    formCuadrilla.CuadrillaAsignada == null ||
-                    string.IsNullOrEmpty(formCuadrilla.CuadrillaAsignada.CodigoCuadrilla))
-                {
-                    if (esActivacion)
-                    {
-                        // Revertir activación
-                        _suprimirFlujoActivacion = true;
-                        try
-                        {
-                            destajo.Activa = false;
-                            destajo.CuadrillaAsignada = "";
-                            destajo.DesatajoActivado = false;
-                            destajo.Finalizado = false;
-                            destajo.FechaFinalizacion = null;
-                            olvTareas.RefreshObject(destajo);
-                        }
-                        finally { _suprimirFlujoActivacion = false; }
-                        ActualizarEstadisticas();
-                    }
-                    return;
-                }
-
-                destajo.Activa = true;
-                destajo.CuadrillaAsignada = formCuadrilla.CuadrillaAsignada.CodigoCuadrilla;
-                destajo.DesatajoActivado = true; // Marcar como activado al asignar cuadrilla
-                if (!destajo.FechaActivacion.HasValue)
-                    destajo.FechaActivacion = DateTime.Now;
-            }
-
-            // Activar SOLO asigna cuadrilla + PDF + marca el destajo como activado.
-            // El surtido de materiales se hace por separado en Almacén → Salidas
-            // (allí aparecen únicamente los insumos de destajos ya activados con
-            // pendiente). Activar ya NO libera insumos ni toca el stock.
-            PersistirActivacionDestajo(destajo);
-            olvTareas.RefreshObject(destajo);
-            ActualizarEstadisticas();
-
-            GenerarPdfDestajo(destajo);
+            EjecutarFlujoActivacionDestajoWeb(destajo);
         }
 
         /// <summary>Rama web de EjecutarFlujoActivacionDestajo: activar y cambiar-cuadrilla
@@ -1735,157 +1077,8 @@ namespace DynamicSepticSystem
             await RefrescarArbol();
         }
 
-        private void PersistirActivacionDestajo(ItemTareaActivacion destajo)
-        {
-            if (destajo == null) return;
-            if (string.IsNullOrEmpty(manzanaActual) || string.IsNullOrEmpty(loteActual)) return;
 
-            try
-            {
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
 
-                    using (var cmdDel = new SqlCommand(@"
-                        DELETE FROM ActivacionTareasRuta
-                        WHERE Manzana = @m AND Lote = @l AND Ruta = @ruta AND NodoID = @nodo", conn))
-                    {
-                        cmdDel.Parameters.AddWithValue("@m", manzanaActual);
-                        cmdDel.Parameters.AddWithValue("@l", loteActual);
-                        cmdDel.Parameters.AddWithValue("@ruta", rutaActual);
-                        cmdDel.Parameters.AddWithValue("@nodo", destajo.ID);
-                        cmdDel.ExecuteNonQuery();
-                    }
-
-                    // Asegurar FechaActivacion coherente con DesatajoActivado
-                    if (destajo.DesatajoActivado && !destajo.FechaActivacion.HasValue)
-                        destajo.FechaActivacion = DateTime.Now;
-                    if (!destajo.DesatajoActivado)
-                        destajo.FechaActivacion = null;
-
-                    using (var cmdIns = new SqlCommand(@"
-                        INSERT INTO ActivacionTareasRuta
-                        (Manzana, Lote, Prototipo, Ruta, NodoID, NombreTarea, Activa, CuadrillaAsignada, DesatajoActivado,
-                         Finalizado, FechaFinalizacion, FechaActualizacion, FechaActivacion)
-                        VALUES (@m, @l, @proto, @ruta, @nodo, @nombre, @activa, @cuadrilla, @desatActivado,
-                                @finalizado, @fechaFin, GETDATE(), @fechaAct)", conn))
-                    {
-                        cmdIns.Parameters.AddWithValue("@m", manzanaActual);
-                        cmdIns.Parameters.AddWithValue("@l", loteActual);
-                        cmdIns.Parameters.AddWithValue("@proto", prototipoActual ?? (object)DBNull.Value);
-                        cmdIns.Parameters.AddWithValue("@ruta", rutaActual);
-                        cmdIns.Parameters.AddWithValue("@nodo", destajo.ID);
-                        cmdIns.Parameters.AddWithValue("@nombre", destajo.Nombre ?? "");
-                        cmdIns.Parameters.AddWithValue("@activa", destajo.Activa);
-                        cmdIns.Parameters.AddWithValue("@cuadrilla",
-                            string.IsNullOrEmpty(destajo.CuadrillaAsignada)
-                                ? (object)DBNull.Value
-                                : destajo.CuadrillaAsignada);
-                        cmdIns.Parameters.AddWithValue("@desatActivado", destajo.DesatajoActivado);
-                        cmdIns.Parameters.AddWithValue("@finalizado", destajo.Finalizado);
-                        cmdIns.Parameters.AddWithValue("@fechaFin",
-                            destajo.FechaFinalizacion.HasValue
-                                ? (object)destajo.FechaFinalizacion.Value
-                                : DBNull.Value);
-                        cmdIns.Parameters.AddWithValue("@fechaAct",
-                            destajo.FechaActivacion.HasValue
-                                ? (object)destajo.FechaActivacion.Value
-                                : DBNull.Value);
-                        cmdIns.ExecuteNonQuery();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("No se pudo guardar la activación del destajo:\n" + ex.Message,
-                    "Activación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
-
-        private void GenerarPdfDestajo(ItemTareaActivacion destajo)
-        {
-            if (destajo == null || destajo.Nivel != 1) return;
-            
-            // Validar que el destajo esté activado y tenga cuadrilla
-            if (!destajo.DesatajoActivado || string.IsNullOrEmpty(destajo.CuadrillaAsignada))
-            {
-                MessageBox.Show("El destajo no está completamente activado. Debe tener cuadrilla asignada.",
-                    "PDF", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            try
-            {
-                var miembros = ObtenerMiembrosCuadrilla(destajo.CuadrillaAsignada);
-                var hijos = itemsTareas.Where(i => i.ParentId == destajo.ID).ToList();
-
-                string nombreSeguro = SanitizarNombreArchivo(destajo.Nombre);
-                string nombreArchivo =
-                    $"Destajo_M{manzanaActual}-L{loteActual}_{destajo.ID}_{nombreSeguro}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
-
-                string archivoTemp = Path.Combine(Path.GetTempPath(), nombreArchivo);
-                CrearPdfDestajo(archivoTemp, destajo, miembros, hijos,
-                    "ASIGNACIÓN DE DESTAJO", "Asignación de Cuadrilla y Trabajos");
-
-                GuardarPdfDestajoEnBD(destajo, nombreArchivo, archivoTemp);
-
-                string sugerido = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                    $"Asignacion_M{manzanaActual}-L{loteActual}_{destajo.Nombre}.pdf");
-
-                using (var preview = new FormPdfPreview(archivoTemp, sugerido))
-                {
-                    preview.ShowDialog(this);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("Error generando el PDF:\n" + ex.Message, "PDF",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private List<MiembroResumen> ObtenerMiembrosCuadrilla(string codigoCuadrilla)
-        {
-            var lista = new List<MiembroResumen>();
-            if (string.IsNullOrEmpty(codigoCuadrilla)) return lista;
-
-            try
-            {
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    using (var cmd = new SqlCommand(@"
-                        SELECT m.Nombre, m.Rol, m.EsJefe, m.Telefono, t.ClaveTrabajador
-                        FROM MiembrosCuadrilla m
-                        LEFT JOIN TRABAJADORES t ON t.IdTrabajador = m.IdTrabajador
-                        WHERE m.CodigoCuadrilla = @codigo
-                        ORDER BY m.EsJefe DESC, m.Nombre", conn))
-                    {
-                        cmd.Parameters.AddWithValue("@codigo", codigoCuadrilla);
-                        using (var reader = cmd.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                lista.Add(new MiembroResumen
-                                {
-                                    Clave = reader["ClaveTrabajador"] == DBNull.Value ? "" : reader["ClaveTrabajador"].ToString(),
-                                    Nombre = reader["Nombre"].ToString(),
-                                    Rol = reader["Rol"].ToString(),
-                                    EsJefe = Convert.ToBoolean(reader["EsJefe"]),
-                                    Telefono = reader["Telefono"] == DBNull.Value ? "" : reader["Telefono"].ToString()
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                // sin miembros: el PDF se imprimirá igualmente con un mensaje.
-            }
-            return lista;
-        }
 
         private void CrearPdfDestajo(
             string archivo,
@@ -2288,54 +1481,6 @@ namespace DynamicSepticSystem
             }
         }
 
-        private void GuardarPdfDestajoEnBD(ItemTareaActivacion destajo, string nombreArchivo, string archivoTemp)
-        {
-            try
-            {
-                byte[] bytes = File.ReadAllBytes(archivoTemp);
-
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    AsegurarTablaPDFsDestajos(conn);
-
-                    const string sql = @"
-                        INSERT INTO PDFsDestajos
-                            (Manzana, Lote, Prototipo, Ruta, NodoID, NombreDestajo,
-                             CuadrillaAsignada, NombreArchivo, ContenidoPDF, TamanioBytes,
-                             Usuario, FechaGeneracion)
-                        VALUES
-                            (@m, @l, @proto, @ruta, @nodo, @nombre,
-                             @cuadrilla, @archivo, @contenido, @tam,
-                             @usuario, GETDATE())";
-
-                    using (var cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.Parameters.AddWithValue("@m", manzanaActual);
-                        cmd.Parameters.AddWithValue("@l", loteActual);
-                        cmd.Parameters.AddWithValue("@proto", (object)prototipoActual ?? DBNull.Value);
-                        cmd.Parameters.AddWithValue("@ruta", (object)rutaActual ?? DBNull.Value);
-                        cmd.Parameters.AddWithValue("@nodo", destajo.ID);
-                        cmd.Parameters.AddWithValue("@nombre", (object)destajo.Nombre ?? DBNull.Value);
-                        cmd.Parameters.AddWithValue("@cuadrilla",
-                            string.IsNullOrEmpty(destajo.CuadrillaAsignada)
-                                ? (object)DBNull.Value
-                                : destajo.CuadrillaAsignada);
-                        cmd.Parameters.AddWithValue("@archivo", nombreArchivo);
-                        cmd.Parameters.Add("@contenido", System.Data.SqlDbType.VarBinary, -1).Value = bytes;
-                        cmd.Parameters.AddWithValue("@tam", (long)bytes.Length);
-                        cmd.Parameters.AddWithValue("@usuario", Environment.UserName ?? "");
-
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("No se pudo guardar el PDF en el repositorio (BD):\n" + ex.Message,
-                    "Repositorio PDFs", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
 
         private void btnRepositorio_Click(object sender, EventArgs e)
         {

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.SqlClient;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -153,8 +152,8 @@ namespace DynamicSepticSystem
     public class DialogGestionarColumnas : Form
     {
         private readonly List<ColumnaTreeList> columnas;
-        private readonly string connectionString;
-        private readonly string nombreTabla;
+        /// <summary>Definiciones resultantes; el editor las aplica al cerrar con OK.</summary>
+        public List<ColumnaTreeList> Columnas { get { return columnas; } }
         
         private ListView listViewColumnas;
         private Button btnAgregar;
@@ -166,11 +165,16 @@ namespace DynamicSepticSystem
         private Label lblTitulo;
         private Label lblInfo;
 
-        public DialogGestionarColumnas(List<ColumnaTreeList> columnas, string connectionString, string nombreTabla)
+        /// <summary>
+        /// Las definiciones se editan EN MEMORIA y las persiste el Guardar del editor
+        /// (un solo POST a api/editor-tareas con arbol + columnas). Antes este dialogo
+        /// escribia SQL directo -sin transaccion y contra la cadena fija del cliente-,
+        /// que es justo lo que dejaba al editor clasico apuntando a otra base que el
+        /// editor web. Devuelve la lista en <see cref="Columnas"/> al cerrar con OK.
+        /// </summary>
+        public DialogGestionarColumnas(List<ColumnaTreeList> columnas)
         {
             this.columnas = new List<ColumnaTreeList>(columnas);
-            this.connectionString = connectionString;
-            this.nombreTabla = nombreTabla;
 
             InitializeComponent();
             ThemeManager.AplicarTema(this);
@@ -375,7 +379,6 @@ namespace DynamicSepticSystem
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
                     columnas.Add(dialog.Columna);
-                    GuardarEnBD();
                     CargarColumnas();
                 }
             }
@@ -391,7 +394,6 @@ namespace DynamicSepticSystem
             {
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
-                    GuardarEnBD();
                     CargarColumnas();
                 }
             }
@@ -413,7 +415,6 @@ namespace DynamicSepticSystem
             if (resultado == DialogResult.Yes)
             {
                 columnas.Remove(columna);
-                GuardarEnBD();
                 CargarColumnas();
             }
         }
@@ -429,7 +430,6 @@ namespace DynamicSepticSystem
                 columnas[indice] = columnas[indice - 1];
                 columnas[indice - 1] = temp;
                 
-                GuardarEnBD();
                 CargarColumnas();
                 listViewColumnas.Items[indice - 1].Selected = true;
             }
@@ -446,61 +446,11 @@ namespace DynamicSepticSystem
                 columnas[indice] = columnas[indice + 1];
                 columnas[indice + 1] = temp;
                 
-                GuardarEnBD();
                 CargarColumnas();
                 listViewColumnas.Items[indice + 1].Selected = true;
             }
         }
 
-        private void GuardarEnBD()
-        {
-            try
-            {
-                using (SqlConnection conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    
-                    // Eliminar todas las definiciones existentes
-                    string sql = $"DELETE FROM {nombreTabla}_ColumnasDefinicion";
-                    using (SqlCommand cmd = new SqlCommand(sql, conn))
-                    {
-                        cmd.ExecuteNonQuery();
-                    }
-                    
-                    // Insertar las nuevas definiciones
-                    foreach (var col in columnas)
-                    {
-                        sql = $@"
-                            INSERT INTO {nombreTabla}_ColumnasDefinicion 
-                            (Nombre, Titulo, Ancho, TipoDato, EsEditable, Formato, 
-                             EsCalculada, TipoOperacion, ColumnaOrigen1, ColumnaOrigen2)
-                            VALUES (@nombre, @titulo, @ancho, @tipoDato, @esEditable, @formato,
-                                    @esCalculada, @tipoOperacion, @columnaOrigen1, @columnaOrigen2)";
-                        
-                        using (SqlCommand cmd = new SqlCommand(sql, conn))
-                        {
-                            cmd.Parameters.AddWithValue("@nombre", col.Nombre);
-                            cmd.Parameters.AddWithValue("@titulo", col.Titulo);
-                            cmd.Parameters.AddWithValue("@ancho", col.Ancho);
-                            cmd.Parameters.AddWithValue("@tipoDato", col.TipoDato.FullName);
-                            cmd.Parameters.AddWithValue("@esEditable", col.EsEditable);
-                            cmd.Parameters.AddWithValue("@formato", (object)col.Formato ?? DBNull.Value);
-                            cmd.Parameters.AddWithValue("@esCalculada", col.EsCalculada);
-                            cmd.Parameters.AddWithValue("@tipoOperacion", (int)col.TipoOperacion);
-                            cmd.Parameters.AddWithValue("@columnaOrigen1", (object)col.ColumnaOrigen1 ?? DBNull.Value);
-                            cmd.Parameters.AddWithValue("@columnaOrigen2", (object)col.ColumnaOrigen2 ?? DBNull.Value);
-                            
-                            cmd.ExecuteNonQuery();
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error al guardar columnas:\n\n{ex.Message}",
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
     }
 
     /// <summary>

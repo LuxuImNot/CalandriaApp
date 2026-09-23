@@ -369,6 +369,11 @@ namespace DynamicSepticSystem
             catch (Exception ex) { ManejarErrorApi(ex, "No se pudieron cargar los proveedores"); }
         }
 
+        /// <summary>
+        /// El catálogo de la obra sale del árbol de destajos (tareas Material), no de
+        /// la explosión COMPRAS*: esa quedó desfasada del árbol y mostraba insumos que
+        /// ya no se usan mientras le faltaban los nuevos.
+        /// </summary>
         private void CargarCatalogoWeb(string prototipo)
         {
             try
@@ -377,7 +382,9 @@ namespace DynamicSepticSystem
                 {
                     tipo = "catalogo",
                     prototipo,
-                    lista = ApiClient.Get<List<CatalogoMaterialApi>>("/api/compras/catalogo?prototipo=" + Uri.EscapeDataString(prototipo ?? "")) ?? new List<CatalogoMaterialApi>()
+                    lista = ApiClient.Get<List<CatalogoMaterialApi>>(
+                        "/api/compras/catalogo-destajos?prototipo=" + Uri.EscapeDataString(prototipo ?? ""))
+                        ?? new List<CatalogoMaterialApi>()
                 });
             }
             catch (Exception ex) { ManejarErrorApi(ex, "No se pudo cargar el catálogo"); }
@@ -480,14 +487,17 @@ namespace DynamicSepticSystem
                     }
                 }
 
+                // Lo ya pedido y no surtido baja la cantidad SUGERIDA, pero la fila se
+                // queda: esconderla dejaba fuera del catálogo tareas Material reales y
+                // no se podía comprar de más aunque hiciera falta. Nunca baja de 0.
                 foreach (var insumo in insumosTotales.Values)
                 {
                     if (string.IsNullOrWhiteSpace(insumo.Clave)) continue;
                     if (faltantesPorClave.TryGetValue(insumo.Clave, out var pendiente) && pendiente > 0)
-                        insumo.Cantidad = Math.Round(insumo.Cantidad - pendiente, 3);
+                        insumo.Cantidad = Math.Max(0m, Math.Round(insumo.Cantidad - pendiente, 3));
                 }
 
-                var lista = insumosTotales.Values.Where(i => i.Cantidad > 0).ToList();
+                var lista = insumosTotales.Values.ToList();
                 Push(new { tipo = "catalogoMulti", lista });
             }
             catch (Exception ex) { ManejarErrorApi(ex, "No se pudo cargar el catálogo de insumos"); }

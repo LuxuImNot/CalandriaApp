@@ -1,10 +1,10 @@
 // Apartado "Insumos" del formulario de activacion de destajos: enlista todos los
-// insumos Material de la casa comparando lo PROGRAMADO (de los destajos) contra
-// lo USADO (salidas del almacen hacia esa Manzana/Lote).
+// insumos Material de la casa comparando lo PROGRAMADO (de los destajos, ya en
+// memoria) contra lo USADO (api/destajos/insumos-casa, que agrega las salidas del
+// almacen hacia esa Manzana/Lote con su importe real).
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
@@ -151,65 +151,47 @@ namespace DynamicSepticSystem
                 indice[g.Key] = row;
             }
 
-            // --- Usado: salidas del almacen hacia esta casa ---
+            // --- Usado: salidas del almacen hacia esta casa (via API) ---
+            // Pendiente puede quedar NEGATIVO a proposito: es lo que delata un
+            // exceso, y FormatearFilaInsumo lo pinta.
             if (!string.IsNullOrEmpty(manzanaActual) && !string.IsNullOrEmpty(loteActual))
             {
                 try
                 {
-                    using (var conn = new SqlConnection(connectionString))
-                    {
-                        conn.Open();
-                        using (var cmd = new SqlCommand(@"
-                            SELECT ISNULL(Clave,'') AS Clave,
-                                   MAX(Descripcion) AS Descripcion,
-                                   MAX(Unidad) AS Unidad,
-                                   SUM(Cantidad) AS Usado,
-                                   SUM(Importe) AS Importe
-                            FROM dbo.SalidasAlmacen
-                            WHERE Manzana = @m AND Lote = @l
-                            GROUP BY ISNULL(Clave,'')", conn))
-                        {
-                            cmd.Parameters.AddWithValue("@m", manzanaActual);
-                            cmd.Parameters.AddWithValue("@l", loteActual);
-                            using (var rd = cmd.ExecuteReader())
-                            {
-                                while (rd.Read())
-                                {
-                                    string clave = rd["Clave"]?.ToString() ?? "";
-                                    string desc = rd["Descripcion"]?.ToString() ?? "";
-                                    string unidad = rd["Unidad"]?.ToString() ?? "";
-                                    decimal usado = rd["Usado"] != DBNull.Value ? Convert.ToDecimal(rd["Usado"]) : 0m;
-                                    decimal importe = rd["Importe"] != DBNull.Value ? Convert.ToDecimal(rd["Importe"]) : 0m;
+                    var usados = ApiClient.Get<List<InsumoCasaAlmacenApi>>(
+                        "/api/destajos/insumos-casa?manzana=" + Uri.EscapeDataString(manzanaActual)
+                        + "&lote=" + Uri.EscapeDataString(loteActual)) ?? new List<InsumoCasaAlmacenApi>();
 
-                                    string key = Clave(clave, desc);
-                                    if (indice.TryGetValue(key, out var row))
-                                    {
-                                        row["Usado"] = usado;
-                                        row["ImporteUsado"] = importe;
-                                        row["Pendiente"] = (decimal)row["Programado"] - usado;
-                                    }
-                                    else
-                                    {
-                                        var nuevo = dt.NewRow();
-                                        nuevo["Clave"] = clave;
-                                        nuevo["Insumo"] = desc;
-                                        nuevo["Unidad"] = unidad;
-                                        nuevo["Programado"] = 0m;
-                                        nuevo["Usado"] = usado;
-                                        nuevo["Pendiente"] = -usado;
-                                        nuevo["ImporteProg"] = 0m;
-                                        nuevo["ImporteUsado"] = importe;
-                                        dt.Rows.Add(nuevo);
-                                        indice[key] = nuevo;
-                                    }
-                                }
-                            }
+                    foreach (var u in usados)
+                    {
+                        string key = Clave(u.Clave, u.Descripcion);
+                        if (indice.TryGetValue(key, out var row))
+                        {
+                            row["Usado"] = u.Usado;
+                            row["ImporteUsado"] = u.Importe;
+                            row["Pendiente"] = (decimal)row["Programado"] - u.Usado;
+                        }
+                        else
+                        {
+                            // Surtido que no estaba programado en ningun destajo.
+                            var nuevo = dt.NewRow();
+                            nuevo["Clave"] = u.Clave ?? "";
+                            nuevo["Insumo"] = u.Descripcion ?? "";
+                            nuevo["Unidad"] = u.Unidad ?? "";
+                            nuevo["Programado"] = 0m;
+                            nuevo["Usado"] = u.Usado;
+                            nuevo["Pendiente"] = -u.Usado;
+                            nuevo["ImporteProg"] = 0m;
+                            nuevo["ImporteUsado"] = u.Importe;
+                            dt.Rows.Add(nuevo);
+                            indice[key] = nuevo;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("No se pudieron leer los insumos usados del almacen:\n\n" + ex.Message,
+                    MessageBox.Show("No se pudieron leer los insumos usados del almacen:" +
+                        Environment.NewLine + Environment.NewLine + ex.Message,
                         "Insumos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }

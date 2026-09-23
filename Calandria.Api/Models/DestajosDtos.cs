@@ -291,4 +291,19 @@ namespace Calandria.Api.Models
         public bool NominaDistribuida { get; set; }
         public DateTime? FechaDistribucionNomina { get; set; }
     }
+
+    /// <summary>
+    /// Una fila de GET api/destajos/insumos-casa: lo realmente SURTIDO del almacén
+    /// a esa casa, agregado por clave/descripción. El cliente lo cruza contra lo
+    /// programado en el árbol para la vista "Insumos" (programado vs usado).
+    /// </summary>
+    public class InsumoCasaAlmacenDto
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Usado { get; set; }
+        public decimal Importe { get; set; }
+    }
+
 }

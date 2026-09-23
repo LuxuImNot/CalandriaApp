@@ -74,7 +74,7 @@ namespace DynamicSepticSystem
             }
             catch (WebView2RuntimeNotFoundException)
             {
-                ErrorLogger.RegistrarMensaje("EditorTareasWeb", "WebView2 no está instalado; se usa el formulario clásico.");
+                AvisarEditorClasico("WebView2 no está instalado en este equipo.");
                 return;
             }
             catch { return; }
@@ -118,8 +118,7 @@ namespace DynamicSepticSystem
             }
             catch (Exception ex)
             {
-                ErrorLogger.RegistrarMensaje("EditorTareasWeb", "WebView2 no pudo iniciar: " + ex.Message);
-                if (!IsDisposed) RestaurarPanelClasico();
+                if (!IsDisposed) RestaurarPanelClasico("WebView2 no pudo iniciar: " + ex.Message);
             }
         }
 
@@ -127,8 +126,7 @@ namespace DynamicSepticSystem
         {
             if (!e.IsSuccess)
             {
-                ErrorLogger.RegistrarMensaje("EditorTareasWeb", "WebView2 no inicializó: " + e.InitializationException);
-                RestaurarPanelClasico();
+                RestaurarPanelClasico("WebView2 no inicializó: " + e.InitializationException?.Message);
                 return;
             }
 
@@ -164,14 +162,30 @@ namespace DynamicSepticSystem
             }
 
             if (IsDisposed || webPanel?.CoreWebView2 == null) return;
-            if (html == null) { RestaurarPanelClasico(); return; }
+            if (html == null) { RestaurarPanelClasico("no se pudo obtener la página del API ni de la caché local."); return; }
             webPanel.CoreWebView2.NavigateToString(html);
         }
 
-        private void RestaurarPanelClasico()
+        /// <summary>
+        /// Muestra el formulario clásico. Con <paramref name="motivo"/> se avisa al
+        /// usuario: degradar en silencio hacía imposible notar en qué editor estabas.
+        /// El clásico ya persiste por el mismo api/editor-tareas, así que el aviso es
+        /// informativo, no una advertencia de datos.
+        /// </summary>
+        private void RestaurarPanelClasico(string motivo = null)
         {
             if (webPanel != null) webPanel.Visible = false;
             foreach (var c in ocultosPorPanelWeb) c.Visible = true;
+            if (motivo != null) AvisarEditorClasico(motivo);
+        }
+
+        private void AvisarEditorClasico(string motivo)
+        {
+            ErrorLogger.RegistrarMensaje("EditorTareasWeb", "Se usa el editor clásico: " + motivo);
+            MessageBox.Show(
+                "No se pudo abrir el editor de tareas web:" + Environment.NewLine + Environment.NewLine + motivo +
+                Environment.NewLine + Environment.NewLine + "Se abre el editor clásico, que guarda contra la misma obra.",
+                "Editor de Tareas", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         // ------------------------------------------------------------------

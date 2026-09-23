@@ -234,10 +234,6 @@
       <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="FormActivarTareasTreeList.Almacen.cs">
-      <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
-      <SubType>Form</SubType>
-    </Compile>
     <Compile Include="FormActivarTareasTreeList.Insumos.cs">
       <DependentUpon>FormActivarTareasTreeList.cs</DependentUpon>
       <SubType>Form</SubType>

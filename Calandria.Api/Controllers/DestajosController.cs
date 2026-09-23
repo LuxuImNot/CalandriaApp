@@ -243,6 +243,51 @@ namespace Calandria.Api.Controllers
             return resultado;
         }
 
+        /// <summary>
+        /// GET /api/destajos/insumos-casa?manzana=X&amp;lote=Y — lo surtido del almacén
+        /// a esa casa, agregado por clave/descripción y con el importe REAL de las
+        /// salidas (no cantidad x precio programado). Es lo que la vista "Insumos"
+        /// necesita además del árbol: detecta excesos y los insumos surtidos que no
+        /// estaban programados en ningún destajo.
+        /// </summary>
+        [HttpGet, Route("insumos-casa")]
+        public IHttpActionResult InsumosCasa(string manzana, string lote)
+        {
+            if (string.IsNullOrWhiteSpace(manzana) || string.IsNullOrWhiteSpace(lote))
+                return BadRequest("Faltan los parámetros 'manzana' y/o 'lote'.");
+
+            var lista = new List<InsumoCasaAlmacenDto>();
+            using (var conn = Db.Abrir())
+            using (var cmd = new SqlCommand(@"
+                SELECT ISNULL(Clave,'') AS Clave,
+                       MAX(Descripcion) AS Descripcion,
+                       MAX(Unidad) AS Unidad,
+                       SUM(Cantidad) AS Usado,
+                       SUM(Importe) AS Importe
+                FROM dbo.SalidasAlmacen
+                WHERE LTRIM(RTRIM(Manzana)) = @m AND LTRIM(RTRIM(Lote)) = @l
+                GROUP BY ISNULL(Clave,'')", conn))
+            {
+                cmd.Parameters.AddWithValue("@m", (manzana ?? "").Trim());
+                cmd.Parameters.AddWithValue("@l", (lote ?? "").Trim());
+                using (var rd = cmd.ExecuteReader())
+                {
+                    while (rd.Read())
+                    {
+                        lista.Add(new InsumoCasaAlmacenDto
+                        {
+                            Clave = (rd["Clave"]?.ToString() ?? "").Trim(),
+                            Descripcion = rd["Descripcion"]?.ToString() ?? "",
+                            Unidad = rd["Unidad"]?.ToString() ?? "",
+                            Usado = rd["Usado"] != DBNull.Value ? Convert.ToDecimal(rd["Usado"]) : 0m,
+                            Importe = rd["Importe"] != DBNull.Value ? Convert.ToDecimal(rd["Importe"]) : 0m
+                        });
+                    }
+                }
+            }
+            return Ok(lista);
+        }
+
         /// <summary>GET /api/destajos/arbol?manzana=X&amp;lote=Y&amp;ruta=RutaTuneraDestajo|RutaCalandraDestajo</summary>
         [HttpGet, Route("arbol")]
         public IHttpActionResult Arbol(string manzana, string lote, string ruta)

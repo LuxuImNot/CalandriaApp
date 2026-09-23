@@ -71,56 +71,20 @@ namespace Calandria.Api.Controllers
         }
 
         /// <summary>
-        /// GET /api/compras/catalogo?prototipo=X → filas del catálogo de explosión.
-        /// El precio se resuelve probando las posibles columnas de costo de la tabla
-        /// (Costo / CostoUnitario / Precio / costo / precio), como hacía el cliente.
-        /// </summary>
-        [HttpGet, Route("catalogo")]
-        public IHttpActionResult Catalogo(string prototipo)
-        {
-            string tabla = TablaDePrototipo(prototipo);
-            var lista = new List<CatalogoMaterialDto>();
-
-            using (var conn = Db.Abrir())
-            using (var cmd = new SqlCommand($"SELECT * FROM [{tabla}]", conn))
-            using (var reader = cmd.ExecuteReader())
-            {
-                var columnas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                for (int i = 0; i < reader.FieldCount; i++)
-                    columnas.Add(reader.GetName(i));
-
-                string colPrecio = PrimeraColumna(columnas,
-                    "Costo", "CostoUnitario", "Precio", "costo", "precio");
-                string colCantidad = columnas.Contains("Cantidad") ? "Cantidad" : null;
-
-                while (reader.Read())
-                {
-                    lista.Add(new CatalogoMaterialDto
-                    {
-                        Clave = Leer(reader, columnas, "Clave"),
-                        Descripcion = Leer(reader, columnas, "Descripcion"),
-                        Unidad = Leer(reader, columnas, "Unidad"),
-                        Familia = Leer(reader, columnas, "Familia"),
-                        Cantidad = colCantidad == null ? 0m : ParseDecimal(reader[colCantidad]),
-                        Precio = colPrecio == null ? 0m : ParseDecimal(reader[colPrecio])
-                    });
-                }
-            }
-            return Ok(lista);
-        }
-
-        /// <summary>
         /// GET /api/compras/catalogo-destajos?prototipo=X&amp;manzana=M&amp;lote=L → insumos
-        /// Material del activador de destajos para comprar.
+        /// Material del árbol de destajos para comprar. ES EL ÚNICO catálogo de compras:
+        /// la explosión (COMPRAS*) quedó desfasada del árbol y se dejó de leer.
         ///
-        /// Ya no restringe por destajo activado de cada casa: en cuanto se activa el
-        /// primer destajo en CUALQUIER casa (ActivacionTareasRuta.DesatajoActivado=1),
-        /// se habilita el catálogo COMPLETO del prototipo para comprar. Si todavía no
-        /// se ha activado ningún destajo en ninguna casa, no hay nada que comprar.
-        /// Lee el pivote _Columnas (Cantidad/Unidad/Precio/Clave/Familia), agrupa por
-        /// nombre y resuelve la clave: (1) la del pivote; (2) catálogo Insumos*EXP por
-        /// nombre normalizado; (3) sin resolver. ClaveResuelta marca si quedó con clave
-        /// de almacén (los sin clave se rastrean por nombre).
+        /// Devuelve TODAS las tareas TipoTarea=1 de la ruta del prototipo, sin filtrar
+        /// por destajo activado: el catálogo describe lo que la casa lleva, no lo que ya
+        /// se empezó. Lee el pivote _Columnas (Cantidad/Unidad/Precio/Clave/Familia),
+        /// agrupa por nombre y resuelve la clave: (1) la del pivote; (2) catálogo
+        /// Insumos*EXP por nombre normalizado; (3) sin resolver. ClaveResuelta marca si
+        /// quedó con clave de almacén (los sin clave se rastrean por nombre).
+        ///
+        /// Se le suman las filas Familia='MANUAL' de COMPRAS*: insumos capturados a mano
+        /// desde Compras que no salen de ningún destajo y no tienen otra casa.
+        /// manzana/lote se aceptan por compatibilidad con los llamadores; no filtran.
         /// </summary>
         [HttpGet, Route("catalogo-destajos")]
         public IHttpActionResult CatalogoDestajos(string prototipo, string manzana = null, string lote = null)
@@ -133,14 +97,6 @@ namespace Calandria.Api.Controllers
 
             using (var conn = Db.Abrir())
             {
-                // Gate global: ¿ya se activó el destajo 1 de alguna casa? Si no, catálogo vacío.
-                using (var cmdGate = new SqlCommand(
-                    "SELECT CASE WHEN EXISTS (SELECT 1 FROM ActivacionTareasRuta WHERE DesatajoActivado = 1) THEN 1 ELSE 0 END", conn))
-                {
-                    if ((int)cmdGate.ExecuteScalar() == 0)
-                        return Ok(new List<CatalogoMaterialDto>());
-                }
-
                 // 1) Mapa nombre normalizado -> clave del catálogo maestro.
                 var nombreAClave = CargarClavesPorNombre(conn, tablaCatalogo);
 
@@ -199,6 +155,8 @@ namespace Calandria.Api.Controllers
                     }
                     }
                 }
+
+                AgregarManuales(conn, TablaDePrototipo(prototipo), porInsumo);
             }
 
             var lista = new List<CatalogoMaterialDto>();
@@ -216,6 +174,52 @@ namespace Calandria.Api.Controllers
                 });
             }
             return Ok(lista);
+        }
+
+        /// <summary>
+        /// Añade al catálogo los insumos con Familia='MANUAL' de la tabla de explosión.
+        /// Son los que alguien capturó desde Compras ("Nuevo insumo"): no existen en
+        /// ningún destajo, así que el árbol no los conoce y se perderían. El resto de
+        /// filas de COMPRAS* se ignora a propósito: es la explosión vieja, desfasada.
+        /// Si un insumo manual ya vino del árbol (misma clave o mismo nombre), gana el
+        /// del árbol y no se duplica.
+        /// </summary>
+        private static void AgregarManuales(SqlConnection conn, string tabla,
+            Dictionary<string, AggInsumo> porInsumo)
+        {
+            var clavesDelArbol = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ag in porInsumo.Values)
+            {
+                string c = (ag.Clave ?? "").Trim();
+                if (c.Length > 0) clavesDelArbol.Add(c);
+            }
+
+            using (var cmd = new SqlCommand(
+                $"SELECT Clave, Descripcion, Unidad, Cantidad FROM [{tabla}] WHERE Familia = 'MANUAL'", conn))
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    string clave = (reader["Clave"]?.ToString() ?? "").Trim();
+                    string nombre = (reader["Descripcion"]?.ToString() ?? "").Trim();
+                    if (clave.Length == 0 && nombre.Length == 0) continue;
+                    if (clave.Length > 0 && clavesDelArbol.Contains(clave)) continue;
+
+                    string norm = NormNombre(nombre);
+                    string key = norm.Length > 0 ? "N:" + norm : "C:" + clave.ToUpperInvariant();
+                    if (porInsumo.ContainsKey(key)) continue;
+
+                    porInsumo[key] = new AggInsumo
+                    {
+                        Clave = clave,
+                        Descripcion = nombre,
+                        Unidad = (reader["Unidad"]?.ToString() ?? "").Trim(),
+                        Familia = "MANUAL",
+                        Cantidad = ParseDecimal(reader["Cantidad"]),
+                        Precio = 0m
+                    };
+                }
+            }
         }
 
         /// <summary>

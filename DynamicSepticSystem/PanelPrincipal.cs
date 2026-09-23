@@ -2213,7 +2213,7 @@ namespace DynamicSepticSystem
                 }
 
                 // Abrir nuevo formulario
-                var frm = new FormEditorTreeList(connectionString, "RutaTuneraDestajo");
+                var frm = new FormEditorTreeList("RutaTuneraDestajo");
                 frm.Show(this); // Modo no modal
             }
             catch (Exception ex)

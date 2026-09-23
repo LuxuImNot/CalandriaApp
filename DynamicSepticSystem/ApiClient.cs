@@ -827,6 +827,16 @@ namespace DynamicSepticSystem
         public string Jefe { get; set; }
     }
 
+    /// <summary>Fila de api/destajos/insumos-casa: lo surtido del almacén a una casa.</summary>
+    public sealed class InsumoCasaAlmacenApi
+    {
+        public string Clave { get; set; }
+        public string Descripcion { get; set; }
+        public string Unidad { get; set; }
+        public decimal Usado { get; set; }
+        public decimal Importe { get; set; }
+    }
+
     public sealed class MiembroCuadrillaDestajoApi
     {
         public string Clave { get; set; }

@@ -21,6 +21,10 @@ param(
 
     [string]$Notas = "",
 
+    # Arma el ZIP/instalador y el .sha256 pero NO toca GitHub. Para revisar el
+    # paquete antes de publicarlo (la publicacion se aprueba aparte, cada vez).
+    [switch]$SoloEmpaquetar,
+
     # Por si alguna vez cambian de cuenta/repo.
     [string]$Owner = "LuxuImNot",
     [string]$Repo = "CalandriaApp"
@@ -45,9 +49,12 @@ $rutaConnRelease = Join-Path $raiz "connectionStrings.release.config"
 Write-Host "=== Publicar release $tag ===" -ForegroundColor Cyan
 
 # 1) Verificar que "gh" este disponible y logueado ANTES de compilar nada.
-gh auth status 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    Write-Error "gh no esta autenticado. Corre 'gh auth login' primero."
+#    Con -SoloEmpaquetar no se toca GitHub, asi que no hace falta gh.
+if (-not $SoloEmpaquetar) {
+    gh auth status 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "gh no esta autenticado. Corre 'gh auth login' primero."
+    }
 }
 
 # 2) Verificar que la version no exista ya como release (evita pisar una).
@@ -55,12 +62,14 @@ if ($LASTEXITCODE -ne 0) {
 #    version nueva): con $ErrorActionPreference="Stop" eso se vuelve un error
 #    terminante pese al "2>$null", así que se baja la preferencia solo para
 #    esta llamada puntual.
-$prevEAP = $ErrorActionPreference
-$ErrorActionPreference = 'Continue'
-gh release view $tag --repo "$Owner/$Repo" 2>$null | Out-Null
-$ErrorActionPreference = $prevEAP
-if ($LASTEXITCODE -eq 0) {
-    Write-Error "Ya existe una release '$tag' en $Owner/$Repo. Usa otra version o borra esa release primero."
+if (-not $SoloEmpaquetar) {
+    $prevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    gh release view $tag --repo "$Owner/$Repo" 2>$null | Out-Null
+    $ErrorActionPreference = $prevEAP
+    if ($LASTEXITCODE -eq 0) {
+        Write-Error "Ya existe una release '$tag' en $Owner/$Repo. Usa otra version o borra esa release primero."
+    }
 }
 
 # 3) Bumpear AssemblyVersion/AssemblyFileVersion en AssemblyInfo.cs. Esta es la
@@ -175,6 +184,17 @@ else {
 #    "...\ProgramC#\..." (un "#" real en la ruta), gh corta la ruta justo ahi
 #    y falla con "system cannot find the file". Se copian los assets a una
 #    carpeta temporal sin "#" antes de subirlos.
+if ($SoloEmpaquetar) {
+    Write-Host ""
+    Write-Host "=== Paquete listo (NO publicado) ===" -ForegroundColor Green
+    Write-Host "  ZIP:    $rutaZip"
+    Write-Host "  SHA256: $rutaSha"
+    if ($rutaInstaladorExe) { Write-Host "  Setup:  $rutaInstaladorExe" }
+    Write-Host ""
+    Write-Host "Para publicarlo, vuelve a correr el script sin -SoloEmpaquetar." -ForegroundColor Yellow
+    return
+}
+
 $notasFinal = if ($Notas) { $Notas } else { "Release $tag" }
 $assetsOrigen = @($rutaZip, $rutaSha)
 if ($rutaInstaladorExe) { $assetsOrigen += $rutaInstaladorExe }

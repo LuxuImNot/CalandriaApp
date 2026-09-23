@@ -95,7 +95,7 @@ namespace DynamicSepticSystem
             }
             catch (WebView2RuntimeNotFoundException)
             {
-                ErrorLogger.RegistrarMensaje("DestajosWeb", "WebView2 no está instalado; se usa el formulario clásico.");
+                AvisarPantallaClasica("WebView2 no está instalado en este equipo.");
                 return;
             }
             catch { return; }
@@ -143,8 +143,7 @@ namespace DynamicSepticSystem
             }
             catch (Exception ex)
             {
-                ErrorLogger.RegistrarMensaje("DestajosWeb", "WebView2 no pudo iniciar: " + ex.Message);
-                if (!IsDisposed) RestaurarPanelClasico();
+                if (!IsDisposed) RestaurarPanelClasico("WebView2 no pudo iniciar: " + ex.Message);
             }
         }
 
@@ -152,8 +151,7 @@ namespace DynamicSepticSystem
         {
             if (!e.IsSuccess)
             {
-                ErrorLogger.RegistrarMensaje("DestajosWeb", "WebView2 no inicializó: " + e.InitializationException);
-                RestaurarPanelClasico();
+                RestaurarPanelClasico("WebView2 no inicializó: " + e.InitializationException?.Message);
                 return;
             }
 
@@ -195,14 +193,31 @@ namespace DynamicSepticSystem
             }
 
             if (IsDisposed || webPanel?.CoreWebView2 == null) return;
-            if (html == null) { RestaurarPanelClasico(); return; }
+            if (html == null) { RestaurarPanelClasico("no se pudo obtener la página del API ni de la caché local."); return; }
             webPanel.CoreWebView2.NavigateToString(html);
         }
 
-        private void RestaurarPanelClasico()
+        /// <summary>
+        /// Muestra la pantalla clásica. Con <paramref name="motivo"/> se avisa al
+        /// usuario: degradar en silencio hacía imposible notar en qué pantalla estabas.
+        /// La clásica ya persiste por el mismo api/destajos, así que el aviso es
+        /// informativo, no una advertencia de datos.
+        /// </summary>
+        private void RestaurarPanelClasico(string motivo = null)
         {
             if (webPanel != null) webPanel.Visible = false;
             foreach (var c in ocultosPorPanelWeb) c.Visible = true;
+            if (motivo != null) AvisarPantallaClasica(motivo);
+        }
+
+        private void AvisarPantallaClasica(string motivo)
+        {
+            ErrorLogger.RegistrarMensaje("DestajosWeb", "Se usa la pantalla clásica: " + motivo);
+            MessageBox.Show(
+                "No se pudo abrir la pantalla de destajos web:" + Environment.NewLine + Environment.NewLine + motivo +
+                Environment.NewLine + Environment.NewLine +
+                "Se abre la pantalla clásica, que trabaja contra la misma obra.",
+                "Destajos", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         // ------------------------------------------------------------------
@@ -1499,52 +1514,17 @@ namespace DynamicSepticSystem
         }
 
         // ------------------------------------------------------------------
-        // Insumos — mismo cálculo que ConstruirTablaInsumos, pero el "Usado" sale
-        // del Surtido que ya trae cada nodo desde api/destajos/arbol (sin SQL nueva).
+        // Insumos
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// El panel web y el paso-a-paso abren el MISMO diálogo de insumos
+        /// (MostrarInsumos, en el partial .Insumos.cs): un solo cálculo, con su
+        /// formato de excesos y sus totales.
+        /// </summary>
         private void InsumosWeb()
         {
-            if (itemsTareas == null || itemsTareas.Count == 0)
-            {
-                MessageBox.Show("Carga las tareas de una Manzana y Lote para ver los insumos.",
-                    "Insumos", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            DataTable dt = ConstruirTablaInsumosWeb();
-            string titulo = string.IsNullOrEmpty(manzanaActual)
-                ? "Insumos — Programados / Usados"
-                : $"Insumos — M{manzanaActual} L{loteActual}  (Programados / Usados)";
-
-            using (var dlg = new Form
-            {
-                Text = titulo,
-                StartPosition = FormStartPosition.CenterParent,
-                Size = new Size(880, 620),
-                MinimumSize = new Size(640, 420),
-                ShowInTaskbar = false,
-                Font = new Font("Segoe UI", 9F)
-            })
-            {
-                var grid = new DataGridView
-                {
-                    Dock = DockStyle.Fill,
-                    DataSource = dt,
-                    ReadOnly = true,
-                    AllowUserToAddRows = false,
-                    AllowUserToDeleteRows = false,
-                    AllowUserToResizeRows = false,
-                    RowHeadersVisible = false,
-                    SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-                    BackgroundColor = Color.White,
-                    BorderStyle = BorderStyle.None,
-                    EnableHeadersVisualStyles = false
-                };
-                dlg.Controls.Add(grid);
-                dlg.ShowDialog(this);
-            }
+            MostrarInsumos();
         }
 
 
@@ -1814,47 +1794,5 @@ namespace DynamicSepticSystem
             }
         }
 
-        private DataTable ConstruirTablaInsumosWeb()
-        {
-            var dt = new DataTable();
-            dt.Columns.Add("Clave", typeof(string));
-            dt.Columns.Add("Insumo", typeof(string));
-            dt.Columns.Add("Unidad", typeof(string));
-            dt.Columns.Add("Programado", typeof(decimal));
-            dt.Columns.Add("Usado", typeof(decimal));
-            dt.Columns.Add("Pendiente", typeof(decimal));
-            dt.Columns.Add("ImporteProg", typeof(decimal));
-            dt.Columns.Add("ImporteUsado", typeof(decimal));
-
-            string Clave(string clave, string nombre) =>
-                !string.IsNullOrWhiteSpace(clave) ? "C:" + clave.Trim().ToUpperInvariant()
-                                                  : "N:" + (nombre ?? "").Trim().ToUpperInvariant();
-
-            var grupos = itemsTareas
-                .Where(i => i.Nivel == 2 && i.TipoTareaEnum == TipoTarea.Material)
-                .GroupBy(i => Clave(i.Clave, i.Nombre));
-
-            foreach (var g in grupos)
-            {
-                var primero = g.First();
-                decimal cant = g.Sum(x => x.Cantidad);
-                // El Surtido ya es el total resuelto por clave/nombre para toda la
-                // casa (api/destajos/arbol); es el mismo valor en cada nodo del grupo.
-                decimal usado = primero.Surtido;
-                decimal precio = primero.PrecioUnitario;
-
-                var row = dt.NewRow();
-                row["Clave"] = primero.Clave ?? "";
-                row["Insumo"] = primero.Nombre ?? "";
-                row["Unidad"] = primero.Unidad ?? "";
-                row["Programado"] = cant;
-                row["Usado"] = usado;
-                row["Pendiente"] = Math.Max(0m, cant - usado);
-                row["ImporteProg"] = cant * precio;
-                row["ImporteUsado"] = usado * precio;
-                dt.Rows.Add(row);
-            }
-            return dt;
-        }
     }
 }

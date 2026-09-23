@@ -146,10 +146,12 @@ namespace DynamicSepticSystem
                 }
             }
 
-            // Insumos a comprar = SOLO destajos ACTIVADOS de cada casa (regla del cliente).
-            // Cada casa (manzana-lote) aporta los suyos y se SUMAN: varias casas y varios
-            // destajos conviven en una sola OC. Algunos insumos vienen SIN clave de almacén
-            // (se rastrean por nombre, ClaveResuelta=false).
+            // Insumos a comprar = TODAS las tareas Material del árbol de destajos de cada
+            // casa (api/compras/catalogo-destajos; la explosión COMPRAS* dejó de usarse
+            // porque estaba desfasada). Cada casa (manzana-lote) aporta los suyos y se
+            // SUMAN: varias casas y varios destajos conviven en una sola OC. Algunos
+            // insumos vienen SIN clave de almacén (se rastrean por nombre,
+            // ClaveResuelta=false).
             foreach (var casa in casas)
             {
                 var filas = ApiClient.Get<List<CatalogoMaterialApi>>(
@@ -186,19 +188,18 @@ namespace DynamicSepticSystem
                 }
             }
 
-            // Descontar lo ya pedido (pendiente) por clave, una sola vez, y quitar lo que
-            // quede en 0 o negativo (ya está cubierto por una OC previa).
+            // Descontar lo ya pedido (pendiente) por clave, una sola vez. La fila se QUEDA
+            // aunque llegue a 0: antes se borraba, y eso escondía del catálogo tareas
+            // Material reales (no se podían comprar de más aunque hiciera falta).
             foreach (var insumo in insumosTotales.Values)
             {
                 if (string.IsNullOrWhiteSpace(insumo.Clave)) continue;
                 if (faltantesPorClave.TryGetValue(insumo.Clave, out decimal pendiente) && pendiente > 0)
                 {
-                    insumo.Cantidad = Math.Round(insumo.Cantidad - pendiente, 3);
+                    insumo.Cantidad = Math.Max(0m, Math.Round(insumo.Cantidad - pendiente, 3));
                     insumo.EsModificado = true;
                 }
             }
-            foreach (var k in insumosTotales.Where(kv => kv.Value.Cantidad <= 0).Select(kv => kv.Key).ToList())
-                insumosTotales.Remove(k);
 
             // Lo que ya está en el carrito NO debe reaparecer en el catálogo (se movió).
             var enCarrito = olvCarrito.Objects?.Cast<InsumoOrdenCompra>().ToList()

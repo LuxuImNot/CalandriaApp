@@ -1,11 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Data;
-using System.Data.SqlClient;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using BrightIdeasSoftware;
@@ -20,7 +17,6 @@ namespace DynamicSepticSystem
     {
         #region Campos privados
 
-        private readonly string connectionString;
         private string nombreTabla;
         private List<NodoTree> nodosRaiz;
         private List<ColumnaTreeList> columnasPersonalizadas;
@@ -42,13 +38,12 @@ namespace DynamicSepticSystem
 
         #region Constructor
 
-        public FormEditorTreeList(string connectionString, string nombreTablaInicial = "RutaTuneraDestajo")
+        public FormEditorTreeList(string nombreTablaInicial = "RutaTuneraDestajo")
         {
             InitializeComponent();
             ThemeManager.AplicarTema(this);
             RestaurarEstilosBotonesPanel();
 
-            this.connectionString = connectionString;
             this.nombreTabla = nombreTablaInicial;
             this.nodosRaiz = new List<NodoTree>();
             this.columnasPersonalizadas = new List<ColumnaTreeList>();
@@ -741,100 +736,70 @@ namespace DynamicSepticSystem
         
         #region Carga de datos
 
+        /// <summary>
+        /// Trae el arbol y las definiciones de columnas de la ruta actual desde
+        /// api/editor-tareas. Este editor ya NO habla SQL directo: la cadena del
+        /// cliente (CalandriaConn) apunta siempre a la misma base, mientras que el
+        /// API resuelve la BD de la obra activa (X-Obra-Id). Ir por el API es lo que
+        /// mantiene a este editor y al editor web escribiendo en la MISMA base; si no,
+        /// lo guardado aqui no aparece en los reportes de destajos de la obra.
+        /// </summary>
         private void CargarDatosIniciales()
         {
             try
             {
-                CargarColumnasPersonalizadas();
-                CargarNodos();
+                var arbol = ApiClient.Get<ArbolEditorApi>(
+                    "/api/editor-tareas/arbol?ruta=" + Uri.EscapeDataString(nombreTabla));
+
+                CargarColumnasPersonalizadas(arbol?.Columnas);
+                CargarNodos(arbol?.Nodos);
                 ActualizarTreeListView();
                 ActualizarEstadoBotones();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al cargar datos:\n\n{ex.Message}",
+                ErrorLogger.Registrar(ex, "FormEditorTreeList.CargarDatosIniciales [" + nombreTabla + "]");
+                MessageBox.Show("Error al cargar datos:\n\n" + ex.Message,
                     "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
-        private void CargarColumnasPersonalizadas()
+        private void CargarColumnasPersonalizadas(List<ColumnaDefApi> definiciones)
+        {
+            AplicarColumnas((definiciones ?? new List<ColumnaDefApi>())
+                .Select(def => new ColumnaTreeList
+                {
+                    Nombre = def.Nombre,
+                    Titulo = def.Titulo,
+                    Ancho = def.Ancho,
+                    TipoDato = Type.GetType(def.TipoDato ?? "") ?? typeof(string),
+                    EsEditable = def.EsEditable,
+                    Formato = def.Formato,
+                    EsCalculada = def.EsCalculada,
+                    TipoOperacion = (TipoOperacion)def.TipoOperacion,
+                    ColumnaOrigen1 = def.ColumnaOrigen1,
+                    ColumnaOrigen2 = def.ColumnaOrigen2
+                })
+                .ToList());
+        }
+
+        /// <summary>Deja el TreeListView con exactamente estas columnas personalizadas.</summary>
+        private void AplicarColumnas(List<ColumnaTreeList> columnas)
         {
             columnasPersonalizadas.Clear();
-            
+
             // Limpiar columnas personalizadas existentes del TreeView
-            var columnasBase = treeListView.AllColumns.Count;
-            while (treeListView.AllColumns.Count > 6) // Mantener solo las 6 columnas base (# Destajo, Nombre, Tipo, Tipo Tarea, Descripci�n, Orden)
+            while (treeListView.AllColumns.Count > 6) // Mantener solo las 6 columnas base
             {
                 treeListView.AllColumns.RemoveAt(6);
             }
-            
-            try
+
+            foreach (var columna in columnas ?? new List<ColumnaTreeList>())
             {
-                using (var conn = new SqlConnection(connectionString))
-                {
-                    conn.Open();
-                    
-                    string sql = $@"
-                        SELECT Nombre, Titulo, Ancho, TipoDato, EsEditable, Formato,
-                               EsCalculada, TipoOperacion, ColumnaOrigen1, ColumnaOrigen2
-                        FROM {nombreTabla}_ColumnasDefinicion
-                        ORDER BY ID";
-                    
-                    using (var cmd = new SqlCommand(sql, conn))
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            var columna = new ColumnaTreeList
-                            {
-                                Nombre = reader["Nombre"].ToString(),
-                                Titulo = reader["Titulo"].ToString(),
-                                Ancho = Convert.ToInt32(reader["Ancho"]),
-                                TipoDato = Type.GetType(reader["TipoDato"].ToString()) ?? typeof(string),
-                                EsEditable = Convert.ToBoolean(reader["EsEditable"]),
-                                Formato = reader["Formato"] != DBNull.Value ? reader["Formato"].ToString() : null,
-                                EsCalculada = reader["EsCalculada"] != DBNull.Value ? Convert.ToBoolean(reader["EsCalculada"]) : false,
-                                TipoOperacion = reader["TipoOperacion"] != DBNull.Value ? (TipoOperacion)Convert.ToInt32(reader["TipoOperacion"]) : TipoOperacion.Ninguna,
-                                ColumnaOrigen1 = reader["ColumnaOrigen1"] != DBNull.Value ? reader["ColumnaOrigen1"].ToString() : null,
-                                ColumnaOrigen2 = reader["ColumnaOrigen2"] != DBNull.Value ? reader["ColumnaOrigen2"].ToString() : null
-                            };
-                            
-                            columnasPersonalizadas.Add(columna);
-                            AgregarColumnaAlTreeView(columna);
-                        }
-                    }
-                }
+                columnasPersonalizadas.Add(columna);
+                AgregarColumnaAlTreeView(columna);
             }
-            catch (SqlException ex)
-            {
-                // Si la tabla no existe, mostrar mensaje informativo
-                if (ex.Message.Contains("Invalid object name"))
-                {
-                    MessageBox.Show(
-                        $"La tabla '{nombreTabla}_ColumnasDefinicion' no existe en la base de datos.\n\n" +
-                        "Por favor, ejecuta el script SQL correspondiente:\n" +
-                        "- Para RutaTuneraDestajo: SQL_SCRIPTS\\CrearTablasRutaCalandraDestajo.sql\n" +
-                        "- Para RutaCalandraDestajo: SQL_SCRIPTS\\CrearTablasRutaCalandraDestajo.sql",
-                        "Tabla no encontrada",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                }
-                else if (ex.Message.Contains("Invalid column name"))
-                {
-                    MessageBox.Show(
-                        $"La tabla '{nombreTabla}_ColumnasDefinicion' necesita ser actualizada.\n\n" +
-                        "Por favor, ejecuta el script SQL para agregar los campos de columnas calculadas:\n" +
-                        "SQL_SCRIPTS\\AgregarCamposColumnasCalculadas.sql",
-                        "Tabla desactualizada",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning);
-                }
-                else
-                {
-                    throw;
-                }
-            }
-            
+
             treeListView.RebuildColumns();
         }
 
@@ -969,66 +934,36 @@ namespace DynamicSepticSystem
         /// Carga los nodos de la base de datos a la lista de nodos en memoria.
         /// Se llama al iniciar y al cambiar de tabla.
         /// </summary>
-        private void CargarNodos()
+        private void CargarNodos(List<NodoEditorApi> nodos)
         {
             nodosRaiz.Clear();
             var todosLosNodos = new Dictionary<int, NodoTree>();
-            
-            using (var conn = new SqlConnection(connectionString))
+
+            foreach (var n in nodos ?? new List<NodoEditorApi>())
             {
-                conn.Open();
-                
-                string sql = $@"
-                    SELECT ID, ParentID, Nombre, Descripcion, Orden, Nivel,
-                           FechaCreacion, FechaModificacion, UsuarioCreacion, TipoTarea
-                    FROM {nombreTabla}
-                    ORDER BY Nivel, Orden";
-                
-                using (var cmd = new SqlCommand(sql, conn))
-                using (var reader = cmd.ExecuteReader())
+                var nodo = new NodoTree
                 {
-                    while (reader.Read())
-                    {
-                        var nodo = new NodoTree
-                        {
-                            ID = Convert.ToInt32(reader["ID"]),
-                            ParentID = reader["ParentID"] != DBNull.Value ? (int?)Convert.ToInt32(reader["ParentID"]) : null,
-                            Nombre = reader["Nombre"].ToString(),
-                            Descripcion = reader["Descripcion"] != DBNull.Value ? reader["Descripcion"].ToString() : null,
-                            Orden = Convert.ToInt32(reader["Orden"]),
-                            Nivel = Convert.ToInt32(reader["Nivel"]),
-                            FechaCreacion = Convert.ToDateTime(reader["FechaCreacion"]),
-                            FechaModificacion = reader["FechaModificacion"] != DBNull.Value ? (DateTime?)Convert.ToDateTime(reader["FechaModificacion"]) : null,
-                            UsuarioCreacion = reader["UsuarioCreacion"] != DBNull.Value ? reader["UsuarioCreacion"].ToString() : null,
-                            TipoTarea = reader["TipoTarea"] != DBNull.Value ? (TipoTarea)Convert.ToInt32(reader["TipoTarea"]) : TipoTarea.Ninguno
-                        };
-                        
-                        todosLosNodos[nodo.ID] = nodo;
-                        
-                        if (nodo.ID >= siguienteId)
-                            siguienteId = nodo.ID + 1;
-                    }
-                }
-                
-                sql = $@"SELECT NodoID, NombreColumna, Valor FROM {nombreTabla}_Columnas";
-                
-                using (var cmd = new SqlCommand(sql, conn))
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        int nodoId = Convert.ToInt32(reader["NodoID"]);
-                        string columna = reader["NombreColumna"].ToString();
-                        object valor = reader["Valor"] != DBNull.Value ? reader["Valor"] : null;
-                        
-                        if (todosLosNodos.ContainsKey(nodoId))
-                        {
-                            todosLosNodos[nodoId].EstablecerValorColumna(columna, valor);
-                        }
-                    }
-                }
+                    ID = n.Id,
+                    ParentID = n.ParentId,
+                    Nombre = n.Nombre,
+                    Descripcion = string.IsNullOrEmpty(n.Descripcion) ? null : n.Descripcion,
+                    Orden = n.Orden,
+                    Nivel = n.Nivel,
+                    FechaCreacion = n.FechaCreacion,
+                    FechaModificacion = n.FechaModificacion,
+                    UsuarioCreacion = n.UsuarioCreacion,
+                    TipoTarea = (TipoTarea)n.TipoTarea
+                };
+
+                foreach (var kvp in n.Valores ?? new Dictionary<string, string>())
+                    nodo.EstablecerValorColumna(kvp.Key, kvp.Value);
+
+                todosLosNodos[nodo.ID] = nodo;
+
+                if (nodo.ID >= siguienteId)
+                    siguienteId = nodo.ID + 1;
             }
-            
+
             foreach (var nodo in todosLosNodos.Values)
             {
                 if (nodo.ParentID == null)
@@ -1720,11 +1655,14 @@ namespace DynamicSepticSystem
 
         private void btnGestionarColumnas_Click(object sender, EventArgs e)
         {
-            using (var dialog = new DialogGestionarColumnas(columnasPersonalizadas, connectionString, nombreTabla))
+            using (var dialog = new DialogGestionarColumnas(columnasPersonalizadas))
             {
                 if (dialog.ShowDialog() == DialogResult.OK)
                 {
-                    CargarColumnasPersonalizadas();
+                    // El dialogo ya no persiste por su cuenta: las definiciones viajan
+                    // con el proximo Guardar (mismo POST que el arbol), igual que en el
+                    // editor web.
+                    AplicarColumnas(dialog.Columnas);
                     cambiosPendientes = true;
                     ActualizarEstadoBotones();
                 }
@@ -1803,7 +1741,11 @@ namespace DynamicSepticSystem
 
             try
             {
-                await Task.Run(() => GuardarArbolEnDb(nodosMemoria));
+                // El remap vuelve al hilo de UI: cambiar NodoTree.ID dispara
+                // PropertyChanged y el arbol esta enlazado al TreeListView.
+                var remap = await Task.Run(() => GuardarArbolPorApi(nodosMemoria));
+                AplicarIdsReasignados(nodosMemoria, remap);
+                foreach (var nodo in nodosMemoria) nodo.EsNuevo = false;
 
                 cambiosPendientes = false;
                 MessageBox.Show(
@@ -1817,7 +1759,7 @@ namespace DynamicSepticSystem
                 // log central para no depender de lo que alcance a leerse en el diálogo.
                 ErrorLogger.Registrar(ex, $"FormEditorTreeList.GuardarCambiosAsync [{nombreTabla}]");
 
-                string detalle = ex.Message;
+                string detalle = (ex as ApiException)?.Mensaje ?? ex.Message;
                 if (ex.InnerException != null)
                     detalle += "\n\nCausa: " + ex.InnerException.Message;
 
@@ -1845,95 +1787,94 @@ namespace DynamicSepticSystem
         }
 
         /// <summary>
-        /// Trabajo de BD del guardado (corre en hilo de fondo). Mantiene el upsert
-        /// por nodo de la tabla principal para preservar el progreso por casa
-        /// (ActivacionTareasRuta), pero sincroniza las columnas en BLOQUE en vez de
-        /// un DELETE+INSERT por cada nodo, que era la mayor fuente de round-trips.
-        /// _Columnas no tiene FK saliente hacia ActivacionTareasRuta, así que el
-        /// borrado total es seguro (se reinsertan las columnas vigentes en memoria).
+        /// Guardado (corre en hilo de fondo): UN POST atomico a api/editor-tareas con
+        /// el arbol completo y las definiciones de columnas. El upsert por nodo -que
+        /// preserva el progreso por casa (ActivacionTareasRuta)- y la resincronizacion
+        /// de columnas viven ahora en EditorTareasController, compartidos con el editor
+        /// web; asi las dos pantallas escriben en la BD de la obra activa y no en la
+        /// cadena fija del cliente.
+        /// Devuelve los IDs que el servidor tuvo que re-asignar (colision con nodos que
+        /// otra sesion inserto mientras tanto).
         /// </summary>
-        private void GuardarArbolEnDb(List<NodoTree> nodosMemoria)
+        private Dictionary<int, int> GuardarArbolPorApi(List<NodoTree> nodosMemoria)
         {
-            using (var conn = new SqlConnection(connectionString))
+            var respuesta = ApiClient.Post<GuardarArbolResponseApi>("/api/editor-tareas/guardar", new
             {
-                conn.Open();
-                using (var transaction = conn.BeginTransaction())
+                Ruta = nombreTabla,
+                Nodos = nodosMemoria.Select(ANodoApi).ToList(),
+                Columnas = columnasPersonalizadas.Select(AColumnaApi).ToList()
+            });
+
+            return respuesta?.IdsReasignados ?? new Dictionary<int, int>();
+        }
+
+        private static NodoEditorApi ANodoApi(NodoTree nodo)
+        {
+            var valores = new Dictionary<string, string>();
+            if (nodo.ColumnasAdicionales != null)
+            {
+                foreach (var kvp in nodo.ColumnasAdicionales)
                 {
-                    try
-                    {
-                        // 1) Leer IDs existentes en DB
-                        var idsExistentes = LeerIdsExistentes(conn, transaction);
-
-                        // 1.1) Re-asignar IDs de nodos NUEVOS que choquen con filas que
-                        //      otra sesión insertó mientras tanto. Evita que un nodo nuevo
-                        //      se confunda con uno existente (sobrescritura) o reviente la
-                        //      PK. Debe ir ANTES de calcular idsMemoria y del upsert.
-                        ReasignarIdsEnConflicto(nodosMemoria, idsExistentes);
-
-                        // 1.2) Guardia: ningún ID duplicado en memoria (el árbol se
-                        //      corrompería: un nodo pisaría a otro en la tabla).
-                        var dup = nodosMemoria.GroupBy(n => n.ID).FirstOrDefault(g => g.Count() > 1);
-                        if (dup != null)
-                            throw new InvalidOperationException(
-                                $"Hay nodos con el mismo ID={dup.Key} en memoria " +
-                                $"('{string.Join("', '", dup.Select(n => n.Nombre))}'). " +
-                                "No se guardó para no corromper el árbol.");
-
-                        var idsMemoria = new HashSet<int>(nodosMemoria.Select(n => n.ID));
-
-                        // 2) Upsert recorriendo top-down (los padres existen antes
-                        //    de tocar a sus hijos, así no se rompe el FK self-ref)
-                        foreach (var nodo in nodosMemoria)
-                        {
-                            try
-                            {
-                                if (idsExistentes.Contains(nodo.ID))
-                                    ActualizarNodo(nodo, conn, transaction);
-                                else
-                                    InsertarNodo(nodo, conn, transaction);
-                            }
-                            catch (Exception exNodo)
-                            {
-                                // Adjuntar QUÉ nodo falló para no tener que adivinar.
-                                string ctx = $"[{nombreTabla}] Falló {(idsExistentes.Contains(nodo.ID) ? "UPDATE" : "INSERT")} " +
-                                             $"del nodo ID={nodo.ID} ParentID={(nodo.ParentID?.ToString() ?? "null")} " +
-                                             $"Nivel={nodo.Nivel} Orden={nodo.Orden} Tipo={nodo.TipoTarea} " +
-                                             $"Nombre='{nodo.Nombre}'";
-                                ErrorLogger.RegistrarMensaje("FormEditorTreeList.GuardarArbolEnDb", ctx + "\n" + exNodo);
-                                throw new Exception(ctx + "\n\nDetalle: " + exNodo.Message, exNodo);
-                            }
-                        }
-
-                        // 3) Sincronizar las columnas adicionales en bloque.
-                        SincronizarColumnasBulk(nodosMemoria, conn, transaction);
-
-                        // 4) Eliminar solo los nodos que ya no están en memoria.
-                        //    El CASCADE del FK eliminará únicamente sus activaciones,
-                        //    preservando el progreso del resto de la casa.
-                        var idsAEliminar = idsExistentes
-                            .Where(id => !idsMemoria.Contains(id))
-                            .ToList();
-                        foreach (var id in idsAEliminar)
-                            EliminarNodo(id, conn, transaction);
-
-                        transaction.Commit();
-
-                        // Ya persistidos: dejan de ser "nuevos" para que un segundo
-                        // guardado los trate como existentes (UPDATE) y no se re-keyen.
-                        foreach (var nodo in nodosMemoria)
-                            nodo.EsNuevo = false;
-                    }
-                    catch
-                    {
-                        transaction.Rollback();
-                        throw;
-                    }
+                    string texto = ValorComoTexto(kvp.Value);
+                    if (!string.IsNullOrEmpty(texto)) valores[kvp.Key] = texto;
                 }
+            }
+
+            return new NodoEditorApi
+            {
+                Id = nodo.ID,
+                ParentId = nodo.ParentID,
+                Nombre = nodo.Nombre ?? string.Empty,
+                Descripcion = nodo.Descripcion,
+                Orden = nodo.Orden,
+                Nivel = nodo.Nivel,
+                TipoTarea = (int)nodo.TipoTarea,
+                EsNuevo = nodo.EsNuevo,
+                Valores = valores
+            };
+        }
+
+        private static ColumnaDefApi AColumnaApi(ColumnaTreeList col)
+        {
+            return new ColumnaDefApi
+            {
+                Nombre = col.Nombre,
+                Titulo = col.Titulo,
+                Ancho = col.Ancho,
+                TipoDato = (col.TipoDato ?? typeof(string)).FullName,
+                EsEditable = col.EsEditable,
+                Formato = col.Formato,
+                EsCalculada = col.EsCalculada,
+                TipoOperacion = (int)col.TipoOperacion,
+                ColumnaOrigen1 = col.ColumnaOrigen1,
+                ColumnaOrigen2 = col.ColumnaOrigen2
+            };
+        }
+
+        /// <summary>
+        /// Aplica en memoria los IDs que el servidor re-asigno a nodos nuevos (su numero
+        /// ya existia en BD porque otra sesion inserto mientras este editor estaba
+        /// abierto). Sin esto, un segundo guardado los duplicaria.
+        /// </summary>
+        private static void AplicarIdsReasignados(List<NodoTree> nodos, Dictionary<int, int> remap)
+        {
+            if (remap == null || remap.Count == 0) return;
+
+            foreach (var n in nodos)
+            {
+                if (n.ParentID.HasValue && remap.TryGetValue(n.ParentID.Value, out int nuevoPadre))
+                    n.ParentID = nuevoPadre;
+            }
+
+            foreach (var n in nodos)
+            {
+                if (remap.TryGetValue(n.ID, out int nuevo))
+                    n.ID = nuevo;
             }
         }
 
         /// <summary>
-        /// Devuelve los nodos del árbol en orden top-down (raíces, luego hijos),
+        /// Devuelve los nodos del arbol en orden top-down (raices, luego hijos),
         /// de forma que un padre siempre aparece antes que sus descendientes.
         /// </summary>
         private static List<NodoTree> AplanarTopDown(List<NodoTree> raices)
@@ -1953,267 +1894,17 @@ namespace DynamicSepticSystem
         }
 
         /// <summary>
-        /// Re-asigna el ID de los nodos NUEVOS cuyo número ya exista en la BD (porque
-        /// otra sesión insertó nodos mientras este editor estaba abierto). Sin esto, el
-        /// upsert confundiría el nodo nuevo con el existente y lo sobrescribiría, o
-        /// rompería la PK. Reapunta también el ParentID de los hijos afectados.
-        /// </summary>
-        private void ReasignarIdsEnConflicto(List<NodoTree> nodos, HashSet<int> idsExistentes)
-        {
-            // IDs ya ocupados = los de la BD + los que usan los nodos en memoria.
-            var ocupados = new HashSet<int>(idsExistentes);
-            foreach (var n in nodos) ocupados.Add(n.ID);
-            int siguiente = ocupados.Count > 0 ? ocupados.Max() + 1 : 1;
-
-            var remap = new Dictionary<int, int>();
-            foreach (var n in nodos)
-            {
-                if (n.EsNuevo && idsExistentes.Contains(n.ID))
-                {
-                    int nuevo = siguiente++;
-                    while (ocupados.Contains(nuevo)) nuevo = siguiente++;
-                    ocupados.Add(nuevo);
-                    remap[n.ID] = nuevo;
-                    n.ID = nuevo;
-                }
-            }
-
-            if (remap.Count == 0) return;
-
-            // Reapuntar los hijos cuyo padre fue re-keyado (remap usa el ID viejo).
-            foreach (var n in nodos)
-                if (n.ParentID.HasValue && remap.TryGetValue(n.ParentID.Value, out int nuevoPadre))
-                    n.ParentID = nuevoPadre;
-
-            ErrorLogger.RegistrarMensaje("FormEditorTreeList.ReasignarIdsEnConflicto",
-                $"[{nombreTabla}] Se re-asignaron {remap.Count} ID(s) de nodos nuevos por colisión " +
-                $"con la BD: {string.Join(", ", remap.Select(kv => kv.Key + "->" + kv.Value))}");
-        }
-
-        private HashSet<int> LeerIdsExistentes(SqlConnection conn, SqlTransaction transaction)
-        {
-            var ids = new HashSet<int>();
-            using (var cmd = new SqlCommand($"SELECT ID FROM {nombreTabla}", conn, transaction))
-            using (var reader = cmd.ExecuteReader())
-            {
-                while (reader.Read())
-                    ids.Add(reader.GetInt32(0));
-            }
-            return ids;
-        }
-
-        private void InsertarNodo(NodoTree nodo, SqlConnection conn, SqlTransaction transaction)
-        {
-            string sql = $@"
-                INSERT INTO {nombreTabla}
-                    (ID, ParentID, Nombre, Descripcion, Orden, Nivel,
-                     FechaCreacion, FechaModificacion, UsuarioCreacion, TipoTarea)
-                VALUES
-                    (@id, @parentId, @nombre, @descripcion, @orden, @nivel,
-                     @fechaCreacion, @fechaModificacion, @usuarioCreacion, @tipoTarea)";
-
-            using (var cmd = new SqlCommand(sql, conn, transaction))
-            {
-                cmd.Parameters.AddWithValue("@id", nodo.ID);
-                cmd.Parameters.AddWithValue("@parentId", (object)nodo.ParentID ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@nombre", nodo.Nombre ?? string.Empty);
-                cmd.Parameters.AddWithValue("@descripcion", (object)nodo.Descripcion ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@orden", nodo.Orden);
-                cmd.Parameters.AddWithValue("@nivel", nodo.Nivel);
-                cmd.Parameters.AddWithValue("@fechaCreacion", nodo.FechaCreacion);
-                cmd.Parameters.AddWithValue("@fechaModificacion", (object)nodo.FechaModificacion ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@usuarioCreacion", (object)nodo.UsuarioCreacion ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@tipoTarea", (int)nodo.TipoTarea);
-                cmd.ExecuteNonQuery();
-            }
-        }
-
-        private void ActualizarNodo(NodoTree nodo, SqlConnection conn, SqlTransaction transaction)
-        {
-            string sql = $@"
-                UPDATE {nombreTabla}
-                   SET ParentID          = @parentId,
-                       Nombre            = @nombre,
-                       Descripcion       = @descripcion,
-                       Orden             = @orden,
-                       Nivel             = @nivel,
-                       FechaModificacion = @fechaModificacion,
-                       UsuarioCreacion   = @usuarioCreacion,
-                       TipoTarea         = @tipoTarea
-                 WHERE ID = @id";
-
-            using (var cmd = new SqlCommand(sql, conn, transaction))
-            {
-                cmd.Parameters.AddWithValue("@id", nodo.ID);
-                cmd.Parameters.AddWithValue("@parentId", (object)nodo.ParentID ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@nombre", nodo.Nombre ?? string.Empty);
-                cmd.Parameters.AddWithValue("@descripcion", (object)nodo.Descripcion ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@orden", nodo.Orden);
-                cmd.Parameters.AddWithValue("@nivel", nodo.Nivel);
-                cmd.Parameters.AddWithValue("@fechaModificacion", DateTime.Now);
-                cmd.Parameters.AddWithValue("@usuarioCreacion", (object)nodo.UsuarioCreacion ?? DBNull.Value);
-                cmd.Parameters.AddWithValue("@tipoTarea", (int)nodo.TipoTarea);
-                cmd.ExecuteNonQuery();
-            }
-        }
-
-        /// <summary>
-        /// Re-sincroniza TODAS las columnas adicionales (Cantidad / Unidad / Precio /
-        /// etc.) en bloque: un único DELETE y luego INSERT por lotes. Antes se hacía
-        /// un DELETE + N INSERT por cada nodo, lo que en árboles grandes generaba
-        /// cientos/miles de round-trips y era la causa principal de la lentitud.
-        /// _Columnas no tiene FK saliente hacia ActivacionTareasRuta, así que el
-        /// borrado total es seguro (se reinsertan las columnas vigentes en memoria).
-        /// </summary>
-        private void SincronizarColumnasBulk(List<NodoTree> nodos, SqlConnection conn, SqlTransaction transaction)
-        {
-            // 1) Limpiar de una sola vez. Las filas de nodos eliminados desaparecen
-            //    aquí y simplemente no se vuelven a insertar.
-            using (var cmdDel = new SqlCommand($"DELETE FROM {nombreTabla}_Columnas", conn, transaction))
-            {
-                cmdDel.ExecuteNonQuery();
-            }
-
-            // 2) Aplanar todas las filas a insertar (NodoID, NombreColumna, Valor).
-            var filas = new List<(int NodoId, string Nombre, object Valor)>();
-            foreach (var nodo in nodos)
-            {
-                if (nodo.ColumnasAdicionales == null) continue;
-                foreach (var kvp in nodo.ColumnasAdicionales)
-                    filas.Add((nodo.ID, kvp.Key, kvp.Value));
-            }
-
-            if (filas.Count == 0) return;
-
-            // 3) Insertar en lotes con un INSERT multi-fila. Cada fila usa 3
-            //    parámetros; el límite de SQL Server es 2100, así que 500 filas
-            //    (1500 parámetros) deja margen de sobra.
-            const int filasPorLote = 500;
-            for (int inicio = 0; inicio < filas.Count; inicio += filasPorLote)
-            {
-                int conteo = Math.Min(filasPorLote, filas.Count - inicio);
-                var sb = new StringBuilder();
-                sb.Append($"INSERT INTO {nombreTabla}_Columnas (NodoID, NombreColumna, Valor) VALUES ");
-
-                using (var cmd = new SqlCommand { Connection = conn, Transaction = transaction })
-                {
-                    for (int j = 0; j < conteo; j++)
-                    {
-                        var fila = filas[inicio + j];
-                        if (j > 0) sb.Append(',');
-                        sb.Append($"(@n{j},@c{j},@v{j})");
-                        cmd.Parameters.AddWithValue($"@n{j}", fila.NodoId);
-                        cmd.Parameters.AddWithValue($"@c{j}", fila.Nombre);
-                        // IMPORTANTE: tipar SIEMPRE @v como NVarChar. La columna Valor es
-                        // nvarchar(max), pero AddWithValue infiere el tipo del objeto .NET
-                        // (decimal para columnas calculadas, string para texto, etc.). Al
-                        // mezclar tipos distintos en la MISMA columna de un INSERT
-                        // multi-fila, SQL Server aplica precedencia de tipos y convierte
-                        // TODA la columna a numeric, reventando con "Arithmetic overflow
-                        // converting nvarchar to numeric" en cuanto una fila trae texto o un
-                        // número grande. Forzar nvarchar evita esa coerción.
-                        var pv = cmd.Parameters.Add($"@v{j}", SqlDbType.NVarChar, -1);
-                        pv.Value = (object)ValorComoTexto(fila.Valor) ?? DBNull.Value;
-                    }
-                    cmd.CommandText = sb.ToString();
-                    try
-                    {
-                        cmd.ExecuteNonQuery();
-                    }
-                    catch (Exception exLote)
-                    {
-                        // El INSERT multi-fila no dice CUÁL fila falló. Reinsertamos el
-                        // lote fila por fila para localizar exactamente el valor culpable
-                        // (columna, valor y su tipo .NET, que suele ser la causa de las
-                        // conversiones numéricas inesperadas).
-                        var culpable = LocalizarFilaCulpable(filas, inicio, conteo, conn, transaction);
-                        ErrorLogger.RegistrarMensaje("FormEditorTreeList.SincronizarColumnasBulk",
-                            $"[{nombreTabla}_Columnas] Falló INSERT de columnas. {culpable}\n" + exLote);
-                        throw new Exception(
-                            $"Error guardando columnas en {nombreTabla}_Columnas.\n{culpable}\n\nDetalle: " + exLote.Message,
-                            exLote);
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// Convierte el valor de una columna a su representación de texto para
-        /// almacenarlo en la columna nvarchar(max) Valor. Los tipos numéricos se
-        /// formatean con InvariantCulture (punto decimal) para no introducir comas
-        /// según la configuración regional del equipo y mantener el round-trip con
-        /// los valores ya guardados.
+        /// Convierte el valor de una columna a texto para mandarlo al API (la columna
+        /// Valor es nvarchar). Los numericos se formatean con InvariantCulture (punto
+        /// decimal) para no introducir comas segun la configuracion regional del equipo
+        /// y mantener el round-trip con los valores ya guardados.
         /// </summary>
         private static string ValorComoTexto(object valor)
         {
-            if (valor == null || valor == DBNull.Value) return null;
+            if (valor == null) return null;
             if (valor is string s) return s;
             if (valor is IFormattable f) return f.ToString(null, CultureInfo.InvariantCulture);
             return valor.ToString();
-        }
-
-        /// <summary>
-        /// Reinserta un lote fila por fila (en un savepoint que se revierte siempre)
-        /// para identificar exactamente qué (NodoID, NombreColumna, Valor) provoca el
-        /// fallo del INSERT en bloque. Devuelve una descripción legible de la fila
-        /// culpable, incluyendo el tipo .NET del valor.
-        /// </summary>
-        private string LocalizarFilaCulpable(
-            List<(int NodoId, string Nombre, object Valor)> filas, int inicio, int conteo,
-            SqlConnection conn, SqlTransaction transaction)
-        {
-            try
-            {
-                for (int j = 0; j < conteo; j++)
-                {
-                    var fila = filas[inicio + j];
-                    const string sp = "sp_DiagColumna";
-                    try
-                    {
-                        transaction.Save(sp);
-                        using (var cmd = new SqlCommand(
-                            $"INSERT INTO {nombreTabla}_Columnas (NodoID, NombreColumna, Valor) VALUES (@n,@c,@v)",
-                            conn, transaction))
-                        {
-                            cmd.Parameters.AddWithValue("@n", fila.NodoId);
-                            cmd.Parameters.AddWithValue("@c", fila.Nombre);
-                            var pv = cmd.Parameters.Add("@v", SqlDbType.NVarChar, -1);
-                            pv.Value = (object)ValorComoTexto(fila.Valor) ?? DBNull.Value;
-                            cmd.ExecuteNonQuery();
-                        }
-                        // No nos interesa conservar la fila de prueba.
-                        transaction.Rollback(sp);
-                    }
-                    catch
-                    {
-                        try { transaction.Rollback(sp); } catch { /* la tx pudo quedar abortada */ }
-                        string tipo = fila.Valor?.GetType().Name ?? "null";
-                        string valTxt = fila.Valor?.ToString() ?? "NULL";
-                        if (valTxt.Length > 100) valTxt = valTxt.Substring(0, 100) + "…";
-                        return $"Fila culpable -> NodoID={fila.NodoId}, Columna='{fila.Nombre}', " +
-                               $"Valor='{valTxt}' (tipo .NET={tipo})";
-                    }
-                }
-            }
-            catch
-            {
-                // El aislamiento es solo diagnóstico: nunca debe enmascarar el error real.
-                return "No se pudo aislar la fila culpable (la transacción quedó abortada).";
-            }
-            return "No se pudo aislar una sola fila culpable (¿error a nivel de lote/tabla?).";
-        }
-
-        private void EliminarNodo(int id, SqlConnection conn, SqlTransaction transaction)
-        {
-            // El ON DELETE CASCADE del FK encadenará el borrado solamente para los
-            // descendientes en DB de este nodo (que también están fuera de memoria)
-            // y para sus filas correspondientes en ActivacionTareasRuta.
-            using (var cmd = new SqlCommand(
-                $"DELETE FROM {nombreTabla} WHERE ID = @id", conn, transaction))
-            {
-                cmd.Parameters.AddWithValue("@id", id);
-                cmd.ExecuteNonQuery();
-            }
         }
 
         #endregion

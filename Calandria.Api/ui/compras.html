@@ -864,7 +864,7 @@ table.grid button.row-x:hover{background:var(--stop-bg); color:var(--stop)}
         <div class="field"><label>Cantidad</label><input type="number" id="icCantidad" min="0" step="0.001" value="1"></div>
         <div class="field"><label>Costo</label><input type="number" id="icCosto" min="0" step="0.01" value="0"></div>
       </div>
-      <div class="field"><label>Familia</label><input type="text" id="icFamilia" maxlength="80" value="MANUAL"></div>
+      <div class="field"><label>Familia</label><input type="text" id="icFamilia" maxlength="80" value="MANUAL" readonly title="Los insumos capturados aquí se marcan como MANUAL: así se distinguen de las tareas del árbol de destajos y siguen apareciendo en el catálogo."></div>
     </div>
     <div class="modal-foot">
       <button class="btn" data-cerrar="mbInsumoCatalogo">Cancelar</button>
@@ -1074,7 +1074,7 @@ table.grid button.row-x:hover{background:var(--stop-bg); color:var(--stop)}
   const CONTEXTO_DEFAULT = {
     multi: "Agrega casas para armar la orden",
     indirecta: "Compras administrativas / indirectas",
-    catalogo: "Insumos y proveedores propios de esta obra",
+    catalogo: "Material del árbol de destajos, más los insumos capturados a mano",
     consulta: "Folios generados en el repositorio"
   };
   const cargadas = new Set();
@@ -1723,14 +1723,14 @@ table.grid button.row-x:hover{background:var(--stop-bg); color:var(--stop)}
     const lista = catalogoObraVisible();
     const tbody = $("#tablaCatalogoObra tbody");
     tbody.innerHTML = lista.length === 0
-      ? `<tr><td colspan="7" class="table-empty">Aún no has capturado insumos para esta obra. Usa "Nuevo insumo" para agregar el primero.</td></tr>`
+      ? `<tr><td colspan="7" class="table-empty">No hay tareas de material en el árbol de destajos de este sistema. Agrégalas en el Editor de tareas, o usa "Nuevo insumo" para un insumo suelto.</td></tr>`
       : lista.map(i => `
         <tr data-clave="${esc(i.clave)}">
           <td class="num">${esc(i.clave)}</td><td class="desc">${esc(i.descripcion)}</td><td>${esc(i.unidad)}</td>
           <td class="num">${(+i.cantidad || 0).toFixed(2)}</td><td class="num">${mx(i.precio || 0)}</td><td>${esc(i.familia)}</td>
-          <td><button data-quitar-catalogo="${esc(i.clave)}" title="Eliminar">
+          <td>${(i.familia || "") === "MANUAL" ? `<button data-quitar-catalogo="${esc(i.clave)}" title="Eliminar">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          </button></td>
+          </button>` : `<span title="Viene del árbol de destajos: se quita desde el Editor de tareas.">&mdash;</span>`}</td>
         </tr>`).join("");
   }
   $("#selCatalogoProto").addEventListener("change", renderCatalogoObra);
@@ -1752,7 +1752,7 @@ table.grid button.row-x:hover{background:var(--stop-bg); color:var(--stop)}
     const unidad = $("#icUnidad").value.trim();
     const cantidad = parseFloat($("#icCantidad").value) || 0;
     const costo = parseFloat($("#icCosto").value);
-    const familia = $("#icFamilia").value.trim() || "MANUAL";
+    const familia = "MANUAL"; // fija: distingue lo capturado a mano de lo que viene del árbol
     if (!clave) return aviso("La clave es obligatoria.", true);
     if (!descripcion) return aviso("La descripción es obligatoria.", true);
     cerrarModal("mbInsumoCatalogo");
