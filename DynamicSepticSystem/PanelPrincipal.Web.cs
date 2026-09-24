@@ -35,6 +35,16 @@ namespace DynamicSepticSystem
         private WebView2 webPanel;
         private bool webPanelListo;
 
+        /// <summary>
+        /// Red de seguridad: si el primer EnviarDatosAlPanel falla (p. ej. el token
+        /// aún no está listo justo tras el login, como pasó el 21-sep con un 401),
+        /// OnActivated nunca vuelve a intentarlo porque depende de que la ventana
+        /// reciba foco de Windows —cosa que, con el WebView2 ocupando toda la
+        /// ventana, puede no volver a pasar en toda la sesión—. Este timer reintenta
+        /// solo, sin esperar a que el usuario cambie de ventana.
+        /// </summary>
+        private System.Windows.Forms.Timer refrescoPanelTimer;
+
         /// <summary>Controles del shell WinForms que el panel web tapó, para poder restaurarlos.</summary>
         private readonly List<Control> ocultosPorPanelWeb = new List<Control>();
 
@@ -99,6 +109,10 @@ namespace DynamicSepticSystem
 
             webPanel.CoreWebView2InitializationCompleted += WebPanel_Init;
             _ = IniciarWebView2PanelAsync();
+
+            refrescoPanelTimer = new System.Windows.Forms.Timer { Interval = 30000 };
+            refrescoPanelTimer.Tick += (s, e) => EnviarDatosAlPanel();
+            refrescoPanelTimer.Start();
         }
 
         /// <summary>
