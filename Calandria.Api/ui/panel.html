@@ -315,12 +315,16 @@ button{font:inherit; color:inherit; cursor:pointer}
 
 /* Stats de la casa */
 .c-stats{display:grid; grid-template-columns:auto minmax(0,1fr); gap:18px; padding:16px}
+.ring-col{display:flex; flex-direction:column; align-items:center; gap:8px; flex:none}
 .ring{position:relative; width:104px; height:104px; flex:none}
 .ring svg{transform:rotate(-90deg)}
 .ring-num{
   position:absolute; inset:0; display:grid; place-items:center;
   font-family:var(--mono); font-size:23px; font-weight:600; letter-spacing:-.03em;
 }
+.pct-switch{display:flex; border:1px solid var(--rule); border-radius:99px; padding:2px; background:var(--surface-2)}
+.pct-btn{border:0; background:none; padding:4px 10px; border-radius:99px; font-size:11px; font-weight:600; color:var(--text-3)}
+.pct-btn.is-on{background:var(--surface); color:var(--text); box-shadow:var(--shadow)}
 .c-right{display:flex; flex-direction:column; gap:12px; min-width:0}
 .money{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap}
 .money b{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:-.02em}
@@ -813,6 +817,7 @@ button{font:inherit; color:inherit; cursor:pointer}
     return e;
   };
 
+  let ultimoCasasRaw = null; // ultimo payload de casas aplicado; evita repintar si no cambio nada
   let sel = null;          // casa cargada en el consultor
   let fotos = [];          // evidencias de esa casa
   let fotoIdx = 0;
@@ -1005,6 +1010,31 @@ button{font:inherit; color:inherit; cursor:pointer}
   const cEyebrow = document.getElementById("cEyebrow");
   const cBadges = document.getElementById("cBadges");
 
+  // "importe" (ponderado por dinero, igual que Avance de Obra/Destajos) o
+  // "conteo" (destajos terminados / total): el dinero manda para decidir
+  // cuanto vale cada destajo, pero un destajo barato hecho se siente a cero.
+  let vistaAvance = "importe";
+  const pctConteo = c => (c.total || 0) > 0 ? Math.round((c.comp || 0) * 100 / c.total) : 0;
+  const pctDe = (c, vista) => vista === "conteo" ? pctConteo(c) : Math.max(0, Math.min(100, c.avance || 0));
+
+  function actualizarAvanceVisual() {
+    if (!sel) return;
+    const R = 44, C = 2 * Math.PI * R;
+    const pct = pctDe(sel, vistaAvance);
+    const circle = document.getElementById("cRingProgress");
+    if (circle) circle.setAttribute("stroke-dashoffset", C - C * pct / 100);
+    const num = document.getElementById("cRingNum");
+    if (num) num.textContent = pct + "%";
+    cBody.querySelectorAll(".pct-btn").forEach(b => b.classList.toggle("is-on", b.dataset.pct === vistaAvance));
+  }
+
+  cBody.addEventListener("click", ev => {
+    const b = ev.target.closest(".pct-btn");
+    if (!b || b.dataset.pct === vistaAvance) return;
+    vistaAvance = b.dataset.pct;
+    actualizarAvanceVisual();
+  });
+
   function consultorVacio() {
     cEyebrow.textContent = "Consultor de casa";
     cCode.textContent = "Ninguna casa";
@@ -1047,7 +1077,8 @@ button{font:inherit; color:inherit; cursor:pointer}
   function cuerpoCasa(c) {
     const R = 44, C = 2 * Math.PI * R;
     const color = COLOR[c.estado];
-    const pct = Math.max(0, Math.min(100, c.avance || 0));
+    const pctImporte = Math.max(0, Math.min(100, c.avance || 0));
+    const pct = pctDe(c, vistaAvance);
     const pend = Math.max(0, (c.total || 0) - (c.comp || 0));
     const ultima = c.ultima
       ? new Date(c.ultima).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })
@@ -1061,20 +1092,26 @@ button{font:inherit; color:inherit; cursor:pointer}
       "</div>" +
 
       '<div class="c-stats">' +
-        '<div class="ring">' +
-          '<svg width="104" height="104" viewBox="0 0 104 104">' +
-            '<circle cx="52" cy="52" r="' + R + '" fill="none" stroke="var(--rule-soft)" stroke-width="9"/>' +
-            '<circle cx="52" cy="52" r="' + R + '" fill="none" stroke="' + color + '" stroke-width="9" ' +
-              'stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C - C * pct / 100) + '"/>' +
-          "</svg>" +
-          '<div class="ring-num">' + pct + "%</div>" +
+        '<div class="ring-col">' +
+          '<div class="ring">' +
+            '<svg width="104" height="104" viewBox="0 0 104 104">' +
+              '<circle cx="52" cy="52" r="' + R + '" fill="none" stroke="var(--rule-soft)" stroke-width="9"/>' +
+              '<circle id="cRingProgress" cx="52" cy="52" r="' + R + '" fill="none" stroke="' + color + '" stroke-width="9" ' +
+                'stroke-linecap="round" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C - C * pct / 100) + '"/>' +
+            "</svg>" +
+            '<div class="ring-num" id="cRingNum">' + pct + "%</div>" +
+          "</div>" +
+          '<div class="pct-switch" id="cPctSwitch">' +
+            '<button type="button" class="pct-btn' + (vistaAvance === "importe" ? " is-on" : "") + '" data-pct="importe" title="Ponderado por importe, igual que Avance de Obra">$</button>' +
+            '<button type="button" class="pct-btn' + (vistaAvance === "conteo" ? " is-on" : "") + '" data-pct="conteo" title="Destajos terminados sobre el total">#</button>' +
+          "</div>" +
         "</div>" +
 
         '<div class="c-right">' +
           "<div>" +
             '<div class="eyebrow">Ejecutado</div>' +
             '<div class="money"><b>' + mx(c.ejec) + "</b><span>de " + mx(c.presup) + "</span></div>" +
-            '<div class="meter"><i style="width:' + pct + "%;background:" + color + '"></i></div>' +
+            '<div class="meter"><i style="width:' + pctImporte + "%;background:" + color + '"></i></div>' +
           "</div>" +
 
           '<div class="stats">' +
@@ -1329,6 +1366,13 @@ button{font:inherit; color:inherit; cursor:pointer}
       }
 
       if (Array.isArray(d.casas) && d.casas.length) {
+        // El timer de refresco (cada 30s) manda este mismo mensaje aunque nada
+        // haya cambiado: sin este corte, cada intento reabre el consultor y
+        // repite las animaciones (KPIs, filas de actividad) sin motivo.
+        const crudo = JSON.stringify(d.casas);
+        if (crudo === ultimoCasasRaw) { pintarSaludo(); return; }
+        ultimoCasasRaw = crudo;
+
         // El host reenvía las casas cada vez que se vuelve al tablero: si había
         // una abierta en el consultor, se recarga con sus números nuevos.
         const antes = sel ? { mz: sel.mz, lote: sel.lote } : null;
