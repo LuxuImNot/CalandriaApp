@@ -187,60 +187,8 @@ namespace Calandria.Api.Controllers
                     }
                 }
 
-                // Respaldo: casas sin actividad de destajos pero con avance capturado a
-                // mano (FormHardProgress / AvanceManualObra) — sin esto se ven "idle" en
-                // el mapa aunque sí tengan progreso real registrado por esa vía.
-                if (ExisteTablaRuta(conn, "AvanceManualObra"))
-                {
-                    var manual = CargarAvanceManualPorCasa(conn);
-                    foreach (var r in resultado)
-                    {
-                        if (r.Estado != "idle") continue;
-                        if (!manual.TryGetValue((r.Manzana, r.Lote), out var m)) continue;
-
-                        r.AvancePct = m.AvancePct;
-                        r.Estado = m.AvancePct >= 100 ? "ok" : m.AvancePct > 0 ? "warn" : "idle";
-                        r.UltimaActualizacion = m.UltimaActualizacion;
-                    }
-                }
-
                 return Ok(resultado);
             }
-        }
-
-        private class AvanceManualResumen
-        {
-            public int AvancePct;
-            public DateTime? UltimaActualizacion;
-        }
-
-        /// <summary>
-        /// Avance manual (AvanceManualObra) agregado por casa, para el respaldo de
-        /// ResumenCasas. Promedio simple de AvancePorcentaje por WBS: ImporteTotal
-        /// casi nunca se captura en esta tabla (queda NULL), así que no sirve para
-        /// ponderar.
-        /// </summary>
-        private static Dictionary<(string, string), AvanceManualResumen> CargarAvanceManualPorCasa(SqlConnection conn)
-        {
-            var resultado = new Dictionary<(string, string), AvanceManualResumen>();
-            using (var cmd = new SqlCommand(@"
-                SELECT Manzana, Lote,
-                       AVG(ISNULL(AvancePorcentaje, 0)) AS Pct,
-                       MAX(FechaActualizacion) AS Ultima
-                FROM AvanceManualObra
-                GROUP BY Manzana, Lote", conn))
-            using (var reader = cmd.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    resultado[(reader["Manzana"].ToString(), reader["Lote"].ToString())] = new AvanceManualResumen
-                    {
-                        AvancePct = (int)Math.Round(Convert.ToDouble(reader["Pct"])),
-                        UltimaActualizacion = reader["Ultima"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(reader["Ultima"])
-                    };
-                }
-            }
-            return resultado;
         }
 
         /// <summary>

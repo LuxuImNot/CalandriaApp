@@ -861,6 +861,12 @@
     <None Include="connectionStrings.config.example">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Sin esto el panel web (PanelPrincipal.Web.cs -> LeerCoordenadasParaWeb)
+         no encuentra el archivo junto al .exe instalado y el mapa se queda con
+         su respaldo interno en cero, aunque el API responda bien. -->
+    <None Include="coordenadas_mapa.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.7.2">
